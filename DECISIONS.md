@@ -442,3 +442,62 @@ addresses an actual failure observed in that session, not a hypothetical.
   prose, or whether keeping Declared Preferences strict + relying on
   Observed Taste for the nuance is the preferred form.
 
+---
+
+### 2026-05-02 — Post-Merge Schema Sync Removed (Option A)
+
+### Trigger
+Post-merge setup failed twice in a row (Tasks #3 and #4 merges) because
+`drizzle-kit push` hung on the shared Hostinger MySQL host's schema-pull
+step. The schema-pull introspects every table in the database — including
+neighbor tenants on the shared host — and consistently exceeded the 20s
+default timeout. Bumping to 90s did not help; the command still hung past
+60s when run directly.
+
+### Decision Confirmed
+- Removed `drizzle-kit push` from `scripts/post-merge.sh`. The post-merge
+  script now does only `npm ci`.
+- Designated the API server's runtime `ensureTables()` + `ensureColumn()`
+  path (in `artifacts/api-server/src/lib/db`) as the single source of
+  truth for schema reconciliation in this project.
+- Rationale: the API server restarts immediately after every task merge
+  and runs the runtime migration on startup, so schema changes already
+  ship at that moment. The drizzle-kit push step was redundant in the
+  normal merge flow and was actively blocking merges by timing out.
+- For one-shot pushes outside the normal merge flow (e.g. before a
+  deploy that bypasses the API server startup path), the script's
+  comment block documents the manual command:
+  `npm run push-force --workspace=@workspace/db`.
+
+### Options Considered
+- **A. Drop drizzle-kit push** — chosen. Simplest, matches what already
+  ships, near-zero practical risk because the runtime path runs
+  immediately after every merge.
+- **B. Wrap push in `timeout 60s`** — rejected; would still cause periodic
+  failures without catching anything the runtime path doesn't handle.
+- **C. Replace push with direct `mysql < lib/db/site_settings_install.sql`**
+  — rejected; only covers `site_settings`, would silently miss other
+  table changes, not viable as a general-purpose answer.
+
+### Verification
+- `runPostMergeSetup()` now completes in 14.4s (was timing out at 20s,
+  then failing at 22s after the 90s bump).
+- API server is currently running and serving requests against the same
+  MySQL host without any manual push step, confirming the runtime
+  migration is sufficient.
+
+### Outcome
+- Post-merge setup is now reliable and fast.
+- Schema migration responsibility is consolidated in one place (runtime
+  startup) rather than split between runtime and post-merge.
+- Post-merge timeout configured at 90s in `.replit` is now generous
+  headroom rather than a tight deadline; left in place to absorb
+  occasional `npm ci` variability without re-tuning.
+
+### Unresolved Checkpoints Entering Next Session
+- [ ] If a future schema change is non-additive (column drop, type
+  narrowing, table rename) the runtime `ensureColumn()` path will not
+  catch it — at that point reconsider whether to add a manual push step
+  to a *deploy* script (not the post-merge script) or build a proper
+  drizzle migration runner.
+
