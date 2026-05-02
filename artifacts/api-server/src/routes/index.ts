@@ -7,6 +7,7 @@ import usersRouter from "./users";
 import siteSettingsRouter from "./site-settings";
 import feedSourcesRouter from "./feed-sources";
 import pendingPostsRouter from "./pending-posts";
+import categoriesRouter from "./categories";
 
 const router: IRouter = Router();
 
@@ -16,6 +17,10 @@ router.use(healthRouter);
 // `/posts/pending` literal doesn't get swallowed by the `/posts/:id`
 // catch-all in posts.ts.
 router.use(pendingPostsRouter);
+// Categories router registers `/categories` and `/categories/:slug` —
+// no overlap with /posts but kept early so any future cross-feature
+// middleware sits in front of it.
+router.use(categoriesRouter);
 router.use(postsRouter);
 router.use(commentsRouter);
 router.use(mediaRouter);

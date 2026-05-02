@@ -41,11 +41,18 @@ vi.mock("@workspace/api-client-react", () => {
       isError: false,
       error: null,
     }),
+    useListCategories: () => ({
+      data: { categories: [] },
+      isLoading: false,
+      isError: false,
+      error: null,
+    }),
     getSearchPostsQueryKey: (params: Record<string, unknown>) => [
       "search-posts",
       params,
     ],
     getListPublicFeedSourcesQueryKey: () => ["public-feed-sources"],
+    getListCategoriesQueryKey: () => ["categories"],
   };
 });
 

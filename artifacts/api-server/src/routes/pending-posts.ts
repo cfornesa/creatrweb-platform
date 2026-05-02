@@ -9,6 +9,7 @@ import {
 } from "@workspace/db";
 import { requireAuth, requireOwner } from "../middlewares/auth";
 import { GetPostParams } from "@workspace/api-zod";
+import { attachCategoriesToPosts } from "../lib/post-categories";
 
 const router: IRouter = Router();
 
@@ -58,8 +59,9 @@ router.get(
         .from(postsTable)
         .where(eq(postsTable.status, "pending"));
 
+      const hydrated = await attachCategoriesToPosts(rows);
       return res.json({
-        posts: rows,
+        posts: hydrated,
         total: totalRow[0]?.count ?? 0,
         page,
         limit,

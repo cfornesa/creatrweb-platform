@@ -15,6 +15,7 @@ import SignUpPage from "@/pages/sign-up";
 import AdminFeedsPage from "@/pages/admin-feeds";
 import AdminPendingPage from "@/pages/admin-pending";
 import SearchPage from "@/pages/search";
+import CategoryDetailPage from "@/pages/category-detail";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ function AppShell() {
             <Route path="/admin/feeds" component={AdminFeedsPage} />
             <Route path="/admin/pending" component={AdminPendingPage} />
             <Route path="/search" component={SearchPage} />
+            <Route path="/categories/:slug" component={CategoryDetailPage} />
             <Route path="/posts/:id" component={PostDetail} />
             <Route path="/users/:userId" component={UserProfile} />
             <Route path="/sign-in" component={SignInPage} />

@@ -9,6 +9,52 @@ export interface HealthStatus {
   status: string;
 }
 
+/**
+ * Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.
+ */
+export interface Category {
+  id: number;
+  slug: string;
+  name: string;
+  description?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CategoryWithPostCount {
+  id: number;
+  slug: string;
+  name: string;
+  description?: string | null;
+  /** Number of published posts attached to this category. */
+  postCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CategoriesList {
+  categories: CategoryWithPostCount[];
+}
+
+export interface CreateCategoryBody {
+  /** @maxLength 255 */
+  name: string;
+  /**
+     * Optional. When omitted the server derives one from `name`.
+     * @maxLength 191
+     */
+  slug?: string;
+  description?: string | null;
+}
+
+export interface UpdateCategoryBody {
+  /** @maxLength 255 */
+  name?: string;
+  /** @maxLength 191 */
+  slug?: string;
+  description?: string | null;
+}
+
 export type PostContentFormat = typeof PostContentFormat[keyof typeof PostContentFormat];
 
 
@@ -31,6 +77,8 @@ export interface Post {
   sourceFeedName?: string | null;
   /** Permalink of the post on its origin site (PESOS attribution). */
   sourceCanonicalUrl?: string | null;
+  /** Categories this post belongs to (owner-managed taxonomy). */
+  categories: Category[];
   createdAt: string;
 }
 
@@ -67,6 +115,7 @@ export interface SearchPost {
   sourceFeedId?: number | null;
   sourceFeedName?: string | null;
   sourceCanonicalUrl?: string | null;
+  categories: Category[];
   createdAt: string;
   /** HTML-safe excerpt of `content_text` centered on the first matched
   term, with `<mark>` tags around matched tokens. Render with
@@ -113,6 +162,13 @@ export interface CreatePostBody {
   /** @maxLength 40000 */
   content: string;
   contentFormat: CreatePostBodyContentFormat;
+  /** Optional list of `categories.id` values to attach to the new post.
+  Every id must be a positive integer; any unknown or malformed id
+  causes the request to fail with 400 and no post is created.
+  Omitting the field (or sending an empty array) leaves the post
+  uncategorized.
+   */
+  categoryIds?: number[];
 }
 
 export type UpdatePostBodyContentFormat = typeof UpdatePostBodyContentFormat[keyof typeof UpdatePostBodyContentFormat];
@@ -127,6 +183,12 @@ export interface UpdatePostBody {
   /** @maxLength 40000 */
   content: string;
   contentFormat: UpdatePostBodyContentFormat;
+  /** Replaces the post's category set. Sending an empty array clears all
+  categories; omitting the field leaves the existing set untouched.
+  Every id must be a positive integer; any unknown or malformed id
+  causes the request to fail with 400 and the post stays unchanged.
+   */
+  categoryIds?: number[];
 }
 
 export interface CreateCommentBody {
@@ -416,6 +478,7 @@ export interface PendingPost {
   sourceCanonicalUrl?: string | null;
   sourceFeedName?: string | null;
   sourceSiteUrl?: string | null;
+  categories: Category[];
   createdAt: string;
 }
 
@@ -664,6 +727,13 @@ sources.
  */
 sources?: string;
 /**
+ * Comma-separated list of `categories.slug` values. A post matches
+when it belongs to ANY of the listed categories (OR semantics,
+mirroring `sources`). Empty / omitted means no category filter.
+
+ */
+categories?: string;
+/**
  * Case-insensitive substring match against `authorName`.
  */
 author?: string;
@@ -705,4 +775,9 @@ export const RefreshAllFeedSourcesForce = {
   NUMBER_1: '1',
   true: 'true',
 } as const;
+
+export type GetCategoryPostsParams = {
+page?: number;
+limit?: number;
+};
 

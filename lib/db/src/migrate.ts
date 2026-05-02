@@ -499,6 +499,37 @@ export async function ensureTables(): Promise<void> {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  // Owner-managed taxonomy. `categories` holds the canonical slug+name+description;
+  // `post_categories` is the many-to-many join. Inserted before reactions so
+  // any FK from a future cross-feature table can rely on the table existing.
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      slug VARCHAR(191) NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      description TEXT NULL,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+      UNIQUE KEY categories_slug_unique (slug)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS post_categories (
+      post_id INT NOT NULL,
+      category_id INT NOT NULL,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      PRIMARY KEY (post_id, category_id),
+      KEY post_categories_category_idx (category_id),
+      CONSTRAINT post_categories_post_id_fk
+        FOREIGN KEY (post_id) REFERENCES posts(id)
+        ON DELETE CASCADE,
+      CONSTRAINT post_categories_category_id_fk
+        FOREIGN KEY (category_id) REFERENCES categories(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
   await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS reactions (
       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,

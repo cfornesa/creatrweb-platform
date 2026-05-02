@@ -16,6 +16,7 @@ At a high level, the app provides:
 
 - owner-only post publishing and editing
 - authenticated member comments and reactions
+- owner-managed post categories with public `/categories/:slug` archive pages and search filter
 - rich post authoring with sanitized HTML storage
 - standardized public feeds and export endpoints
 - shared publishing through a single canonical MySQL database

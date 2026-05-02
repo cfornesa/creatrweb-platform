@@ -25,11 +25,12 @@
 --  4. Leave the format set to "SQL" and the character set to "utf-8".
 --  5. Scroll to the bottom and click "Go". You should see a green
 --     "Import has been successfully finished" banner.
---  6. Click the database name again — you should now see all 10 tables
+--  6. Click the database name again — you should now see all 12 tables
 --     listed: `users`, `accounts`, `sessions`, `verification_tokens`,
 --     `feed_sources`, `feed_items_seen`, `posts`, `comments`, `reactions`,
---     `site_settings`. The `site_settings` table will already contain one
---     row (id = 1) with the placeholder copy seeded below.
+--     `categories`, `post_categories`, `site_settings`. The `site_settings`
+--     table will already contain one row (id = 1) with the placeholder copy
+--     seeded below.
 --
 --  PLACEHOLDER CONVENTION
 --  ----------------------
@@ -55,7 +56,8 @@
 --    3. feed_sources, feed_items_seen               (PESOS feed subscriptions)
 --    4. posts                                       (depends on users + feed_sources)
 --    5. comments, reactions                         (depend on posts + users)
---    6. site_settings                               (singleton, no FKs)
+--    6. categories, post_categories                 (taxonomy; join depends on posts)
+--    7. site_settings                               (singleton, no FKs)
 --
 --  AFTER THE IMPORT — THREE THINGS TO DO
 --  -------------------------------------
@@ -291,7 +293,34 @@ CREATE TABLE IF NOT EXISTS `reactions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
--- 6. `site_settings` — one-row table (id = 1) holding every owner-editable
+-- 6. `categories` + `post_categories` — owner-managed taxonomy. Each post may
+--    belong to zero or more categories. Slugs are the canonical addressable
+--    identifier (`/categories/:slug`); names are the human label shown in chips.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `categories` (
+  `id`          INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `slug`        VARCHAR(191) NOT NULL,                                -- URL identifier, e.g. 'long-form'
+  `name`        VARCHAR(255) NOT NULL,                                -- human label shown in chips / UI
+  `description` TEXT,                                                 -- optional longer description
+  `created_at`  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at`  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY `categories_slug_unique` (`slug`)                        -- one row per addressable slug
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `post_categories` (
+  `post_id`     INT NOT NULL,                                         -- FK -> posts.id
+  `category_id` INT NOT NULL,                                         -- FK -> categories.id
+  `created_at`  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`post_id`, `category_id`),                             -- a post can't be tagged twice with the same category
+  KEY `post_categories_category_idx` (`category_id`),                 -- powers /categories/:slug/posts and search filter
+  CONSTRAINT `post_categories_post_id_fk`
+    FOREIGN KEY (`post_id`)     REFERENCES `posts` (`id`)      ON DELETE CASCADE,
+  CONSTRAINT `post_categories_category_id_fk`
+    FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------------
+-- 7. `site_settings` — one-row table (id = 1) holding every owner-editable
 --    site identity field plus the active theme + palette + 14 colors.
 --    The seed at the end of this section is what visitors see BEFORE you
 --    sign in and customize via /settings. Replace each `<<PLACEHOLDER>>`
@@ -488,7 +517,20 @@ INSERT IGNORE INTO `site_settings` (
 --     the next scheduled run; useful after manual edits to cadence).
 -- UPDATE `feed_sources` SET `next_fetch_at` = NULL WHERE `enabled` = 1;
 
--- 16. Hard-reset per-user theme on a single user (snaps them back to the
+-- 16. List every category with how many published posts use it (handy
+--     sanity check after seeding the taxonomy). The status filter
+--     lives on the post LEFT JOIN, so we count `p.id` (NULL when the
+--     row didn't survive the filter) rather than `pc.post_id`, which
+--     would also count links to non-published posts.
+-- SELECT c.id, c.slug, c.name,
+--        COUNT(p.id) AS published_post_count, c.created_at
+--   FROM categories c
+--   LEFT JOIN post_categories pc ON pc.category_id = c.id
+--   LEFT JOIN posts p            ON p.id = pc.post_id AND p.status = 'published'
+--   GROUP BY c.id
+--   ORDER BY published_post_count DESC, c.name ASC;
+
+-- 17. Hard-reset per-user theme on a single user (snaps them back to the
 --     site default everywhere). Replace `<<TARGET_EMAIL>>` first.
 -- UPDATE `users` SET
 --     theme = NULL, palette = NULL,

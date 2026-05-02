@@ -6,6 +6,7 @@ import TextAlign from "@tiptap/extension-text-align";
 import { Button } from "@/components/ui/button";
 import { Loader2, ImagePlus, Link2, Pilcrow, Redo2, Undo2, Youtube } from "lucide-react";
 import { IframeEmbed } from "./iframe-embed";
+import { CategoryMultiSelect } from "./CategoryMultiSelect";
 
 type RichPostEditorProps = {
   initialContent: string;
@@ -13,8 +14,20 @@ type RichPostEditorProps = {
   submitLabel: string;
   cancelLabel?: string;
   isSubmitting?: boolean;
+  /** Initial selected category ids (empty array == no categories). */
+  initialCategoryIds?: number[];
+  /**
+   * When omitted, the category multiselect is hidden — used by
+   * non-owner edit surfaces (none today) and by tests that want a
+   * minimal editor.
+   */
+  showCategories?: boolean;
   onCancel?: () => void;
-  onSubmit: (payload: { content: string; contentFormat: "html" }) => void;
+  onSubmit: (payload: {
+    content: string;
+    contentFormat: "html";
+    categoryIds: number[];
+  }) => void;
   onUpload: (file: File) => Promise<string>;
 };
 
@@ -63,12 +76,15 @@ export function RichPostEditor({
   submitLabel,
   cancelLabel = "Cancel",
   isSubmitting = false,
+  initialCategoryIds = [],
+  showCategories = true,
   onCancel,
   onSubmit,
   onUpload,
 }: RichPostEditorProps) {
   const fileInputId = useId();
   const [textLength, setTextLength] = useState(getEditorTextLength(initialContent));
+  const [categoryIds, setCategoryIds] = useState<number[]>(initialCategoryIds);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const editor = useEditor({
@@ -176,6 +192,7 @@ export function RichPostEditor({
     onSubmit({
       content: html,
       contentFormat: "html",
+      categoryIds,
     });
   }
 
@@ -254,6 +271,10 @@ export function RichPostEditor({
           <EditorContent editor={editor} />
         </div>
       </div>
+
+      {showCategories ? (
+        <CategoryMultiSelect value={categoryIds} onChange={setCategoryIds} />
+      ) : null}
 
       <input
         id={fileInputId}

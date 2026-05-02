@@ -39,6 +39,14 @@ export const ListPostsResponse = zod.object({
   "sourceFeedId": zod.number().nullish().describe('ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.'),
   "sourceFeedName": zod.string().nullish().describe('Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.'),
   "sourceCanonicalUrl": zod.string().nullish().describe('Permalink of the post on its origin site (PESOS attribution).'),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
   "createdAt": zod.coerce.date()
 })),
   "total": zod.number(),
@@ -54,9 +62,11 @@ export const createPostBodyContentMax = 40000;
 
 
 
+
 export const CreatePostBody = zod.object({
   "content": zod.string().max(createPostBodyContentMax),
-  "contentFormat": zod.enum(['plain', 'html'])
+  "contentFormat": zod.enum(['plain', 'html']),
+  "categoryIds": zod.array(zod.number().min(1)).optional().describe('Optional list of `categories.id` values to attach to the new post.\nEvery id must be a positive integer; any unknown or malformed id\ncauses the request to fail with 400 and no post is created.\nOmitting the field (or sending an empty array) leaves the post\nuncategorized.\n')
 })
 
 
@@ -79,6 +89,14 @@ export const GetPostResponse = zod.object({
   "sourceFeedId": zod.number().nullish().describe('ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.'),
   "sourceFeedName": zod.string().nullish().describe('Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.'),
   "sourceCanonicalUrl": zod.string().nullish().describe('Permalink of the post on its origin site (PESOS attribution).'),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
   "createdAt": zod.coerce.date()
 }),
   "comments": zod.array(zod.object({
@@ -104,9 +122,11 @@ export const updatePostBodyContentMax = 40000;
 
 
 
+
 export const UpdatePostBody = zod.object({
   "content": zod.string().max(updatePostBodyContentMax),
-  "contentFormat": zod.enum(['plain', 'html'])
+  "contentFormat": zod.enum(['plain', 'html']),
+  "categoryIds": zod.array(zod.number().min(1)).optional().describe('Replaces the post\'s category set. Sending an empty array clears all\ncategories; omitting the field leaves the existing set untouched.\nEvery id must be a positive integer; any unknown or malformed id\ncauses the request to fail with 400 and the post stays unchanged.\n')
 })
 
 export const UpdatePostResponse = zod.object({
@@ -120,6 +140,14 @@ export const UpdatePostResponse = zod.object({
   "sourceFeedId": zod.number().nullish().describe('ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.'),
   "sourceFeedName": zod.string().nullish().describe('Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.'),
   "sourceCanonicalUrl": zod.string().nullish().describe('Permalink of the post on its origin site (PESOS attribution).'),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
   "createdAt": zod.coerce.date()
 })
 
@@ -150,6 +178,7 @@ export const SearchPostsQueryParams = zod.object({
   "from": zod.coerce.string().optional().describe('Inclusive lower bound on `createdAt` (ISO-8601 date or datetime).'),
   "to": zod.coerce.string().optional().describe('Inclusive upper bound on `createdAt` (ISO-8601 date or datetime).'),
   "sources": zod.coerce.string().optional().describe('Comma-separated list of `feed_sources.id` values, plus the literal\n`native` for \"this site\'s own posts.\" Empty \/ omitted means all\nsources.\n'),
+  "categories": zod.coerce.string().optional().describe('Comma-separated list of `categories.slug` values. A post matches\nwhen it belongs to ANY of the listed categories (OR semantics,\nmirroring `sources`). Empty \/ omitted means no category filter.\n'),
   "author": zod.coerce.string().optional().describe('Case-insensitive substring match against `authorName`.'),
   "format": zod.coerce.string().optional().describe('Comma-separated content-format filter. Allowed: `html`, `plain`.\nBoth (or neither) means no format restriction.\n'),
   "page": zod.coerce.number().default(searchPostsQueryPageDefault),
@@ -168,6 +197,14 @@ export const SearchPostsResponse = zod.object({
   "sourceFeedId": zod.number().nullish(),
   "sourceFeedName": zod.string().nullish(),
   "sourceCanonicalUrl": zod.string().nullish(),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')),
   "createdAt": zod.coerce.date(),
   "snippet": zod.string().describe('HTML-safe excerpt of `content_text` centered on the first matched\nterm, with `<mark>` tags around matched tokens. Render with\n`dangerouslySetInnerHTML` — sanitization happens server-side.\n'),
   "score": zod.number().nullish().describe('MySQL FULLTEXT relevance score; omitted when `q` was empty.')
@@ -206,6 +243,14 @@ export const GetPostsByUserResponse = zod.object({
   "sourceFeedId": zod.number().nullish().describe('ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.'),
   "sourceFeedName": zod.string().nullish().describe('Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.'),
   "sourceCanonicalUrl": zod.string().nullish().describe('Permalink of the post on its origin site (PESOS attribution).'),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
   "createdAt": zod.coerce.date()
 })),
   "total": zod.number(),
@@ -626,6 +671,14 @@ export const ListPendingPostsResponse = zod.object({
   "sourceCanonicalUrl": zod.string().nullish(),
   "sourceFeedName": zod.string().nullish(),
   "sourceSiteUrl": zod.string().nullish(),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')),
   "createdAt": zod.coerce.date()
 })),
   "total": zod.number(),
@@ -818,6 +871,146 @@ export const RefreshAllFeedSourcesResponse = zod.object({
   "error": zod.string().nullish(),
   "alreadyInProgress": zod.boolean().optional().describe('True when the per-source refresh endpoint was called while a\nbackground fetch for this source was already running. The\nendpoint returns `status: \"ok\"` with all counters at 0 and\ndoes not start a duplicate fetch.\n')
 }))
+})
+
+
+/**
+ * Public read. Returns all categories ordered by name, each enriched with
+a `postCount` of *published* posts attached to it.
+
+ * @summary List every category with its post count
+ */
+export const ListCategoriesResponse = zod.object({
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "postCount": zod.number().describe('Number of published posts attached to this category.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Create a new category (owner only)
+ */
+export const createCategoryBodyNameMax = 255;
+
+export const createCategoryBodySlugMax = 191;
+
+
+
+export const CreateCategoryBody = zod.object({
+  "name": zod.string().max(createCategoryBodyNameMax),
+  "slug": zod.string().max(createCategoryBodySlugMax).optional().describe('Optional. When omitted the server derives one from `name`.'),
+  "description": zod.string().nullish()
+})
+
+
+/**
+ * @summary Get a single category by slug
+ */
+export const GetCategoryParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const GetCategoryResponse = zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "postCount": zod.number().describe('Number of published posts attached to this category.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Writes are keyed by the stable internal `id` rather than the
+mutable `slug` so that renames (which change the slug) do not
+race against in-flight management UI requests. Express routes
+both `GET /categories/{slug}` and `PATCH/DELETE
+/categories/{id}` on the same path pattern; method dispatch is
+unambiguous.
+
+ * @summary Update a category by id (owner only)
+ */
+export const UpdateCategoryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateCategoryBodyNameMax = 255;
+
+export const updateCategoryBodySlugMax = 191;
+
+
+
+export const UpdateCategoryBody = zod.object({
+  "name": zod.string().max(updateCategoryBodyNameMax).optional(),
+  "slug": zod.string().max(updateCategoryBodySlugMax).optional(),
+  "description": zod.string().nullish()
+})
+
+export const UpdateCategoryResponse = zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')
+
+
+/**
+ * @summary Delete a category by id (owner only)
+ */
+export const DeleteCategoryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary List published posts attached to a category
+ */
+export const GetCategoryPostsParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const getCategoryPostsQueryPageDefault = 1;
+export const getCategoryPostsQueryLimitDefault = 20;
+
+export const GetCategoryPostsQueryParams = zod.object({
+  "page": zod.coerce.number().default(getCategoryPostsQueryPageDefault),
+  "limit": zod.coerce.number().default(getCategoryPostsQueryLimitDefault)
+})
+
+export const GetCategoryPostsResponse = zod.object({
+  "posts": zod.array(zod.object({
+  "id": zod.number(),
+  "authorId": zod.string(),
+  "authorName": zod.string(),
+  "authorImageUrl": zod.string().nullish(),
+  "content": zod.string(),
+  "contentFormat": zod.enum(['plain', 'html']),
+  "commentCount": zod.number(),
+  "sourceFeedId": zod.number().nullish().describe('ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.'),
+  "sourceFeedName": zod.string().nullish().describe('Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.'),
+  "sourceCanonicalUrl": zod.string().nullish().describe('Permalink of the post on its origin site (PESOS attribution).'),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
+  "createdAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
 })
 
 

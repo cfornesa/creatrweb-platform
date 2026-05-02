@@ -1,6 +1,13 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, mysqlPool, postsTable, commentsTable, feedSourcesTable, eq, desc, count, and } from "@workspace/db";
 import {
+  attachCategoriesToPosts,
+  hydratePostCategories,
+  replacePostCategories,
+  validateCategoryIds,
+  resolveCategorySlugsToIds,
+} from "../lib/post-categories";
+import {
   CreatePostBody,
   ListPostsQueryParams,
   GetPostParams,
@@ -110,7 +117,8 @@ router.get("/posts/user/:userId", async (req: Request, res: Response) => {
       .where(and(eq(postsTable.authorId, userId), eq(postsTable.status, "published")));
     const total = totalResult[0]?.count ?? 0;
 
-    return res.json({ posts, total, page, limit });
+    const hydrated = await attachCategoriesToPosts(posts);
+    return res.json({ posts: hydrated, total, page, limit });
   } catch (err) {
     return res.status(400).json({ error: "Invalid request" });
   }
@@ -158,6 +166,7 @@ router.get("/posts/search", async (req: Request, res: Response) => {
   const rawFrom = typeof req.query.from === "string" ? req.query.from : "";
   const rawTo = typeof req.query.to === "string" ? req.query.to : "";
   const rawSources = typeof req.query.sources === "string" ? req.query.sources : "";
+  const rawCategories = typeof req.query.categories === "string" ? req.query.categories : "";
   const rawAuthor = typeof req.query.author === "string" ? req.query.author : "";
 
   const search: SearchQuery | null = parseSearchQuery(rawQ);
@@ -245,6 +254,20 @@ router.get("/posts/search", async (req: Request, res: Response) => {
       }
     }
 
+    if (rawCategories) {
+      // Resolve slugs → ids permissively (mirrors `sources`): an
+      // all-junk filter collapses to "no narrow" rather than `WHERE FALSE`.
+      const ids = await resolveCategorySlugsToIds(rawCategories);
+      if (ids && ids.length > 0) {
+        whereParts.push(
+          `p.id IN (SELECT pc.post_id FROM post_categories pc WHERE pc.category_id IN (${ids
+            .map(() => "?")
+            .join(",")}))`,
+        );
+        whereParams.push(...ids);
+      }
+    }
+
     if (rawAuthor) {
       // Case-insensitive substring; `LOWER(...) LIKE LOWER(?)` is
       // portable and the post volume here doesn't justify a generated
@@ -307,6 +330,8 @@ router.get("/posts/search", async (req: Request, res: Response) => {
     const total = Number(totalRows[0]?.total ?? 0);
 
     const terms = search?.terms ?? [];
+    const ids = rows.map((r) => Number(r.id));
+    const categoriesMap = await hydratePostCategories(ids);
     const posts = rows.map((row) => {
       const snippet = buildSearchSnippet(row.contentText as string | null, terms);
       const result: Record<string, unknown> = {
@@ -320,6 +345,7 @@ router.get("/posts/search", async (req: Request, res: Response) => {
         sourceFeedId: row.sourceFeedId,
         sourceFeedName: row.sourceFeedName,
         sourceCanonicalUrl: row.sourceCanonicalUrl,
+        categories: categoriesMap.get(Number(row.id)) ?? [],
         createdAt: row.createdAt,
         snippet,
       };
@@ -381,7 +407,8 @@ router.get("/posts", async (req: Request, res: Response) => {
       .where(eq(postsTable.status, "published"));
     const total = totalResult[0]?.count ?? 0;
 
-    return res.json({ posts, total, page, limit });
+    const hydrated = await attachCategoriesToPosts(posts);
+    return res.json({ posts: hydrated, total, page, limit });
   } catch (err) {
     return res.status(400).json({ error: "Invalid request" });
   }
@@ -396,34 +423,62 @@ router.post("/posts", requireAuth, requireOwner, async (req: Request, res: Respo
     const normalizedContent =
       body.contentFormat === "html" ? sanitizeRichHtml(body.content) : body.content.trim();
 
-    const insertResult = await db
-      .insert(postsTable)
-      .values({
-        authorId: currentUser.id,
-        authorUserId: currentUser.id,
-        authorName,
-        authorImageUrl: currentUser.image,
-        content: normalizedContent,
-        // Shadow column for FULLTEXT search; derived from the same
-        // normalized body so search hits the words a reader actually
-        // sees instead of raw HTML tags.
-        contentText: computeContentText(normalizedContent, body.contentFormat),
-        contentFormat: body.contentFormat,
-        createdAt: new Date().toISOString(),
-      })
-      .$returningId();
-
-    const insertedId = insertResult[0]?.id;
-    if (!insertedId) {
-      return res.status(500).json({ error: "Failed to create post" });
+    // Pre-validate categoryIds outside the transaction so a 400 never
+    // requires rolling back any writes. Strict: every supplied value
+    // must be a positive integer that already exists.
+    if (Array.isArray(body.categoryIds) && body.categoryIds.length > 0) {
+      try {
+        await validateCategoryIds(body.categoryIds);
+      } catch (err) {
+        const unknownIds = (err as { unknownIds?: number[] })?.unknownIds;
+        if (Array.isArray(unknownIds) && unknownIds.length > 0) {
+          return res
+            .status(400)
+            .json({ error: (err as Error).message, unknownIds });
+        }
+        throw err;
+      }
     }
+
+    // Single transaction: post insert + category join writes commit
+    // together, so a mid-flight failure leaves the table in its
+    // pre-request state instead of stranding an uncategorized post.
+    const insertedId = await db.transaction(async (tx) => {
+      const insertResult = await tx
+        .insert(postsTable)
+        .values({
+          authorId: currentUser.id,
+          authorUserId: currentUser.id,
+          authorName,
+          authorImageUrl: currentUser.image,
+          content: normalizedContent,
+          // Shadow column for FULLTEXT search; derived from the same
+          // normalized body so search hits the words a reader actually
+          // sees instead of raw HTML tags.
+          contentText: computeContentText(normalizedContent, body.contentFormat),
+          contentFormat: body.contentFormat,
+          createdAt: new Date().toISOString(),
+        })
+        .$returningId();
+      const newId = insertResult[0]?.id;
+      if (!newId) throw new Error("Failed to create post");
+      if (Array.isArray(body.categoryIds) && body.categoryIds.length > 0) {
+        await replacePostCategories(newId, body.categoryIds, tx);
+      }
+      return newId;
+    });
 
     const post = await db.select().from(postsTable).where(eq(postsTable.id, insertedId)).limit(1);
     if (!post[0]) {
       return res.status(500).json({ error: "Failed to load created post" });
     }
 
-    return res.status(201).json({ ...post[0], commentCount: 0 });
+    const categoriesMap = await hydratePostCategories([insertedId]);
+    return res.status(201).json({
+      ...post[0],
+      commentCount: 0,
+      categories: categoriesMap.get(insertedId) ?? [],
+    });
   } catch (err) {
     return res.status(400).json({ error: "Invalid request" });
   }
@@ -472,7 +527,11 @@ router.get("/posts/:id", async (req: Request, res: Response) => {
       .where(eq(commentsTable.postId, id))
       .orderBy(desc(commentsTable.createdAt));
 
-    return res.json({ post, comments });
+    const categoriesMap = await hydratePostCategories([id]);
+    return res.json({
+      post: { ...post, categories: categoriesMap.get(id) ?? [] },
+      comments,
+    });
   } catch (err) {
     return res.status(400).json({ error: "Invalid request" });
   }
@@ -494,16 +553,40 @@ router.patch("/posts/:id", requireAuth, requireOwner, async (req: Request, res: 
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    await db
-      .update(postsTable)
-      .set({
-        content: normalizedContent,
-        // Recompute the search shadow column in the same statement so
-        // `posts.content` and `posts.content_text` cannot drift.
-        contentText: computeContentText(normalizedContent, body.contentFormat),
-        contentFormat: body.contentFormat,
-      })
-      .where(eq(postsTable.id, id));
+    // Strictly validate any supplied categoryIds BEFORE the
+    // transaction so a 400 leaves the post completely unchanged.
+    if (Array.isArray(body.categoryIds) && body.categoryIds.length > 0) {
+      try {
+        await validateCategoryIds(body.categoryIds);
+      } catch (err) {
+        const unknownIds = (err as { unknownIds?: number[] })?.unknownIds;
+        if (Array.isArray(unknownIds) && unknownIds.length > 0) {
+          return res
+            .status(400)
+            .json({ error: (err as Error).message, unknownIds });
+        }
+        throw err;
+      }
+    }
+
+    // Wrap the content update and the category-set replacement in a
+    // single transaction so a mid-flight failure can't leave the post
+    // and its category links in inconsistent states.
+    await db.transaction(async (tx) => {
+      await tx
+        .update(postsTable)
+        .set({
+          content: normalizedContent,
+          // Recompute the search shadow column in the same statement so
+          // `posts.content` and `posts.content_text` cannot drift.
+          contentText: computeContentText(normalizedContent, body.contentFormat),
+          contentFormat: body.contentFormat,
+        })
+        .where(eq(postsTable.id, id));
+      if (Array.isArray(body.categoryIds)) {
+        await replacePostCategories(id, body.categoryIds, tx);
+      }
+    });
 
     const updatedPost = await db.select().from(postsTable).where(eq(postsTable.id, id)).limit(1);
     if (!updatedPost[0]) {
@@ -514,10 +597,12 @@ router.patch("/posts/:id", requireAuth, requireOwner, async (req: Request, res: 
       .select({ count: count(commentsTable.id) })
       .from(commentsTable)
       .where(eq(commentsTable.postId, id));
+    const categoriesMap = await hydratePostCategories([id]);
 
     return res.json({
       ...updatedPost[0],
       commentCount: commentCountResult[0]?.count ?? 0,
+      categories: categoriesMap.get(id) ?? [],
     });
   } catch (err) {
     return res.status(400).json({ error: "Invalid request" });

@@ -30,6 +30,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { PostContent } from "./PostContent";
 import { RichPostEditor } from "./RichPostEditor";
 import { SharePostDialog } from "./SharePostDialog";
+import { PostCategoryChips } from "./PostCategoryChips";
 
 interface PostCardProps {
   post: Post;
@@ -306,6 +307,8 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
           </div>
         </div>
 
+        <PostCategoryChips categories={(displayPost as Post & { categories?: { id: number; slug: string; name: string; description: string | null; createdAt: string; updatedAt: string }[] }).categories ?? null} />
+
         {isFeedImportedPost ? (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Rss className="h-3 w-3" />
@@ -331,6 +334,7 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
           <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
             <RichPostEditor
               initialContent={draftContent}
+              initialCategoryIds={(displayPost as Post & { categories?: { id: number }[] }).categories?.map((c) => c.id) ?? []}
               submitLabel="Save"
               cancelLabel="Cancel"
               isSubmitting={updatePost.isPending || uploadMedia.isPending}

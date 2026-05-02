@@ -7,3 +7,4 @@ export * from "./verification-tokens";
 export * from "./reactions";
 export * from "./site-settings";
 export * from "./feeds";
+export * from "./categories";

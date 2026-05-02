@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Globe, Instagram, Youtube, Twitter, Music2, Tv, Github, Linkedin, Rss, Inbox } from "lucide-react";
 import { Link } from "wouter";
 import { useListPendingPosts, getListPendingPostsQueryKey } from "@workspace/api-client-react";
+import { CategoriesManagementCard } from "@/components/post/CategoriesManagementCard";
 
 export default function SettingsPage() {
   const { currentUser, isLoading: isUserLoading, isOwner } = useCurrentUser();
@@ -120,6 +121,8 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      {isOwner ? <CategoriesManagementCard /> : null}
 
       {isOwner && siteSettings ? (
         <div className="mb-6">

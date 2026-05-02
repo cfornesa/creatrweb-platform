@@ -42,13 +42,13 @@ Full-stack microblogging platform ("Microblog") — npm workspace monorepo, Type
 
 ## Database
 
-MySQL (Hostinger-hosted in production, also MySQL locally). Drizzle schema in `lib/db/src/schema/`. Core tables: `users`, `accounts`, `sessions`, `verification_tokens`, `posts`, `comments`, `reactions`, `site_settings` (singleton row, id=1), `feed_sources` (owner-subscribed RSS/Atom feeds), and `feed_items_seen` (per-source dedup ledger). Legacy SQLite material under `data/` is retained only as historical import material from the migration; nothing reads or writes it at runtime.
+MySQL (Hostinger-hosted in production, also MySQL locally). Drizzle schema in `lib/db/src/schema/`. Core tables: `users`, `accounts`, `sessions`, `verification_tokens`, `posts`, `comments`, `reactions`, `categories`, `post_categories` (many-to-many join), `site_settings` (singleton row, id=1), `feed_sources` (owner-subscribed RSS/Atom feeds), and `feed_items_seen` (per-source dedup ledger). Legacy SQLite material under `data/` is retained only as historical import material from the migration; nothing reads or writes it at runtime.
 
 Schema reconciliation is performed by the API server at startup via `ensureTables()` + `ensureColumn()` + `ensureForeignKey()` + `ensureIndex()` in `lib/db/src/migrate.ts`. This is the single source of truth — the post-merge script (`scripts/post-merge.sh`) runs only `npm ci`. For one-shot pushes outside the normal merge flow, `npm run push-force --workspace=@workspace/db` is documented in the script's comment block.
 
 For environments where schema is applied by hand (e.g. Hostinger via phpMyAdmin), two copy-pasteable SQL scripts ship alongside the schema:
 
-- `lib/db/install.sql` — **full database install** for forkers. Creates every table (`users`, `accounts`, `sessions`, `verification_tokens`, `feed_sources`, `feed_items_seen`, `posts`, `comments`, `reactions`, `site_settings`), all indexes including the `posts_content_text_fulltext` FULLTEXT index, every foreign key, and seeds the `site_settings` singleton row with neutral placeholder copy. Idempotent (uses `CREATE TABLE IF NOT EXISTS` + `INSERT IGNORE`). The bottom of the file also lists 15 commented-out maintenance queries (promote/demote owner, list users, approve/reject pending posts, vacuum stale dedup rows, run the same FULLTEXT query the app uses, etc.).
+- `lib/db/install.sql` — **full database install** for forkers. Creates every table (`users`, `accounts`, `sessions`, `verification_tokens`, `feed_sources`, `feed_items_seen`, `posts`, `comments`, `reactions`, `categories`, `post_categories`, `site_settings`), all indexes including the `posts_content_text_fulltext` FULLTEXT index, every foreign key, and seeds the `site_settings` singleton row with neutral placeholder copy. Idempotent (uses `CREATE TABLE IF NOT EXISTS` + `INSERT IGNORE`). The bottom of the file also lists 15 commented-out maintenance queries (promote/demote owner, list users, approve/reject pending posts, vacuum stale dedup rows, run the same FULLTEXT query the app uses, etc.).
 - `lib/db/site_settings_install.sql` — narrower script for the `site_settings` table only, kept around for upgrades from earlier deploys that pre-date the rest of the schema being applied by hand.
 
 ## API Routes
@@ -75,8 +75,16 @@ For environments where schema is applied by hand (e.g. Hostinger via phpMyAdmin)
 - `GET /api/posts/pending` — list items waiting for review (owner only)
 - `POST /api/posts/:id/approve` — promote pending → published (owner only)
 - `POST /api/posts/:id/reject` — discard a pending item (owner only)
-- `GET /api/posts/search` — full-text post search with filters (public)
+- `GET /api/posts/search` — full-text post search with filters (public; supports `categories=<slug,slug,…>` for OR-semantics filtering)
 - `GET /api/feed-sources/public` — list of feed sources that have at least one published post (public; `id` + `name` only)
+- `GET /api/categories` — list every category with its published post count (public)
+- `GET /api/categories/:slug` — single category metadata + post count (public)
+- `GET /api/categories/:slug/posts` — paginated published posts in a category; honors `?includePending=1` for the owner so the management UI can preview pending items
+- `POST /api/categories` — create a category, auto-slugifying the name and resolving collisions with `-2`, `-3`, … suffixes (owner only)
+- `PATCH /api/categories/:id` — rename, change description, or replace the slug (owner only; keyed by stable internal id so renames don't race the URL)
+- `DELETE /api/categories/:id` — delete a category; `post_categories` rows cascade away while the posts themselves survive (owner only)
+
+Posts also accept a `categoryIds: number[]` array on `POST /api/posts` and `PATCH /api/posts/:id`. Validation is strict — every supplied value must be a positive integer that exists; a malformed or unknown id returns `400` with `{ error, unknownIds }` and leaves the post untouched. The post insert/update and the category join writes are wrapped in a single Drizzle transaction so a mid-flight failure can never strand a post with a half-applied category set. Every post-returning endpoint hydrates a `categories: Category[]` array via a single batched query in `lib/post-categories.ts`.
 
 ## Auth.js
 
@@ -101,6 +109,16 @@ The catalog of themes and palettes lives in `artifacts/microblog/src/lib/site-th
 **Identity & copy fields**: site title (drives navbar wordmark, browser tab title, and post share-card title), hero heading + subheading, hero CTA label + link, "About This Platform" heading + body, copyright name, footer credit.
 
 A "Reset to Bauhaus defaults" button restores theme=`bauhaus`, palette=`bauhaus`, and the original tricolor color values.
+
+## Categories
+
+Posts can be grouped into owner-managed categories (a many-to-many join via `post_categories`). The taxonomy surfaces in three frontend places:
+
+1. **Composer** — `CategoryMultiSelect` lets the owner pick existing categories from chips and create new ones inline (Enter on an unmatched query calls `POST /api/categories`).
+2. **`/categories/:slug` archive page** — paginated published posts in the category. Owners see an inline **Manage categories** link that jumps to the settings card.
+3. **`/settings` → Categories card** — full CRUD: name + description + slug edit, slug-change warning, post-count in the delete confirmation. The `CategoriesManagementCard` anchor is `id="categories"` so deep-links from the archive page scroll right to it.
+
+Category chips render under the byline on every post card and on each search result; clicking a chip routes to `/categories/:slug`. The search sidebar exposes a Categories checkbox group whose selected slugs are URL-state via the `categories=` query param (OR semantics).
 
 Backend storage: singleton row in `site_settings` (id=1) with `theme` and `palette` columns (varchar(32) NOT NULL DEFAULT `'bauhaus'`). Backed by `requireOwner` middleware on `PATCH /api/site-settings`. The frontend hook is `useSiteSettings()` in `artifacts/microblog/src/hooks/use-site-settings.ts`. Google Fonts (Lora, EB Garamond, Inter, Nunito, Quicksand, Space Grotesk, Bebas Neue, Caveat) are preloaded in `index.html`.
 

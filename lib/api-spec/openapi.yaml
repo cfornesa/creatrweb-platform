@@ -183,6 +183,14 @@ paths:
             `native` for "this site's own posts." Empty / omitted means all
             sources.
         - in: query
+          name: categories
+          schema:
+            type: string
+          description: |
+            Comma-separated list of `categories.slug` values. A post matches
+            when it belongs to ANY of the listed categories (OR semantics,
+            mirroring `sources`). Empty / omitted means no category filter.
+        - in: query
           name: author
           schema:
             type: string
@@ -722,6 +730,160 @@ paths:
         "403":
           description: Forbidden
 
+  /categories:
+    get:
+      operationId: listCategories
+      tags: [categories]
+      summary: List every category with its post count
+      description: |
+        Public read. Returns all categories ordered by name, each enriched with
+        a `postCount` of *published* posts attached to it.
+      responses:
+        "200":
+          description: Categories list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoriesList"
+    post:
+      operationId: createCategory
+      tags: [categories]
+      summary: Create a new category (owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCategoryBody"
+      responses:
+        "201":
+          description: Created category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "400":
+          description: Invalid body
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "409":
+          description: Slug already exists
+
+  /categories/{slug}:
+    get:
+      operationId: getCategory
+      tags: [categories]
+      summary: Get a single category by slug
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryWithPostCount"
+        "404":
+          description: Not found
+
+  /categories/{id}:
+    patch:
+      operationId: updateCategory
+      tags: [categories]
+      summary: Update a category by id (owner only)
+      description: |
+        Writes are keyed by the stable internal `id` rather than the
+        mutable `slug` so that renames (which change the slug) do not
+        race against in-flight management UI requests. Express routes
+        both `GET /categories/{slug}` and `PATCH/DELETE
+        /categories/{id}` on the same path pattern; method dispatch is
+        unambiguous.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCategoryBody"
+      responses:
+        "200":
+          description: Updated category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "400":
+          description: Invalid body
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "409":
+          description: Slug already exists
+    delete:
+      operationId: deleteCategory
+      tags: [categories]
+      summary: Delete a category by id (owner only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+
+  /categories/{slug}/posts:
+    get:
+      operationId: getCategoryPosts
+      tags: [categories]
+      summary: List published posts attached to a category
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Category posts page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostsPage"
+        "404":
+          description: Not found
+
   /media/{fileName}:
     get:
       operationId: getMedia
@@ -748,6 +910,100 @@ components:
           type: string
       required:
         - status
+
+    Category:
+      type: object
+      description: Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - slug
+        - name
+        - createdAt
+        - updatedAt
+
+    CategoryWithPostCount:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        postCount:
+          type: integer
+          description: Number of published posts attached to this category.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - slug
+        - name
+        - postCount
+        - createdAt
+        - updatedAt
+
+    CategoriesList:
+      type: object
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryWithPostCount"
+      required:
+        - categories
+
+    CreateCategoryBody:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        slug:
+          type: string
+          maxLength: 191
+          description: Optional. When omitted the server derives one from `name`.
+        description:
+          type: string
+          nullable: true
+      required:
+        - name
+
+    UpdateCategoryBody:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        slug:
+          type: string
+          maxLength: 191
+        description:
+          type: string
+          nullable: true
 
     Post:
       type: object
@@ -780,6 +1036,11 @@ components:
           type: string
           nullable: true
           description: Permalink of the post on its origin site (PESOS attribution).
+        categories:
+          type: array
+          description: Categories this post belongs to (owner-managed taxonomy).
+          items:
+            $ref: "#/components/schemas/Category"
         createdAt:
           type: string
           format: date-time
@@ -790,6 +1051,7 @@ components:
         - content
         - contentFormat
         - commentCount
+        - categories
         - createdAt
 
     PostsPage:
@@ -844,6 +1106,10 @@ components:
         sourceCanonicalUrl:
           type: string
           nullable: true
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/Category"
         createdAt:
           type: string
           format: date-time
@@ -864,6 +1130,7 @@ components:
         - content
         - contentFormat
         - commentCount
+        - categories
         - createdAt
         - snippet
 
@@ -939,6 +1206,17 @@ components:
         contentFormat:
           type: string
           enum: [plain, html]
+        categoryIds:
+          type: array
+          description: |
+            Optional list of `categories.id` values to attach to the new post.
+            Every id must be a positive integer; any unknown or malformed id
+            causes the request to fail with 400 and no post is created.
+            Omitting the field (or sending an empty array) leaves the post
+            uncategorized.
+          items:
+            type: integer
+            minimum: 1
       required:
         - content
         - contentFormat
@@ -952,6 +1230,16 @@ components:
         contentFormat:
           type: string
           enum: [plain, html]
+        categoryIds:
+          type: array
+          description: |
+            Replaces the post's category set. Sending an empty array clears all
+            categories; omitting the field leaves the existing set untouched.
+            Every id must be a positive integer; any unknown or malformed id
+            causes the request to fail with 400 and the post stays unchanged.
+          items:
+            type: integer
+            minimum: 1
       required:
         - content
         - contentFormat
@@ -1352,6 +1640,10 @@ components:
         sourceSiteUrl:
           type: string
           nullable: true
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/Category"
         createdAt:
           type: string
           format: date-time
@@ -1361,6 +1653,7 @@ components:
         - content
         - contentFormat
         - status
+        - categories
         - createdAt
 
     PendingPostsPage:

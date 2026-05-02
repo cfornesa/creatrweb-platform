@@ -4,7 +4,9 @@ import { Search, X, ChevronLeft, ChevronRight, Rss, ExternalLink } from "lucide-
 import {
   useSearchPosts,
   useListPublicFeedSources,
+  useListCategories,
   getListPublicFeedSourcesQueryKey,
+  getListCategoriesQueryKey,
   getSearchPostsQueryKey,
   ApiError,
   type SearchPost,
@@ -39,6 +41,8 @@ type Filters = {
   from: string;
   to: string;
   sources: string[]; // includes the literal "native"
+  /** Category slugs (OR semantics, mirrors `sources`). */
+  categories: string[];
   author: string;
   formats: Array<"html" | "plain">;
   page: number;
@@ -52,6 +56,11 @@ function parseFiltersFromSearch(search: string): Filters {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+  const categoriesRaw = params.get("categories") ?? "";
+  const categories = categoriesRaw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
   const formats = formatsRaw
     .split(",")
     .map((f) => f.trim().toLowerCase())
@@ -62,6 +71,7 @@ function parseFiltersFromSearch(search: string): Filters {
     from: params.get("from") ?? "",
     to: params.get("to") ?? "",
     sources,
+    categories,
     author: params.get("author") ?? "",
     formats,
     page: Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1,
@@ -74,6 +84,7 @@ function filtersToSearchString(f: Filters): string {
   if (f.from) params.set("from", f.from);
   if (f.to) params.set("to", f.to);
   if (f.sources.length > 0) params.set("sources", f.sources.join(","));
+  if (f.categories.length > 0) params.set("categories", f.categories.join(","));
   if (f.author.trim()) params.set("author", f.author.trim());
   // Both formats checked == no filter; only push the param when the
   // selection is meaningful (exactly one).
@@ -88,6 +99,7 @@ function filtersToSearchParams(f: Filters): SearchPostsParams {
   if (f.from) params.from = f.from;
   if (f.to) params.to = f.to;
   if (f.sources.length > 0) params.sources = f.sources.join(",");
+  if (f.categories.length > 0) params.categories = f.categories.join(",");
   if (f.author.trim()) params.author = f.author.trim();
   if (f.formats.length === 1) params.format = f.formats[0];
   return params;
@@ -134,6 +146,18 @@ export default function SearchPage() {
     query: { queryKey: getListPublicFeedSourcesQueryKey() },
   });
   const feedSources = sourcesQuery.data?.sources ?? [];
+
+  const categoriesQuery = useListCategories({
+    query: { queryKey: getListCategoriesQueryKey() },
+  });
+  const allCategories = categoriesQuery.data?.categories ?? [];
+
+  const toggleCategory = (slug: string, checked: boolean) => {
+    const set = new Set(filters.categories);
+    if (checked) set.add(slug);
+    else set.delete(slug);
+    pushFilters({ categories: Array.from(set) });
+  };
 
   const searchParams = filtersToSearchParams(filters);
   const results = useSearchPosts(searchParams, {
@@ -246,6 +270,15 @@ export default function SearchPage() {
       label: `source: ${label}`,
       onRemove: () =>
         pushFilters({ sources: filters.sources.filter((s) => s !== token) }),
+    });
+  }
+  for (const slug of filters.categories) {
+    const label = allCategories.find((c) => c.slug === slug)?.name ?? slug;
+    chips.push({
+      key: `category:${slug}`,
+      label: `category: ${label}`,
+      onRemove: () =>
+        pushFilters({ categories: filters.categories.filter((s) => s !== slug) }),
     });
   }
   if (filters.author) {
@@ -366,6 +399,24 @@ export default function SearchPage() {
               )}
             </div>
           </div>
+
+          {allCategories.length > 0 ? (
+            <div className="space-y-2">
+              <Label className="block text-sm font-medium">Categories</Label>
+              <div className="space-y-1.5 text-sm">
+                {allCategories.map((c) => (
+                  <label key={c.id} className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={filters.categories.includes(c.slug)}
+                      onCheckedChange={(v) => toggleCategory(c.slug, v === true)}
+                    />
+                    <span className="truncate">{c.name}</span>
+                    <span className="ml-auto text-xs text-muted-foreground">{c.postCount}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <form
             onSubmit={(e) => {
@@ -547,6 +598,19 @@ function SearchResultCard({ post, query }: { post: SearchPost; query: string }) 
                 </span>
               ) : null}
             </div>
+            {post.categories && post.categories.length > 0 ? (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {post.categories.map((c) => (
+                  <Link
+                    key={c.id}
+                    href={`/categories/${c.slug}`}
+                    className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  >
+                    {c.name}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
             {/* Snippet HTML is server-sanitized: tags stripped, then escaped,
                 then `<mark>` wrapped around matched terms. Safe to render. */}
             <p
