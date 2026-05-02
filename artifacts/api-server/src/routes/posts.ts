@@ -17,6 +17,7 @@ import { isPostVisibleToReader } from "../lib/post-visibility";
 import {
   buildSearchSnippet,
   parseSearchQuery,
+  validateSearchInput,
   type SearchQuery,
 } from "../lib/post-search";
 import type { RowDataPacket } from "mysql2/promise";
@@ -124,25 +125,32 @@ router.get("/posts/user/:userId", async (req: Request, res: Response) => {
 // endpoint is the only place that does highlighting so the client just
 // renders the (server-sanitized) `<mark>...</mark>` snippet.
 router.get("/posts/search", async (req: Request, res: Response) => {
-  // All input parsing is intentionally permissive: garbage filter
-  // values collapse to "no filter" rather than 400. The only path
-  // that returns an error response is the catch handler, and it
-  // returns 500 because by the time we get there we have a real bug
-  // or DB outage to investigate — not user input to reject.
+  // Two-tier input handling:
+  //   - Strict for `page` / `limit` / `format`: malformed values get a
+  //     400 with the offending field, because they're almost always a
+  //     client bug or a tampered URL we want surfaced.
+  //   - Permissive for filters that just narrow the result set
+  //     (`from`, `to`, `sources`, `author`): garbage collapses to "no
+  //     filter," because there's no useful 400 to return for a
+  //     misspelled date range.
+  // Anything that throws below the validation gate is a server-side
+  // fault — the catch returns 500 so the client knows it's safe to
+  // retry rather than to "fix" their query.
+  const validated = validateSearchInput(req.query);
+  if (!validated.ok) {
+    return res.status(400).json({
+      error: validated.error.message,
+      field: validated.error.field,
+    });
+  }
+  const { page, limit, formats } = validated.value;
+  const offset = (page - 1) * limit;
+
   const rawQ = typeof req.query.q === "string" ? req.query.q : "";
   const rawFrom = typeof req.query.from === "string" ? req.query.from : "";
   const rawTo = typeof req.query.to === "string" ? req.query.to : "";
   const rawSources = typeof req.query.sources === "string" ? req.query.sources : "";
   const rawAuthor = typeof req.query.author === "string" ? req.query.author : "";
-  const rawFormat = typeof req.query.format === "string" ? req.query.format : "";
-  const rawPage = typeof req.query.page === "string" ? req.query.page : "1";
-  const rawLimit = typeof req.query.limit === "string" ? req.query.limit : "20";
-
-  const page = Math.max(1, Number.parseInt(rawPage, 10) || 1);
-  // Cap `limit` to keep result-set size bounded; the UI never needs
-  // more than 50 cards per page.
-  const limit = Math.min(50, Math.max(1, Number.parseInt(rawLimit, 10) || 20));
-  const offset = (page - 1) * limit;
 
   const search: SearchQuery | null = parseSearchQuery(rawQ);
 
@@ -234,17 +242,13 @@ router.get("/posts/search", async (req: Request, res: Response) => {
       whereParams.push(`%${rawAuthor}%`);
     }
 
-    if (rawFormat) {
-      const formats = rawFormat
-        .split(",")
-        .map((f) => f.trim().toLowerCase())
-        .filter((f) => f === "html" || f === "plain");
-      // `formats=html,plain` is identical to no filter — skip the
-      // predicate so the query planner doesn't waste its time.
-      if (formats.length === 1) {
-        whereParts.push("p.content_format = ?");
-        whereParams.push(formats[0]);
-      }
+    // `formats` was already normalized by validateSearchInput: it's
+    // either null (no filter) or a single-element list. The "both
+    // formats checked" case collapses to null in the validator, so
+    // the route doesn't waste a predicate on it.
+    if (formats && formats.length === 1) {
+      whereParts.push("p.content_format = ?");
+      whereParams.push(formats[0]);
     }
 
     const whereSql = whereParts.join(" AND ");

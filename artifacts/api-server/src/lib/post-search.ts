@@ -36,6 +36,119 @@ export type SearchQuery = {
 // our InnoDB tables; tokens of length 1–2 fall back to LIKE.
 const FULLTEXT_MIN_LEN = 3;
 
+/**
+ * Inputs the search route validates up front. The values that come
+ * back are safe to use directly in SQL — `page`/`limit` are bounded
+ * positive integers, and `formats` is either `null` (no filter) or a
+ * non-empty list whose elements are exactly `"html"` / `"plain"`.
+ */
+export type ValidatedSearchInput = {
+  page: number;
+  limit: number;
+  /** `null` means "no filter"; otherwise the route narrows by these. */
+  formats: Array<"html" | "plain"> | null;
+};
+
+export type SearchInputValidationError = {
+  field: "page" | "limit" | "format";
+  message: string;
+};
+
+const SEARCH_DEFAULT_LIMIT = 20;
+const SEARCH_MAX_LIMIT = 50;
+
+/**
+ * Validate the typed query parameters that the route binds into SQL
+ * (page, limit, format). Permissive on filters that just narrow the
+ * result set — bad `from`/`to`/`sources`/`author` collapse to "no
+ * filter" because there's no useful 400 to return for them — but
+ * strict on numeric pagination and the enum format value, where a
+ * bogus input is almost certainly a bug we want the client to fix.
+ *
+ * Returns a discriminated union so the caller can switch on
+ * `result.ok` and either continue with `result.value` or short-circuit
+ * with a 400 carrying `result.error.field`/`result.error.message`.
+ */
+export function validateSearchInput(query: {
+  page?: unknown;
+  limit?: unknown;
+  format?: unknown;
+}):
+  | { ok: true; value: ValidatedSearchInput }
+  | { ok: false; error: SearchInputValidationError } {
+  const rawPage = typeof query.page === "string" ? query.page.trim() : "";
+  const rawLimit = typeof query.limit === "string" ? query.limit.trim() : "";
+  const rawFormat = typeof query.format === "string" ? query.format.trim() : "";
+
+  let page = 1;
+  if (rawPage.length > 0) {
+    // Strict: only digit-strings count. `Number.parseInt("3abc")` would
+    // happily return 3, which is not what the caller asked for.
+    if (!/^\d+$/.test(rawPage)) {
+      return {
+        ok: false,
+        error: { field: "page", message: "page must be a positive integer" },
+      };
+    }
+    const n = Number.parseInt(rawPage, 10);
+    if (!Number.isFinite(n) || n < 1) {
+      return {
+        ok: false,
+        error: { field: "page", message: "page must be a positive integer" },
+      };
+    }
+    page = n;
+  }
+
+  let limit = SEARCH_DEFAULT_LIMIT;
+  if (rawLimit.length > 0) {
+    if (!/^\d+$/.test(rawLimit)) {
+      return {
+        ok: false,
+        error: {
+          field: "limit",
+          message: `limit must be an integer between 1 and ${SEARCH_MAX_LIMIT}`,
+        },
+      };
+    }
+    const n = Number.parseInt(rawLimit, 10);
+    if (!Number.isFinite(n) || n < 1 || n > SEARCH_MAX_LIMIT) {
+      return {
+        ok: false,
+        error: {
+          field: "limit",
+          message: `limit must be an integer between 1 and ${SEARCH_MAX_LIMIT}`,
+        },
+      };
+    }
+    limit = n;
+  }
+
+  let formats: Array<"html" | "plain"> | null = null;
+  if (rawFormat.length > 0) {
+    const tokens = rawFormat.split(",").map((t) => t.trim().toLowerCase());
+    const valid: Array<"html" | "plain"> = [];
+    for (const token of tokens) {
+      if (token.length === 0) continue;
+      if (token !== "html" && token !== "plain") {
+        return {
+          ok: false,
+          error: {
+            field: "format",
+            message: "format must be 'html', 'plain', or 'html,plain'",
+          },
+        };
+      }
+      if (!valid.includes(token)) valid.push(token);
+    }
+    // `format=html,plain` is semantically identical to no filter;
+    // collapse it so the route doesn't waste a predicate on it.
+    formats = valid.length === 0 || valid.length === 2 ? null : valid;
+  }
+
+  return { ok: true, value: { page, limit, formats } };
+}
+
 export function parseSearchQuery(raw: string): SearchQuery | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;

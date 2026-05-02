@@ -6,6 +6,7 @@ import {
   useListPublicFeedSources,
   getListPublicFeedSourcesQueryKey,
   getSearchPostsQueryKey,
+  ApiError,
   type SearchPost,
   type SearchPostsParams,
 } from "@workspace/api-client-react";
@@ -423,19 +424,46 @@ export default function SearchPage() {
             </div>
           ) : null}
 
-          <p className="text-sm text-muted-foreground mb-3">
-            {results.isLoading ? (
-              "Loading…"
-            ) : results.isError ? (
-              <span className="text-destructive">
-                Search failed. Adjust the filters and try again.
-              </span>
-            ) : total === 0 ? (
-              "No posts match."
-            ) : (
-              `${total} ${total === 1 ? "match" : "matches"}`
-            )}
-          </p>
+          {(() => {
+            // Distinguish a real server fault (5xx, network) — which
+            // is retryable and warrants the alarming red banner —
+            // from a client-side validation 4xx, which means a query
+            // param needs to be reset (e.g. someone hand-edited
+            // `?page=abc` in the URL). The latter shows neutral copy
+            // pointing at the offending field.
+            const err = results.error;
+            const status =
+              err instanceof ApiError ? err.status : null;
+            const is4xx = status !== null && status >= 400 && status < 500;
+            const field =
+              err instanceof ApiError &&
+              err.data &&
+              typeof err.data === "object" &&
+              "field" in (err.data as Record<string, unknown>)
+                ? String((err.data as Record<string, unknown>).field)
+                : null;
+            return (
+              <p className="text-sm text-muted-foreground mb-3">
+                {results.isLoading ? (
+                  "Loading…"
+                ) : results.isError && !is4xx ? (
+                  <span className="text-destructive">
+                    Search failed. Please try again in a moment.
+                  </span>
+                ) : results.isError && is4xx ? (
+                  <span>
+                    {field
+                      ? `Invalid ${field} value — try removing it and searching again.`
+                      : "One of the filters is invalid — try removing it and searching again."}
+                  </span>
+                ) : total === 0 ? (
+                  "No posts match."
+                ) : (
+                  `${total} ${total === 1 ? "match" : "matches"}`
+                )}
+              </p>
+            );
+          })()}
 
           {results.isError ? null : posts.length === 0 && !results.isLoading ? (
             <Card>

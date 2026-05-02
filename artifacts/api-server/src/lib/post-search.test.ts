@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { parseSearchQuery, buildSearchSnippet } from "./post-search";
+import {
+  parseSearchQuery,
+  buildSearchSnippet,
+  validateSearchInput,
+} from "./post-search";
 
 describe("parseSearchQuery", () => {
   it("returns null for empty / whitespace-only input", () => {
@@ -94,5 +98,103 @@ describe("buildSearchSnippet", () => {
     const out = buildSearchSnippet("see <foo> chris here", ["chris"]);
     expect(out).toContain("&lt;foo&gt;");
     expect(out).toContain("<mark>chris</mark>");
+  });
+});
+
+describe("validateSearchInput — pagination & format gate", () => {
+  it("returns defaults when no params are provided", () => {
+    const r = validateSearchInput({});
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value).toEqual({ page: 1, limit: 20, formats: null });
+    }
+  });
+
+  it("treats whitespace-only / non-string params as 'not provided'", () => {
+    const r = validateSearchInput({ page: "  ", limit: undefined, format: 42 });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value).toEqual({ page: 1, limit: 20, formats: null });
+  });
+
+  it("accepts well-formed page and limit", () => {
+    const r = validateSearchInput({ page: "3", limit: "50", format: "html" });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value).toEqual({ page: 3, limit: 50, formats: ["html"] });
+  });
+
+  it("rejects malformed page (non-digit garbage) with 'page' field", () => {
+    const r = validateSearchInput({ page: "abc" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.field).toBe("page");
+  });
+
+  it("rejects partially-numeric page like '3abc'", () => {
+    // Bare `Number.parseInt` would silently return 3 and the bad
+    // suffix would vanish — make sure the validator catches it.
+    const r = validateSearchInput({ page: "3abc" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.field).toBe("page");
+  });
+
+  it("rejects page=0 and negative page", () => {
+    const zero = validateSearchInput({ page: "0" });
+    expect(zero.ok).toBe(false);
+    const neg = validateSearchInput({ page: "-1" });
+    // "-1" fails the digit-only regex, so it's also rejected.
+    expect(neg.ok).toBe(false);
+  });
+
+  it("rejects malformed limit", () => {
+    const r = validateSearchInput({ limit: "twenty" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.field).toBe("limit");
+  });
+
+  it("rejects limit above the cap (51)", () => {
+    const r = validateSearchInput({ limit: "51" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.field).toBe("limit");
+  });
+
+  it("rejects limit=0", () => {
+    const r = validateSearchInput({ limit: "0" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.field).toBe("limit");
+  });
+
+  it("rejects unknown format token", () => {
+    const r = validateSearchInput({ format: "markdown" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.field).toBe("format");
+  });
+
+  it("rejects format with mixed valid+invalid tokens", () => {
+    const r = validateSearchInput({ format: "html,markdown" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.field).toBe("format");
+  });
+
+  it("collapses 'html,plain' to null (no filter)", () => {
+    const r = validateSearchInput({ format: "html,plain" });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.formats).toBeNull();
+  });
+
+  it("normalizes single-format casing and whitespace", () => {
+    const r = validateSearchInput({ format: "  HTML  " });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.formats).toEqual(["html"]);
+  });
+
+  it("ignores trailing/empty comma tokens like 'plain,'", () => {
+    const r = validateSearchInput({ format: "plain," });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.formats).toEqual(["plain"]);
+  });
+
+  it("dedupes repeated format tokens", () => {
+    const r = validateSearchInput({ format: "html,html" });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.formats).toEqual(["html"]);
   });
 });
