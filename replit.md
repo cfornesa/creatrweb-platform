@@ -45,7 +45,7 @@ Full-stack microblogging platform ("Microblog") — npm workspace monorepo, Type
 SQLite file stored at `data/microblog.db` (relative to workspace root). Core tables now include `users`, `accounts`, `sessions`, `verification_tokens`, `posts`, `comments`, `reactions`, and `site_settings` (singleton row, id=1).
 Drizzle schema in `lib/db/src/schema/`. Use `npm run push --workspace=@workspace/db` to apply schema changes.
 
-For environments where schema is applied by hand (e.g. Hostinger via phpMyAdmin), a copy-pasteable script for the `site_settings` table is at `.local/site_settings_install.sql`. On startup, `ensureTables()` creates this table automatically and seeds a default row with `INSERT IGNORE`, so re-running is safe.
+For environments where schema is applied by hand (e.g. Hostinger via phpMyAdmin), a copy-pasteable script for the `site_settings` table is at `lib/db/site_settings_install.sql`. On startup, `ensureTables()` creates this table automatically and seeds a default row with `INSERT IGNORE`, so re-running is safe. The script also includes idempotent `ALTER TABLE … ADD COLUMN IF NOT EXISTS` statements for the `theme` and `palette` columns so older databases can be upgraded in place.
 
 ## API Routes
 
