@@ -6,3 +6,4 @@ export * from "./sessions";
 export * from "./verification-tokens";
 export * from "./reactions";
 export * from "./site-settings";
+export * from "./feeds";

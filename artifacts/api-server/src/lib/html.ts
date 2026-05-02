@@ -48,7 +48,11 @@ export function sanitizeRichHtml(input: string): string {
       "div",
     ],
     allowedAttributes: {
-      a: ["href", "target", "rel", "title"],
+      // `class` is allowed so IndieWeb microformats markup
+      // (e.g. `u-syndication`, `u-url`, `h-cite`) survives the
+      // sanitizer. The class attribute itself can't execute code; the
+      // dangerous attributes are still filtered out below.
+      a: ["href", "target", "rel", "title", "class"],
       img: ["src", "alt", "title", "width", "height", "loading"],
       iframe: [
         "src",

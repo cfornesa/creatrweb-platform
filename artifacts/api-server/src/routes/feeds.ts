@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import sanitizeHtml from "sanitize-html";
-import { db, postsTable, desc } from "@workspace/db";
+import { db, postsTable, desc, eq } from "@workspace/db";
 
 type FeedPost = {
   id: number;
@@ -78,6 +78,9 @@ function getAuthorName(posts: FeedPost[]): string {
 }
 
 async function loadPosts(): Promise<FeedPost[]> {
+  // Public feed exports (Atom, JSON Feed, MF2) must mirror the visible
+  // timeline exactly — pending items in the moderation queue stay out
+  // of every syndicated copy until the owner approves them.
   const posts = await db
     .select({
       id: postsTable.id,
@@ -87,6 +90,7 @@ async function loadPosts(): Promise<FeedPost[]> {
       createdAt: postsTable.createdAt,
     })
     .from(postsTable)
+    .where(eq(postsTable.status, "published"))
     .orderBy(desc(postsTable.createdAt));
 
   return posts as FeedPost[];

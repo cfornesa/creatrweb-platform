@@ -18,6 +18,8 @@ tags:
     description: User operations
   - name: site
     description: Site-wide settings
+  - name: feeds
+    description: Inbound RSS / Atom feed sources and moderation queue
 paths:
   /healthz:
     get:
@@ -387,6 +389,250 @@ paths:
         "403":
           description: Forbidden
 
+  /posts/pending:
+    get:
+      operationId: listPendingPosts
+      tags: [feeds]
+      summary: List posts awaiting moderation (owner only)
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Pending queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingPostsPage"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /posts/{id}/approve:
+    post:
+      operationId: approvePost
+      tags: [feeds]
+      summary: Approve a pending post (owner only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approval result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovePostResponse"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "409":
+          description: Post is not pending
+
+  /posts/{id}/reject:
+    post:
+      operationId: rejectPost
+      tags: [feeds]
+      summary: Reject (delete) a pending post (owner only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Rejected
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "409":
+          description: Post is not pending
+
+  /feed-sources:
+    get:
+      operationId: listFeedSources
+      tags: [feeds]
+      summary: List configured RSS / Atom sources (owner only)
+      responses:
+        "200":
+          description: Sources
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedSourcesList"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+    post:
+      operationId: createFeedSource
+      tags: [feeds]
+      summary: Create a new feed source (owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFeedSourceBody"
+      responses:
+        "201":
+          description: Created source
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedSource"
+        "400":
+          description: Invalid request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /feed-sources/{id}:
+    patch:
+      operationId: updateFeedSource
+      tags: [feeds]
+      summary: Update a feed source (owner only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFeedSourceBody"
+      responses:
+        "200":
+          description: Updated source
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedSource"
+        "400":
+          description: Invalid request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteFeedSource
+      tags: [feeds]
+      summary: Delete a feed source (owner only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+
+  /feed-sources/{id}/refresh:
+    post:
+      operationId: refreshFeedSource
+      tags: [feeds]
+      summary: Pull this feed source now (owner only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Refresh result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedRefreshResult"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+
+  /feed-sources/{id}/approve-all:
+    post:
+      operationId: approveAllFromFeedSource
+      tags: [feeds]
+      summary: Bulk-approve every pending post from this source (owner only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Number of pending posts approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApproveAllFromFeedSourceResponse"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+
+  /feed-sources/refresh:
+    post:
+      operationId: refreshAllFeedSources
+      tags: [feeds]
+      summary: Refresh every enabled, due source (owner cookie or X-Cron-Secret)
+      parameters:
+        - in: query
+          name: force
+          schema:
+            type: string
+            enum: ["1", "true"]
+          description: When set, ignore each source's cadence and pull every enabled source.
+      responses:
+        "200":
+          description: Aggregate refresh result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedRefreshSummary"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
   /media/{fileName}:
     get:
       operationId: getMedia
@@ -433,6 +679,18 @@ components:
           enum: [plain, html]
         commentCount:
           type: integer
+        sourceFeedId:
+          type: integer
+          nullable: true
+          description: ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.
+        sourceFeedName:
+          type: string
+          nullable: true
+          description: Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.
+        sourceCanonicalUrl:
+          type: string
+          nullable: true
+          description: Permalink of the post on its origin site (PESOS attribution).
         createdAt:
           type: string
           format: date-time
@@ -871,6 +1129,247 @@ components:
         - colorMutedForeground
         - colorDestructive
         - colorDestructiveForeground
+
+    PendingPost:
+      type: object
+      properties:
+        id:
+          type: integer
+        authorName:
+          type: string
+        authorImageUrl:
+          type: string
+          nullable: true
+        content:
+          type: string
+        contentFormat:
+          type: string
+          enum: [plain, html]
+        status:
+          type: string
+          enum: [pending, published]
+        sourceFeedId:
+          type: integer
+          nullable: true
+        sourceGuid:
+          type: string
+          nullable: true
+        sourceCanonicalUrl:
+          type: string
+          nullable: true
+        sourceFeedName:
+          type: string
+          nullable: true
+        sourceSiteUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - authorName
+        - content
+        - contentFormat
+        - status
+        - createdAt
+
+    PendingPostsPage:
+      type: object
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PendingPost"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - posts
+        - total
+        - page
+        - limit
+
+    ApprovePostResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+          enum: [published]
+      required:
+        - id
+        - status
+
+    FeedSource:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        feedUrl:
+          type: string
+        siteUrl:
+          type: string
+          nullable: true
+        cadence:
+          type: string
+          enum: [daily, weekly, monthly]
+        enabled:
+          type: boolean
+        lastFetchedAt:
+          type: string
+          format: date-time
+          nullable: true
+        nextFetchAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When this source will next be eligible for refresh (null = never fetched, treated as immediately due).
+        lastStatus:
+          type: string
+          nullable: true
+        lastError:
+          type: string
+          nullable: true
+        itemsImported:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - feedUrl
+        - cadence
+        - enabled
+        - itemsImported
+        - createdAt
+        - updatedAt
+
+    FeedSourcesList:
+      type: object
+      properties:
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeedSource"
+      required:
+        - sources
+
+    CreateFeedSourceBody:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        feedUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+        siteUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+          nullable: true
+        cadence:
+          type: string
+          enum: [daily, weekly, monthly]
+          default: daily
+        enabled:
+          type: boolean
+          default: true
+      required:
+        - name
+        - feedUrl
+
+    UpdateFeedSourceBody:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        feedUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+        siteUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+          nullable: true
+        cadence:
+          type: string
+          enum: [daily, weekly, monthly]
+        enabled:
+          type: boolean
+
+    FeedRefreshResult:
+      type: object
+      properties:
+        sourceId:
+          type: integer
+        fetched:
+          type: integer
+        imported:
+          type: integer
+        skipped:
+          type: integer
+        status:
+          type: string
+          enum: [ok, error]
+        error:
+          type: string
+          nullable: true
+      required:
+        - sourceId
+        - fetched
+        - imported
+        - skipped
+        - status
+
+    ApproveAllFromFeedSourceResponse:
+      type: object
+      properties:
+        sourceId:
+          type: integer
+        approved:
+          type: integer
+          description: Number of pending posts that were flipped to published.
+      required:
+        - sourceId
+        - approved
+
+    FeedRefreshSummary:
+      type: object
+      properties:
+        ranAt:
+          type: string
+          format: date-time
+        attempted:
+          type: integer
+        totalFetched:
+          type: integer
+        totalImported:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeedRefreshResult"
+      required:
+        - ranAt
+        - attempted
+        - totalFetched
+        - totalImported
+        - results
 
     UpdateSiteSettingsBody:
       type: object

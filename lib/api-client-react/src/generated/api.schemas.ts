@@ -25,6 +25,12 @@ export interface Post {
   content: string;
   contentFormat: PostContentFormat;
   commentCount: number;
+  /** ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts. */
+  sourceFeedId?: number | null;
+  /** Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts. */
+  sourceFeedName?: string | null;
+  /** Permalink of the post on its origin site (PESOS attribution). */
+  sourceCanonicalUrl?: string | null;
   createdAt: string;
 }
 
@@ -330,6 +336,157 @@ export interface SiteSettings {
   colorDestructiveForeground: string;
 }
 
+export type PendingPostContentFormat = typeof PendingPostContentFormat[keyof typeof PendingPostContentFormat];
+
+
+export const PendingPostContentFormat = {
+  plain: 'plain',
+  html: 'html',
+} as const;
+
+export type PendingPostStatus = typeof PendingPostStatus[keyof typeof PendingPostStatus];
+
+
+export const PendingPostStatus = {
+  pending: 'pending',
+  published: 'published',
+} as const;
+
+export interface PendingPost {
+  id: number;
+  authorName: string;
+  authorImageUrl?: string | null;
+  content: string;
+  contentFormat: PendingPostContentFormat;
+  status: PendingPostStatus;
+  sourceFeedId?: number | null;
+  sourceGuid?: string | null;
+  sourceCanonicalUrl?: string | null;
+  sourceFeedName?: string | null;
+  sourceSiteUrl?: string | null;
+  createdAt: string;
+}
+
+export interface PendingPostsPage {
+  posts: PendingPost[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export type ApprovePostResponseStatus = typeof ApprovePostResponseStatus[keyof typeof ApprovePostResponseStatus];
+
+
+export const ApprovePostResponseStatus = {
+  published: 'published',
+} as const;
+
+export interface ApprovePostResponse {
+  id: number;
+  status: ApprovePostResponseStatus;
+}
+
+export type FeedSourceCadence = typeof FeedSourceCadence[keyof typeof FeedSourceCadence];
+
+
+export const FeedSourceCadence = {
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
+
+export interface FeedSource {
+  id: number;
+  name: string;
+  feedUrl: string;
+  siteUrl?: string | null;
+  cadence: FeedSourceCadence;
+  enabled: boolean;
+  lastFetchedAt?: string | null;
+  /** When this source will next be eligible for refresh (null = never fetched, treated as immediately due). */
+  nextFetchAt?: string | null;
+  lastStatus?: string | null;
+  lastError?: string | null;
+  itemsImported: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FeedSourcesList {
+  sources: FeedSource[];
+}
+
+export type CreateFeedSourceBodyCadence = typeof CreateFeedSourceBodyCadence[keyof typeof CreateFeedSourceBodyCadence];
+
+
+export const CreateFeedSourceBodyCadence = {
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
+
+export interface CreateFeedSourceBody {
+  /** @maxLength 255 */
+  name: string;
+  /** @maxLength 2048 */
+  feedUrl: string;
+  /** @maxLength 2048 */
+  siteUrl?: string | null;
+  cadence?: CreateFeedSourceBodyCadence;
+  enabled?: boolean;
+}
+
+export type UpdateFeedSourceBodyCadence = typeof UpdateFeedSourceBodyCadence[keyof typeof UpdateFeedSourceBodyCadence];
+
+
+export const UpdateFeedSourceBodyCadence = {
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
+
+export interface UpdateFeedSourceBody {
+  /** @maxLength 255 */
+  name?: string;
+  /** @maxLength 2048 */
+  feedUrl?: string;
+  /** @maxLength 2048 */
+  siteUrl?: string | null;
+  cadence?: UpdateFeedSourceBodyCadence;
+  enabled?: boolean;
+}
+
+export type FeedRefreshResultStatus = typeof FeedRefreshResultStatus[keyof typeof FeedRefreshResultStatus];
+
+
+export const FeedRefreshResultStatus = {
+  ok: 'ok',
+  error: 'error',
+} as const;
+
+export interface FeedRefreshResult {
+  sourceId: number;
+  fetched: number;
+  imported: number;
+  skipped: number;
+  status: FeedRefreshResultStatus;
+  error?: string | null;
+}
+
+export interface ApproveAllFromFeedSourceResponse {
+  sourceId: number;
+  /** Number of pending posts that were flipped to published. */
+  approved: number;
+}
+
+export interface FeedRefreshSummary {
+  ranAt: string;
+  attempted: number;
+  totalFetched: number;
+  totalImported: number;
+  results: FeedRefreshResult[];
+}
+
 export type UpdateSiteSettingsBodyTheme = typeof UpdateSiteSettingsBodyTheme[keyof typeof UpdateSiteSettingsBodyTheme];
 
 
@@ -424,4 +581,24 @@ limit?: number;
 export type UploadMediaBody = {
   file: Blob;
 };
+
+export type ListPendingPostsParams = {
+page?: number;
+limit?: number;
+};
+
+export type RefreshAllFeedSourcesParams = {
+/**
+ * When set, ignore each source's cadence and pull every enabled source.
+ */
+force?: RefreshAllFeedSourcesForce;
+};
+
+export type RefreshAllFeedSourcesForce = typeof RefreshAllFeedSourcesForce[keyof typeof RefreshAllFeedSourcesForce];
+
+
+export const RefreshAllFeedSourcesForce = {
+  NUMBER_1: '1',
+  true: 'true',
+} as const;
 

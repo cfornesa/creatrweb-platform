@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, postsTable, commentsTable, eq, desc, count } from "@workspace/db";
+import { db, postsTable, commentsTable, feedSourcesTable, eq, desc, count, and } from "@workspace/db";
 import {
   CreatePostBody,
   ListPostsQueryParams,
@@ -12,6 +12,8 @@ import {
 import { requireAuth, requireOwner } from "../middlewares/auth";
 import { sanitizeRichHtml } from "../lib/html";
 import { generatePostOgImage } from "../lib/og";
+import { loadCurrentUser } from "../lib/current-user";
+import { isPostVisibleToReader } from "../lib/post-visibility";
 
 const router: IRouter = Router();
 
@@ -23,6 +25,13 @@ router.get("/og/posts/:id", async (req: Request, res: Response) => {
     const post = await db.select().from(postsTable).where(eq(postsTable.id, id)).limit(1);
     if (!post[0]) {
       return res.status(404).json({ error: "Post not found" });
+    }
+
+    if (post[0].status === "pending") {
+      const { user } = await loadCurrentUser(req);
+      if (!isPostVisibleToReader(post[0].status, user)) {
+        return res.status(404).json({ error: "Post not found" });
+      }
     }
 
     const pngBuffer = await generatePostOgImage({
@@ -72,12 +81,16 @@ router.get("/posts/user/:userId", async (req: Request, res: Response) => {
         authorImageUrl: postsTable.authorImageUrl,
         content: postsTable.content,
         contentFormat: postsTable.contentFormat,
+        sourceFeedId: postsTable.sourceFeedId,
+        sourceFeedName: feedSourcesTable.name,
+        sourceCanonicalUrl: postsTable.sourceCanonicalUrl,
         createdAt: postsTable.createdAt,
         commentCount: count(commentsTable.id),
       })
       .from(postsTable)
       .leftJoin(commentsTable, eq(commentsTable.postId, postsTable.id))
-      .where(eq(postsTable.authorId, userId))
+      .leftJoin(feedSourcesTable, eq(feedSourcesTable.id, postsTable.sourceFeedId))
+      .where(and(eq(postsTable.authorId, userId), eq(postsTable.status, "published")))
       .groupBy(postsTable.id)
       .orderBy(desc(postsTable.createdAt))
       .limit(limit)
@@ -86,7 +99,7 @@ router.get("/posts/user/:userId", async (req: Request, res: Response) => {
     const totalResult = await db
       .select({ count: count() })
       .from(postsTable)
-      .where(eq(postsTable.authorId, userId));
+      .where(and(eq(postsTable.authorId, userId), eq(postsTable.status, "published")));
     const total = totalResult[0]?.count ?? 0;
 
     return res.json({ posts, total, page, limit });
@@ -110,17 +123,25 @@ router.get("/posts", async (req: Request, res: Response) => {
         authorImageUrl: postsTable.authorImageUrl,
         content: postsTable.content,
         contentFormat: postsTable.contentFormat,
+        sourceFeedId: postsTable.sourceFeedId,
+        sourceFeedName: feedSourcesTable.name,
+        sourceCanonicalUrl: postsTable.sourceCanonicalUrl,
         createdAt: postsTable.createdAt,
         commentCount: count(commentsTable.id),
       })
       .from(postsTable)
       .leftJoin(commentsTable, eq(commentsTable.postId, postsTable.id))
+      .leftJoin(feedSourcesTable, eq(feedSourcesTable.id, postsTable.sourceFeedId))
+      .where(eq(postsTable.status, "published"))
       .groupBy(postsTable.id)
       .orderBy(desc(postsTable.createdAt))
       .limit(limit)
       .offset(offset);
 
-    const totalResult = await db.select({ count: count() }).from(postsTable);
+    const totalResult = await db
+      .select({ count: count() })
+      .from(postsTable)
+      .where(eq(postsTable.status, "published"));
     const total = totalResult[0]?.count ?? 0;
 
     return res.json({ posts, total, page, limit });
@@ -180,17 +201,28 @@ router.get("/posts/:id", async (req: Request, res: Response) => {
         authorImageUrl: postsTable.authorImageUrl,
         content: postsTable.content,
         contentFormat: postsTable.contentFormat,
+        status: postsTable.status,
+        sourceFeedId: postsTable.sourceFeedId,
+        sourceFeedName: feedSourcesTable.name,
+        sourceCanonicalUrl: postsTable.sourceCanonicalUrl,
         createdAt: postsTable.createdAt,
         commentCount: count(commentsTable.id),
       })
       .from(postsTable)
       .leftJoin(commentsTable, eq(commentsTable.postId, postsTable.id))
+      .leftJoin(feedSourcesTable, eq(feedSourcesTable.id, postsTable.sourceFeedId))
       .where(eq(postsTable.id, id))
       .groupBy(postsTable.id);
 
     const post = postRows[0];
     if (!post) {
       return res.status(404).json({ error: "Post not found" });
+    }
+    if (post.status === "pending") {
+      const { user } = await loadCurrentUser(req);
+      if (!isPostVisibleToReader(post.status, user)) {
+        return res.status(404).json({ error: "Post not found" });
+      }
     }
 
     const comments = await db

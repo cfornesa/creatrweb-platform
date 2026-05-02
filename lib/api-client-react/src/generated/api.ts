@@ -20,18 +20,29 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ApproveAllFromFeedSourceResponse,
+  ApprovePostResponse,
   Comment,
   CreateCommentBody,
+  CreateFeedSourceBody,
   CreatePostBody,
+  FeedRefreshResult,
+  FeedRefreshSummary,
+  FeedSource,
+  FeedSourcesList,
   FeedStats,
   GetPostsByUserParams,
   HealthStatus,
+  ListPendingPostsParams,
   ListPostsParams,
+  PendingPostsPage,
   Post,
   PostWithComments,
   PostsPage,
+  RefreshAllFeedSourcesParams,
   SiteSettings,
   UpdateCommentBody,
+  UpdateFeedSourceBody,
   UpdatePostBody,
   UpdateSiteSettingsBody,
   UpdateUserProfileBody,
@@ -1327,6 +1338,737 @@ export const useUpdateSiteSettings = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateSiteSettingsMutationOptions(options));
+    }
+
+/**
+ * @summary List posts awaiting moderation (owner only)
+ */
+export const getListPendingPostsUrl = (params?: ListPendingPostsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/posts/pending?${stringifiedParams}` : `/api/posts/pending`
+}
+
+export const listPendingPosts = async (params?: ListPendingPostsParams, options?: RequestInit): Promise<PendingPostsPage> => {
+
+  return customFetch<PendingPostsPage>(getListPendingPostsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPendingPostsQueryKey = (params?: ListPendingPostsParams,) => {
+    return [
+    `/api/posts/pending`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPendingPostsQueryOptions = <TData = Awaited<ReturnType<typeof listPendingPosts>>, TError = ErrorType<void>>(params?: ListPendingPostsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPendingPostsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPendingPosts>>> = ({ signal }) => listPendingPosts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPendingPosts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPendingPostsQueryResult = NonNullable<Awaited<ReturnType<typeof listPendingPosts>>>
+export type ListPendingPostsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List posts awaiting moderation (owner only)
+ */
+
+export function useListPendingPosts<TData = Awaited<ReturnType<typeof listPendingPosts>>, TError = ErrorType<void>>(
+ params?: ListPendingPostsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPendingPostsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * @summary Approve a pending post (owner only)
+ */
+export const getApprovePostUrl = (id: number,) => {
+
+
+
+
+  return `/api/posts/${id}/approve`
+}
+
+export const approvePost = async (id: number, options?: RequestInit): Promise<ApprovePostResponse> => {
+
+  return customFetch<ApprovePostResponse>(getApprovePostUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getApprovePostMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvePost>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approvePost>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['approvePost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approvePost>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  approvePost(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApprovePostMutationResult = NonNullable<Awaited<ReturnType<typeof approvePost>>>
+
+    export type ApprovePostMutationError = ErrorType<void>
+
+    /**
+ * @summary Approve a pending post (owner only)
+ */
+export const useApprovePost = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvePost>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approvePost>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getApprovePostMutationOptions(options));
+    }
+
+/**
+ * @summary Reject (delete) a pending post (owner only)
+ */
+export const getRejectPostUrl = (id: number,) => {
+
+
+
+
+  return `/api/posts/${id}/reject`
+}
+
+export const rejectPost = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRejectPostUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRejectPostMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectPost>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectPost>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['rejectPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectPost>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  rejectPost(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectPostMutationResult = NonNullable<Awaited<ReturnType<typeof rejectPost>>>
+
+    export type RejectPostMutationError = ErrorType<void>
+
+    /**
+ * @summary Reject (delete) a pending post (owner only)
+ */
+export const useRejectPost = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectPost>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectPost>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRejectPostMutationOptions(options));
+    }
+
+/**
+ * @summary List configured RSS / Atom sources (owner only)
+ */
+export const getListFeedSourcesUrl = () => {
+
+
+
+
+  return `/api/feed-sources`
+}
+
+export const listFeedSources = async ( options?: RequestInit): Promise<FeedSourcesList> => {
+
+  return customFetch<FeedSourcesList>(getListFeedSourcesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFeedSourcesQueryKey = () => {
+    return [
+    `/api/feed-sources`
+    ] as const;
+    }
+
+
+export const getListFeedSourcesQueryOptions = <TData = Awaited<ReturnType<typeof listFeedSources>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFeedSources>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFeedSourcesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFeedSources>>> = ({ signal }) => listFeedSources({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFeedSources>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFeedSourcesQueryResult = NonNullable<Awaited<ReturnType<typeof listFeedSources>>>
+export type ListFeedSourcesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List configured RSS / Atom sources (owner only)
+ */
+
+export function useListFeedSources<TData = Awaited<ReturnType<typeof listFeedSources>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFeedSources>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFeedSourcesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * @summary Create a new feed source (owner only)
+ */
+export const getCreateFeedSourceUrl = () => {
+
+
+
+
+  return `/api/feed-sources`
+}
+
+export const createFeedSource = async (createFeedSourceBody: CreateFeedSourceBody, options?: RequestInit): Promise<FeedSource> => {
+
+  return customFetch<FeedSource>(getCreateFeedSourceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      createFeedSourceBody,)
+  }
+);}
+
+
+
+
+export const getCreateFeedSourceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFeedSource>>, TError,{data: BodyType<CreateFeedSourceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createFeedSource>>, TError,{data: BodyType<CreateFeedSourceBody>}, TContext> => {
+
+const mutationKey = ['createFeedSource'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createFeedSource>>, {data: BodyType<CreateFeedSourceBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createFeedSource(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateFeedSourceMutationResult = NonNullable<Awaited<ReturnType<typeof createFeedSource>>>
+    export type CreateFeedSourceMutationBody = BodyType<CreateFeedSourceBody>
+    export type CreateFeedSourceMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a new feed source (owner only)
+ */
+export const useCreateFeedSource = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFeedSource>>, TError,{data: BodyType<CreateFeedSourceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createFeedSource>>,
+        TError,
+        {data: BodyType<CreateFeedSourceBody>},
+        TContext
+      > => {
+      return useMutation(getCreateFeedSourceMutationOptions(options));
+    }
+
+/**
+ * @summary Update a feed source (owner only)
+ */
+export const getUpdateFeedSourceUrl = (id: number,) => {
+
+
+
+
+  return `/api/feed-sources/${id}`
+}
+
+export const updateFeedSource = async (id: number,
+    updateFeedSourceBody: UpdateFeedSourceBody, options?: RequestInit): Promise<FeedSource> => {
+
+  return customFetch<FeedSource>(getUpdateFeedSourceUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateFeedSourceBody,)
+  }
+);}
+
+
+
+
+export const getUpdateFeedSourceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFeedSource>>, TError,{id: number;data: BodyType<UpdateFeedSourceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateFeedSource>>, TError,{id: number;data: BodyType<UpdateFeedSourceBody>}, TContext> => {
+
+const mutationKey = ['updateFeedSource'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateFeedSource>>, {id: number;data: BodyType<UpdateFeedSourceBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateFeedSource(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateFeedSourceMutationResult = NonNullable<Awaited<ReturnType<typeof updateFeedSource>>>
+    export type UpdateFeedSourceMutationBody = BodyType<UpdateFeedSourceBody>
+    export type UpdateFeedSourceMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a feed source (owner only)
+ */
+export const useUpdateFeedSource = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFeedSource>>, TError,{id: number;data: BodyType<UpdateFeedSourceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateFeedSource>>,
+        TError,
+        {id: number;data: BodyType<UpdateFeedSourceBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateFeedSourceMutationOptions(options));
+    }
+
+/**
+ * @summary Delete a feed source (owner only)
+ */
+export const getDeleteFeedSourceUrl = (id: number,) => {
+
+
+
+
+  return `/api/feed-sources/${id}`
+}
+
+export const deleteFeedSource = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteFeedSourceUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteFeedSourceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteFeedSource>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteFeedSource>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteFeedSource'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteFeedSource>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteFeedSource(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteFeedSourceMutationResult = NonNullable<Awaited<ReturnType<typeof deleteFeedSource>>>
+
+    export type DeleteFeedSourceMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a feed source (owner only)
+ */
+export const useDeleteFeedSource = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteFeedSource>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteFeedSource>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteFeedSourceMutationOptions(options));
+    }
+
+/**
+ * @summary Pull this feed source now (owner only)
+ */
+export const getRefreshFeedSourceUrl = (id: number,) => {
+
+
+
+
+  return `/api/feed-sources/${id}/refresh`
+}
+
+export const refreshFeedSource = async (id: number, options?: RequestInit): Promise<FeedRefreshResult> => {
+
+  return customFetch<FeedRefreshResult>(getRefreshFeedSourceUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRefreshFeedSourceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshFeedSource>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof refreshFeedSource>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['refreshFeedSource'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof refreshFeedSource>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  refreshFeedSource(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RefreshFeedSourceMutationResult = NonNullable<Awaited<ReturnType<typeof refreshFeedSource>>>
+
+    export type RefreshFeedSourceMutationError = ErrorType<void>
+
+    /**
+ * @summary Pull this feed source now (owner only)
+ */
+export const useRefreshFeedSource = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshFeedSource>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof refreshFeedSource>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRefreshFeedSourceMutationOptions(options));
+    }
+
+/**
+ * @summary Bulk-approve every pending post from this source (owner only)
+ */
+export const getApproveAllFromFeedSourceUrl = (id: number,) => {
+
+
+
+
+  return `/api/feed-sources/${id}/approve-all`
+}
+
+export const approveAllFromFeedSource = async (id: number, options?: RequestInit): Promise<ApproveAllFromFeedSourceResponse> => {
+
+  return customFetch<ApproveAllFromFeedSourceResponse>(getApproveAllFromFeedSourceUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getApproveAllFromFeedSourceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveAllFromFeedSource>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveAllFromFeedSource>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['approveAllFromFeedSource'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveAllFromFeedSource>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  approveAllFromFeedSource(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveAllFromFeedSourceMutationResult = NonNullable<Awaited<ReturnType<typeof approveAllFromFeedSource>>>
+
+    export type ApproveAllFromFeedSourceMutationError = ErrorType<void>
+
+    /**
+ * @summary Bulk-approve every pending post from this source (owner only)
+ */
+export const useApproveAllFromFeedSource = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveAllFromFeedSource>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveAllFromFeedSource>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getApproveAllFromFeedSourceMutationOptions(options));
+    }
+
+/**
+ * @summary Refresh every enabled, due source (owner cookie or X-Cron-Secret)
+ */
+export const getRefreshAllFeedSourcesUrl = (params?: RefreshAllFeedSourcesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/feed-sources/refresh?${stringifiedParams}` : `/api/feed-sources/refresh`
+}
+
+export const refreshAllFeedSources = async (params?: RefreshAllFeedSourcesParams, options?: RequestInit): Promise<FeedRefreshSummary> => {
+
+  return customFetch<FeedRefreshSummary>(getRefreshAllFeedSourcesUrl(params),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRefreshAllFeedSourcesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshAllFeedSources>>, TError,{params?: RefreshAllFeedSourcesParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof refreshAllFeedSources>>, TError,{params?: RefreshAllFeedSourcesParams}, TContext> => {
+
+const mutationKey = ['refreshAllFeedSources'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof refreshAllFeedSources>>, {params?: RefreshAllFeedSourcesParams}> = (props) => {
+          const {params} = props ?? {};
+
+          return  refreshAllFeedSources(params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RefreshAllFeedSourcesMutationResult = NonNullable<Awaited<ReturnType<typeof refreshAllFeedSources>>>
+
+    export type RefreshAllFeedSourcesMutationError = ErrorType<void>
+
+    /**
+ * @summary Refresh every enabled, due source (owner cookie or X-Cron-Secret)
+ */
+export const useRefreshAllFeedSources = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshAllFeedSources>>, TError,{params?: RefreshAllFeedSourcesParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof refreshAllFeedSources>>,
+        TError,
+        {params?: RefreshAllFeedSourcesParams},
+        TContext
+      > => {
+      return useMutation(getRefreshAllFeedSourcesMutationOptions(options));
     }
 
 /**

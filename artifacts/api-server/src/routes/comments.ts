@@ -17,6 +17,10 @@ router.post("/posts/:postId/comments", requireAuth, async (req: Request, res: Re
     if (!post[0]) {
       return res.status(404).json({ error: "Post not found" });
     }
+    // Pending posts are owner-only; non-owners get 404.
+    if (post[0].status === "pending" && currentUser.role !== "owner") {
+      return res.status(404).json({ error: "Post not found" });
+    }
 
     const insertResult = await db
       .insert(commentsTable)

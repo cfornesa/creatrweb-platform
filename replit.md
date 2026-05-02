@@ -61,6 +61,16 @@ For environments where schema is applied by hand (e.g. Hostinger via phpMyAdmin)
 - `GET /api/feed/stats` — total posts + comments count
 - `GET /api/site-settings` — public site identity + color palette (singleton)
 - `PATCH /api/site-settings` — update site identity + color palette (owner only)
+- `GET /api/feed-sources` — list subscribed RSS/Atom sources (owner only)
+- `POST /api/feed-sources` — subscribe to a new feed (owner only)
+- `PATCH /api/feed-sources/:id` — update name/url/cadence/enabled (owner only)
+- `DELETE /api/feed-sources/:id` — unsubscribe (owner only; ledger cascades)
+- `POST /api/feed-sources/:id/refresh` — fetch one source now (owner only; `?force=1` skips cadence)
+- `POST /api/feed-sources/:id/approve-all` — bulk-approve every pending post from a source (owner only)
+- `POST /api/feed-sources/refresh` — bulk refresh all enabled, due sources (owner cookie OR `X-Cron-Secret` header)
+- `GET /api/posts/pending` — list items waiting for review (owner only)
+- `POST /api/posts/:id/approve` — promote pending → published (owner only)
+- `POST /api/posts/:id/reject` — discard a pending item (owner only)
 
 ## Auth.js
 
@@ -88,11 +98,34 @@ A "Reset to Bauhaus defaults" button restores theme=`bauhaus`, palette=`bauhaus`
 
 Backend storage: singleton row in `site_settings` (id=1) with `theme` and `palette` columns (varchar(32) NOT NULL DEFAULT `'bauhaus'`). Backed by `requireOwner` middleware on `PATCH /api/site-settings`. The frontend hook is `useSiteSettings()` in `artifacts/microblog/src/hooks/use-site-settings.ts`. Google Fonts (Lora, EB Garamond, Inter, Nunito, Quicksand, Space Grotesk, Bebas Neue, Caveat) are preloaded in `index.html`.
 
+## Inbound Feeds (PESOS)
+
+The owner can subscribe to external sites' RSS/Atom feeds at `/admin/feeds` and review imported items at `/admin/pending` before they appear on the public timeline.
+
+- **Schema**: `feed_sources` (subscriptions, including `next_fetch_at` for the cadence gate) + `feed_items_seen` (per-source dedup ledger keyed by `sha256(guid|id|link+title)`). Posts gain `status` (`'published'` | `'pending'`), `source_feed_id` (FK → `feed_sources.id` with `ON DELETE SET NULL` so unsubscribing keeps already-imported posts but drops the back-pointer), `source_guid`, `source_canonical_url`. The FK is added by `ensureForeignKey` in `lib/db/src/migrate.ts` so pre-existing deploys with the bare nullable column pick it up on next boot. All public reads filter `status='published'`; `GET /api/posts/:id` for a pending post returns 404 to non-owners and the full body to authenticated owners. `POST /api/posts/:postId/comments` returns 404 on pending posts for non-owners but **lets the owner comment**, which is what makes pre-publish review of imported items workable.
+- **Author convention**: feed-imported posts use `author_id='feed:<sourceId>'`, `author_user_id=NULL`. `author_name` is the original item author from `<dc:creator>` / `<author>` (with the source name as a fallback) so bylines on the timeline credit the actual writer; the originating feed source name is joined in as `sourceFeedName` on `Post` / `PendingPost` responses and surfaced as the "via {source}" badge. HTML source bodies are wrapped with the original title as `<h2>` and an attribution paragraph with a `u-url u-syndication`-classed link to the canonical URL (microformats2-compatible — `u-url` marks the canonical permalink of the entry, `u-syndication` marks this site as the syndicated copy).
+- **Plain-vs-HTML parity**: `normalizeFeedItem` returns `{ content, contentFormat }` matching the `posts` columns. Source items whose body is HTML (`<content:encoded>` / `<content>` / `<summary>`, or any tag-bearing snippet) land as `contentFormat='html'`. Plain-text-only items (only `contentSnippet`, no markup) land as `contentFormat='plain'` with the body kept verbatim and a text attribution footer (`by Author · via Source — <canonicalUrl>`); plain posts skip mf2 class markers because they have no HTML wrapper.
+- **Cadence**: `daily` / `weekly` / `monthly`. After every successful fetch, `feed_sources.next_fetch_at` is set to `now + cadenceInterval`; the bulk-refresh endpoint skips any source whose `next_fetch_at` is in the future unless `?force=1` is passed. NULL `next_fetch_at` (never fetched, or freshly added) is treated as immediately due. Cadence edits recompute the next-due time off `last_fetched_at` so a source isn't stuck waiting at the old interval.
+- **Dedup**: post-first, ledger-second ordering in `ingestOneItem` (`artifacts/api-server/src/routes/feed-sources.ts`) — the post row is written first, then the `(source_id, guid_hash)` ledger row is inserted with `post_id` already populated. If the post insert fails for any reason (validation, transient DB error, etc.) the ledger is never touched, so the item stays retriable on the next refresh. The unique key on `(source_id, guid_hash)` is the race-safety net: two concurrent refreshes can both pass the cheap `isAlreadySeen` check and both insert posts; the second `insertDedupRow` throws `ER_DUP_ENTRY` (mysql errno 1062) and the loser's post is removed by a compensating `deletePost`, leaving exactly one row on the timeline. The per-item logic is decoupled from Drizzle behind the `IngestDb` contract so the ordering rule is unit-tested with stubs (no MySQL) — see `feed-sources.test.ts`.
+- **Sanitization**: HTML feed bodies go through `sanitizeRichHtml` (`artifacts/api-server/src/lib/html.ts`) — `<script>`, `javascript:` URLs, and other dangerous markup are stripped. The `class` attribute on `<a>` survives so microformats2 markers (`u-url`, `u-syndication`, `h-cite`, etc.) are preserved. Plain-text bodies bypass the sanitizer because the frontend's plain-text renderer is already escape-safe.
+- **Bulk approve**: `POST /api/feed-sources/:id/approve-all` flips every pending post from the given source to published in a single statement. Surfaced in two places: per-row on `/admin/feeds`, and per-source-group on `/admin/pending` (the pending queue groups items by their `sourceFeedId` and renders a section header per source with its own "Approve all from this source" confirmation dialog), so the owner can backfill a trusted source without clicking through every item.
+- **Ingest helpers**: `computeGuidHash`, `normalizeFeedItem`, `pickOriginalAuthor`, `cadenceIntervalMs`, `computeNextFetchAt`, `isSourceDue`, `fetchFeed` (project-neutral `User-Agent: MicroblogFeedIngest/1.0`) live in `artifacts/api-server/src/lib/feed-ingest.ts` and are unit-tested in `feed-ingest.test.ts` (27 tests covering XSS-via-author-field, `u-url` markup, plain-vs-html branching, and cadence math). The atomic per-item ingest function `ingestOneItem` and the `isDuplicateKeyError` mysql2 detector live in `routes/feed-sources.ts` and are unit-tested in `feed-sources.test.ts` (9 tests covering happy path, already-seen short-circuit, the dedup-after-post regression, retry on transient post failure, and lost-race compensation).
+
+### Scheduled refresh
+
+`POST /api/feed-sources/refresh` accepts owner cookie auth **or** an `X-Cron-Secret` header compared against `process.env.CRON_SECRET` via `crypto.timingSafeEqual`. To run it on a schedule with Replit Scheduled Deployments:
+
+1. Set the `CRON_SECRET` secret in the deployment.
+2. Create a Scheduled Deployment whose command issues `curl -fsS -X POST -H "X-Cron-Secret: $CRON_SECRET" https://<your-deployed-domain>/api/feed-sources/refresh`.
+3. Pick an interval that matches your fastest cadence (e.g. hourly is fine; daily/weekly sources self-throttle via `isSourceDue`).
+
+Add `?force=1` only when you intentionally want to bypass the cadence gate (e.g. a manual debugging run from the admin UI's "Refresh all" button).
+
 ## Important Notes
 
 - `@libsql/linux-x64-gnu` must be a direct dependency of `@workspace/api-server` (for esbuild bundling)
 - `libsql`, `@libsql/linux-x64-gnu`, and friends are in the esbuild external list in `build.mjs`
-- Route order in `posts.ts`: `/feed/stats` and `/posts/user/:userId` come BEFORE `/posts/:id`
+- Route order in `posts.ts`: `/feed/stats`, `/posts/user/:userId`, and `/posts/pending` come BEFORE `/posts/:id`. The pending router is mounted before the posts router for the same reason.
 - Drizzle operators (`eq`, `desc`, `count`, etc.) are re-exported from `@workspace/db` to avoid version conflicts
 
 Use the root `package.json` workspace configuration for workspace structure, TypeScript setup, and package details.

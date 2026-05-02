@@ -32,6 +32,71 @@ async function ensureColumn(
   await mysqlPool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN ${definition}`);
 }
 
+type IndexRow = RowDataPacket & { INDEX_NAME: string };
+
+async function getIndexNames(tableName: string): Promise<Set<string>> {
+  const [rows] = await mysqlPool.query<IndexRow[]>(
+    `
+      SELECT DISTINCT INDEX_NAME
+      FROM INFORMATION_SCHEMA.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = ?
+    `,
+    [tableName],
+  );
+  return new Set(rows.map((row) => row.INDEX_NAME));
+}
+
+async function ensureIndex(
+  tableName: string,
+  indexName: string,
+  createSql: string,
+): Promise<void> {
+  const indexes = await getIndexNames(tableName);
+  if (indexes.has(indexName)) {
+    return;
+  }
+  await mysqlPool.query(createSql);
+}
+
+type ConstraintRow = RowDataPacket & { CONSTRAINT_NAME: string };
+
+async function getConstraintNames(tableName: string): Promise<Set<string>> {
+  const [rows] = await mysqlPool.query<ConstraintRow[]>(
+    `
+      SELECT CONSTRAINT_NAME
+      FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = ?
+    `,
+    [tableName],
+  );
+  return new Set(rows.map((row) => row.CONSTRAINT_NAME));
+}
+
+/**
+ * Add a FOREIGN KEY only if it isn't already present. The `addSql`
+ * argument is the body of the `ALTER TABLE … ADD CONSTRAINT <name> …`
+ * statement (e.g. `"FOREIGN KEY (source_feed_id) REFERENCES …"`).
+ *
+ * The check is by constraint name rather than by column tuple because
+ * MySQL allows multiple FKs on the same column with different names —
+ * naming our FK explicitly is what makes the migration idempotent.
+ */
+async function ensureForeignKey(
+  tableName: string,
+  constraintName: string,
+  addSql: string,
+): Promise<void> {
+  const constraints = await getConstraintNames(tableName);
+  if (constraints.has(constraintName)) {
+    return;
+  }
+  await mysqlPool.query(
+    `ALTER TABLE \`${tableName}\` ADD CONSTRAINT \`${constraintName}\` ${addSql}`,
+  );
+}
+
 export async function ensureTables(): Promise<void> {
   await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -99,6 +164,10 @@ export async function ensureTables(): Promise<void> {
       author_image_url VARCHAR(2048) NULL,
       content TEXT NOT NULL,
       content_format VARCHAR(16) NOT NULL DEFAULT 'plain',
+      status VARCHAR(16) NOT NULL DEFAULT 'published',
+      source_feed_id INT NULL,
+      source_guid VARCHAR(1024) NULL,
+      source_canonical_url VARCHAR(2048) NULL,
       created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       CONSTRAINT posts_author_user_id_fk
         FOREIGN KEY (author_user_id) REFERENCES users(id)
@@ -135,6 +204,44 @@ export async function ensureTables(): Promise<void> {
     "posts",
     "content_format",
     "content_format VARCHAR(16) NOT NULL DEFAULT 'plain'",
+  );
+
+  // Feed-ingest / pending-review columns. All nullable so existing
+  // owner-authored rows are unaffected. `status` defaults to
+  // 'published' so any legacy row (and any direct INSERT that omits
+  // the column) lands on the public timeline as before.
+  await ensureColumn(
+    "posts",
+    "status",
+    "status VARCHAR(16) NOT NULL DEFAULT 'published'",
+  );
+  await ensureColumn(
+    "posts",
+    "source_feed_id",
+    "source_feed_id INT NULL",
+  );
+  await ensureColumn(
+    "posts",
+    "source_guid",
+    "source_guid VARCHAR(1024) NULL",
+  );
+  await ensureColumn(
+    "posts",
+    "source_canonical_url",
+    "source_canonical_url VARCHAR(2048) NULL",
+  );
+
+  // Index on status so the very common "published only" filter on the
+  // public timeline does not table-scan as the queue grows.
+  await ensureIndex(
+    "posts",
+    "posts_status_idx",
+    "CREATE INDEX posts_status_idx ON posts (status)",
+  );
+  await ensureIndex(
+    "posts",
+    "posts_source_feed_idx",
+    "CREATE INDEX posts_source_feed_idx ON posts (source_feed_id)",
   );
 
   await ensureColumn(
@@ -285,6 +392,68 @@ export async function ensureTables(): Promise<void> {
       "0 0% 100%",
     ],
   );
+
+  // RSS / Atom inbound feeds (PESOS pattern). The owner subscribes to
+  // external sources here; the ingest worker fans new items into
+  // `posts` rows with status='pending' until an owner approves them.
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS feed_sources (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      feed_url VARCHAR(2048) NOT NULL,
+      site_url VARCHAR(2048) NULL,
+      cadence VARCHAR(16) NOT NULL DEFAULT 'daily',
+      enabled INT NOT NULL DEFAULT 1,
+      last_fetched_at DATETIME(3) NULL,
+      next_fetch_at DATETIME(3) NULL,
+      last_status VARCHAR(32) NULL,
+      last_error TEXT NULL,
+      items_imported INT NOT NULL DEFAULT 0,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // `next_fetch_at` was added after the initial migration. Keep the
+  // ensure-column shim so any pre-existing deploy upgrades in place.
+  await ensureColumn(
+    "feed_sources",
+    "next_fetch_at",
+    "next_fetch_at DATETIME(3) NULL",
+  );
+
+  // FK from `posts.source_feed_id` → `feed_sources.id`. Has to live
+  // here (after both tables exist) rather than inline on the posts
+  // CREATE TABLE because feed_sources is created later in this file.
+  // ON DELETE SET NULL so unsubscribing from a source preserves the
+  // already-imported posts but lets the orphan rows survive without a
+  // dangling pointer. Pre-existing deployments that already had the
+  // nullable column without the constraint pick up the FK on next boot.
+  await ensureForeignKey(
+    "posts",
+    "posts_source_feed_id_fk",
+    "FOREIGN KEY (source_feed_id) REFERENCES feed_sources(id) ON DELETE SET NULL",
+  );
+
+  // Dedup ledger. `guid_hash` is the lowercase hex SHA-256 of the
+  // feed item's stable id (or, fallback, of `link\ntitle`). The unique
+  // (source_id, guid_hash) key is what makes "ingest is idempotent
+  // and may be retried" true — a re-fetch of the same source never
+  // duplicates rows.
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS feed_items_seen (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      source_id INT NOT NULL,
+      guid_hash CHAR(64) NOT NULL,
+      seen_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      post_id INT NULL,
+      UNIQUE KEY feed_items_seen_source_guid_unique (source_id, guid_hash),
+      KEY feed_items_seen_source_idx (source_id),
+      CONSTRAINT feed_items_seen_source_fk
+        FOREIGN KEY (source_id) REFERENCES feed_sources(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
 
   await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS reactions (

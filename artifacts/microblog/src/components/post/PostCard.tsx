@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { MessageCircle, Pencil, Trash2, Maximize, Code, Share2 } from "lucide-react";
+import { MessageCircle, Pencil, Trash2, Maximize, Code, Share2, Rss, ExternalLink } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { formatPostDate } from "@/lib/format-date";
@@ -178,8 +178,18 @@ export function PostCard({ post, isDetail = false }: PostCardProps) {
     (currentUser?.id === displayPost.authorId ||
       currentUser?.id === (displayPost as Post & { authorUserId?: string | null }).authorUserId);
 
-  const canDelete = isOwnerAuthorPost;
-  const canEdit = isOwnerAuthorPost;
+  // Owner controls (edit + delete) apply to imported posts too.
+  const isFeedImportedPost = Boolean(
+    (displayPost as Post & { sourceFeedId?: number | null }).sourceFeedId,
+  );
+  const sourceCanonicalUrl =
+    (displayPost as Post & { sourceCanonicalUrl?: string | null }).sourceCanonicalUrl ?? null;
+  const sourceFeedName =
+    (displayPost as Post & { sourceFeedName?: string | null }).sourceFeedName ??
+    displayPost.authorName;
+
+  const canDelete = isOwnerAuthorPost || (isOwner && isFeedImportedPost);
+  const canEdit = isOwnerAuthorPost || (isOwner && isFeedImportedPost);
 
   const handleCommentClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -289,6 +299,27 @@ export function PostCard({ post, isDetail = false }: PostCardProps) {
             ) : null}
           </div>
         </div>
+
+        {isFeedImportedPost ? (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Rss className="h-3 w-3" />
+            <span>
+              via <span className="font-medium text-foreground">{sourceFeedName}</span>
+            </span>
+            {sourceCanonicalUrl ? (
+              // mf2: u-url + u-syndication on the canonical link.
+              <a
+                href={sourceCanonicalUrl}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="u-url u-syndication inline-flex items-center gap-0.5 text-primary hover:underline z-10"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Read original <ExternalLink className="h-3 w-3" />
+              </a>
+            ) : null}
+          </div>
+        ) : null}
 
         {isEditing ? (
           <div className="space-y-3" onClick={(e) => e.stopPropagation()}>

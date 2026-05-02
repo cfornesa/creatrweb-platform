@@ -36,6 +36,9 @@ export const ListPostsResponse = zod.object({
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
+  "sourceFeedId": zod.number().nullish().describe('ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.'),
+  "sourceFeedName": zod.string().nullish().describe('Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.'),
+  "sourceCanonicalUrl": zod.string().nullish().describe('Permalink of the post on its origin site (PESOS attribution).'),
   "createdAt": zod.coerce.date()
 })),
   "total": zod.number(),
@@ -73,6 +76,9 @@ export const GetPostResponse = zod.object({
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
+  "sourceFeedId": zod.number().nullish().describe('ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.'),
+  "sourceFeedName": zod.string().nullish().describe('Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.'),
+  "sourceCanonicalUrl": zod.string().nullish().describe('Permalink of the post on its origin site (PESOS attribution).'),
   "createdAt": zod.coerce.date()
 }),
   "comments": zod.array(zod.object({
@@ -111,6 +117,9 @@ export const UpdatePostResponse = zod.object({
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
+  "sourceFeedId": zod.number().nullish().describe('ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.'),
+  "sourceFeedName": zod.string().nullish().describe('Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.'),
+  "sourceCanonicalUrl": zod.string().nullish().describe('Permalink of the post on its origin site (PESOS attribution).'),
   "createdAt": zod.coerce.date()
 })
 
@@ -147,6 +156,9 @@ export const GetPostsByUserResponse = zod.object({
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
+  "sourceFeedId": zod.number().nullish().describe('ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.'),
+  "sourceFeedName": zod.string().nullish().describe('Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.'),
+  "sourceCanonicalUrl": zod.string().nullish().describe('Permalink of the post on its origin site (PESOS attribution).'),
   "createdAt": zod.coerce.date()
 })),
   "total": zod.number(),
@@ -540,6 +552,203 @@ export const UpdateSiteSettingsResponse = zod.object({
   "colorMutedForeground": zod.string(),
   "colorDestructive": zod.string(),
   "colorDestructiveForeground": zod.string()
+})
+
+
+/**
+ * @summary List posts awaiting moderation (owner only)
+ */
+export const listPendingPostsQueryPageDefault = 1;
+export const listPendingPostsQueryLimitDefault = 50;
+
+export const ListPendingPostsQueryParams = zod.object({
+  "page": zod.coerce.number().default(listPendingPostsQueryPageDefault),
+  "limit": zod.coerce.number().default(listPendingPostsQueryLimitDefault)
+})
+
+export const ListPendingPostsResponse = zod.object({
+  "posts": zod.array(zod.object({
+  "id": zod.number(),
+  "authorName": zod.string(),
+  "authorImageUrl": zod.string().nullish(),
+  "content": zod.string(),
+  "contentFormat": zod.enum(['plain', 'html']),
+  "status": zod.enum(['pending', 'published']),
+  "sourceFeedId": zod.number().nullish(),
+  "sourceGuid": zod.string().nullish(),
+  "sourceCanonicalUrl": zod.string().nullish(),
+  "sourceFeedName": zod.string().nullish(),
+  "sourceSiteUrl": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Approve a pending post (owner only)
+ */
+export const ApprovePostParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApprovePostResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['published'])
+})
+
+
+/**
+ * @summary Reject (delete) a pending post (owner only)
+ */
+export const RejectPostParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary List configured RSS / Atom sources (owner only)
+ */
+export const ListFeedSourcesResponse = zod.object({
+  "sources": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "feedUrl": zod.string(),
+  "siteUrl": zod.string().nullish(),
+  "cadence": zod.enum(['daily', 'weekly', 'monthly']),
+  "enabled": zod.boolean(),
+  "lastFetchedAt": zod.coerce.date().nullish(),
+  "nextFetchAt": zod.coerce.date().nullish().describe('When this source will next be eligible for refresh (null = never fetched, treated as immediately due).'),
+  "lastStatus": zod.string().nullish(),
+  "lastError": zod.string().nullish(),
+  "itemsImported": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Create a new feed source (owner only)
+ */
+export const createFeedSourceBodyNameMax = 255;
+
+export const createFeedSourceBodyFeedUrlMax = 2048;
+
+export const createFeedSourceBodySiteUrlMax = 2048;
+
+export const createFeedSourceBodyCadenceDefault = `daily`;
+export const createFeedSourceBodyEnabledDefault = true;
+
+export const CreateFeedSourceBody = zod.object({
+  "name": zod.string().max(createFeedSourceBodyNameMax),
+  "feedUrl": zod.string().url().max(createFeedSourceBodyFeedUrlMax),
+  "siteUrl": zod.string().url().max(createFeedSourceBodySiteUrlMax).nullish(),
+  "cadence": zod.enum(['daily', 'weekly', 'monthly']).default(createFeedSourceBodyCadenceDefault),
+  "enabled": zod.boolean().default(createFeedSourceBodyEnabledDefault)
+})
+
+
+/**
+ * @summary Update a feed source (owner only)
+ */
+export const UpdateFeedSourceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateFeedSourceBodyNameMax = 255;
+
+export const updateFeedSourceBodyFeedUrlMax = 2048;
+
+export const updateFeedSourceBodySiteUrlMax = 2048;
+
+
+
+export const UpdateFeedSourceBody = zod.object({
+  "name": zod.string().max(updateFeedSourceBodyNameMax).optional(),
+  "feedUrl": zod.string().url().max(updateFeedSourceBodyFeedUrlMax).optional(),
+  "siteUrl": zod.string().url().max(updateFeedSourceBodySiteUrlMax).nullish(),
+  "cadence": zod.enum(['daily', 'weekly', 'monthly']).optional(),
+  "enabled": zod.boolean().optional()
+})
+
+export const UpdateFeedSourceResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "feedUrl": zod.string(),
+  "siteUrl": zod.string().nullish(),
+  "cadence": zod.enum(['daily', 'weekly', 'monthly']),
+  "enabled": zod.boolean(),
+  "lastFetchedAt": zod.coerce.date().nullish(),
+  "nextFetchAt": zod.coerce.date().nullish().describe('When this source will next be eligible for refresh (null = never fetched, treated as immediately due).'),
+  "lastStatus": zod.string().nullish(),
+  "lastError": zod.string().nullish(),
+  "itemsImported": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a feed source (owner only)
+ */
+export const DeleteFeedSourceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Pull this feed source now (owner only)
+ */
+export const RefreshFeedSourceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RefreshFeedSourceResponse = zod.object({
+  "sourceId": zod.number(),
+  "fetched": zod.number(),
+  "imported": zod.number(),
+  "skipped": zod.number(),
+  "status": zod.enum(['ok', 'error']),
+  "error": zod.string().nullish()
+})
+
+
+/**
+ * @summary Bulk-approve every pending post from this source (owner only)
+ */
+export const ApproveAllFromFeedSourceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveAllFromFeedSourceResponse = zod.object({
+  "sourceId": zod.number(),
+  "approved": zod.number().describe('Number of pending posts that were flipped to published.')
+})
+
+
+/**
+ * @summary Refresh every enabled, due source (owner cookie or X-Cron-Secret)
+ */
+export const RefreshAllFeedSourcesQueryParams = zod.object({
+  "force": zod.enum(['1', 'true']).optional().describe('When set, ignore each source\'s cadence and pull every enabled source.')
+})
+
+export const RefreshAllFeedSourcesResponse = zod.object({
+  "ranAt": zod.coerce.date(),
+  "attempted": zod.number(),
+  "totalFetched": zod.number(),
+  "totalImported": zod.number(),
+  "results": zod.array(zod.object({
+  "sourceId": zod.number(),
+  "fetched": zod.number(),
+  "imported": zod.number(),
+  "skipped": zod.number(),
+  "status": zod.enum(['ok', 'error']),
+  "error": zod.string().nullish()
+}))
 })
 
 
