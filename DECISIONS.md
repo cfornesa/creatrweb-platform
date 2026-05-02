@@ -351,3 +351,31 @@ options regardless of session context. -->
 - [ ] Verify the performance impact of dynamic image generation under load and consider a more aggressive CDN caching strategy if needed.
 - [ ] Decide if author profile pages should also have dynamic OG previews similar to individual posts.
 
+---
+
+### 2026-05-02 — Site Themes & Palettes (9 × 9 + custom overrides)
+
+### Decisions Confirmed
+- Owner-only Site Customization now has three independent dimensions instead of one: a **theme** controlling structure (borders, shadows, fonts, weights, radius, heading transform), a **palette** controlling the 14 HSL color values, and per-field color overrides on top of either.
+- The catalog shipped with 9 themes (`bauhaus` (default), `traditional`, `minimalist`, `academic`, `airy`, `nature`, `comfort`, `audacious`, `artistic`) and 9 palettes (`bauhaus` (default), `monochrome`, `newsprint`, `ocean`, `forest`, `sunset`, `sepia`, `high-contrast`, `pastel`).
+- Switching palette uses **smart-merge**: only color fields that still match the previously-active palette get replaced; any field the owner has hand-edited survives the swap.
+- Theme + palette IDs are **enum-validated at the API boundary** (OpenAPI enum → generated Zod schema → server-side `safeParse`), so unknown IDs cannot be persisted.
+- Bauhaus remains the canonical default and the "Reset to defaults" button restores it across all three dimensions.
+- The brutalist `!important` global overrides were removed from `index.css`; structural styling now lives in `--app-*` CSS variables driven by `[data-theme="..."]` rules. The button-element rules were re-qualified with `[data-theme]` to maintain enough specificity to beat single-class Tailwind v4 utilities (`border`, `rounded-md`).
+- Google Fonts (Lora, EB Garamond, Inter, Nunito, Quicksand, Space Grotesk, Bebas Neue, Caveat) are now loaded site-wide because the non-Bauhaus themes need them. This is the first design choice that *intentionally* lets the site present in non-Bauhaus typography.
+
+### Implementation Notes
+- DB schema: added `theme` and `palette` `varchar(32) NOT NULL DEFAULT 'bauhaus'` columns to `site_settings`. Drizzle schema, runtime `ensureColumn` migration, OpenAPI, generated client, and the hand-applied `lib/db/site_settings_install.sql` script were all updated together. The install script uses idempotent `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE … ADD COLUMN IF NOT EXISTS` + `INSERT IGNORE` so it stays safe to re-run.
+- Frontend catalog lives in `artifacts/microblog/src/lib/site-themes.ts` (single source of truth for THEMES, PALETTES, PALETTE_COLOR_KEYS, getPalette/getTheme, smartMergePalette).
+- `<ThemeInjector />` now sets `document.documentElement.dataset.theme` from settings and falls back to `bauhaus` if the value is unknown.
+- The settings card shows tile pickers (description + 7-color swatch row), a live palette preview, and the per-field color editor underneath. `lastPaletteRef` (a `useRef`) tracks which palette the form was last merged from so smart-merge has a known baseline.
+
+### Pre-existing Issues Surfaced (not addressed in this session)
+- First-paint flash of the Bauhaus default styling before the client fetches `/api/site-settings` and applies the owner's chosen theme/palette. Most visible when the active theme is non-Bauhaus. Captured as a follow-up task.
+- Picker tiles on the customization page inherit theme button styling, which means in heavy themes (Audacious / Bauhaus) the picker tiles get chunky 4–6px borders and brutal hover transforms. This reads on-theme but may be too aggressive for picker UI specifically.
+
+### Unresolved Checkpoints Entering Next Session
+- [ ] Decide whether the visual identity contract has changed — i.e. whether DESIGN.md "Declared Preferences" should now describe a Bauhaus *default* with optional alternates, rather than Bauhaus as the only acceptable look. Currently the file still says "rounded corners (all radii must be 0) … any decorative color outside the primary tricolor set" must never appear, but the shipped feature explicitly enables both.
+- [ ] Decide whether to stop the first-paint flash via server-rendered initial state (would require API server to inject a `<style>` block or `data-theme` attr into index.html before React mounts).
+- [ ] Decide whether the picker tiles in `SiteCustomizationCard` should opt out of the theme button styling so they read more like a static gallery and less like 18 chunky brutal buttons.
+

@@ -183,6 +183,12 @@
 2026-04-29 · TENSION · Wants showcase-grade expressive authoring for the owner while keeping the overall site experience readable and focused for visitors.
     [Surfaced through the combined requests for rich posts, embeds, media uploads, and a calmer homepage composition flow.]
 
+2026-05-02 · DIRECTION · PROPOSED — The strict Bauhaus tricolor declared in this file may now be a *default starting point* rather than the only acceptable look. The shipped themes & palettes feature deliberately enables serif typography, soft shadows, rounded corners, and non-tricolor palettes when the owner chooses them.
+    [Surfaced when the owner asked for and accepted a 9 × 9 theme/palette catalog including "traditional", "academic", "airy", "comfort", "pastel", "ocean", and "forest" — all of which contradict the existing "what must never appear" list. Needs human confirmation: keep DESIGN.md describing the *default* identity and treat the alternate themes as owner-chosen exceptions, OR revise Declared Preferences to describe a more permissive identity space.]
+
+2026-05-02 · TENSION · PROPOSED — Wants the site's visual identity to be both opinionated (one strong default) and flexible (easily swappable across nine looks without writing code). This is a new tension between brand discipline and self-publishing autonomy.
+    [Surfaced through the request to ship per-theme structural changes, not just a palette switcher.]
+
 ---
 
 <!-- The agent holds the brush. You choose what gets painted.
