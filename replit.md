@@ -160,7 +160,7 @@ If someone clones this repo to run their own microblog, the path is:
 1. **Database**: create a fresh MySQL 8+ / MariaDB 10.5+ database, then either
    - run the API server once and let `ensureTables()` build the schema (recommended on Replit / any Node host), **or**
    - import `lib/db/install.sql` via phpMyAdmin (recommended on shared hosts like Hostinger). To import: log in to phpMyAdmin → click your empty database in the sidebar → "Import" tab → "Choose file" → select `install.sql` → "Go". Both SQL files (the full install and the narrow `site_settings_install.sql`) include the same step-by-step phpMyAdmin instructions in their header comments. The script is fully idempotent and ends with 16 copy-pasteable maintenance queries (set username, promote owner, list users, approve/reject pending posts, vacuum stale dedup rows, etc.).
-   - All user-facing seed values in both SQL files use a `<<PLACEHOLDER>>` convention (double angle brackets, ALL CAPS — e.g. `<<YOUR_USERNAME>>`, `<<YOUR_NAME>>`, `<<SITE_TITLE>>`). Find-and-replace these in your editor before importing, or accept the defaults and edit them via `/settings` after first login.
+   - All user-facing seed values in both SQL files use a `<<PLACEHOLDER>>` convention (double angle brackets, ALL CAPS — e.g. `<<YOUR_USERNAME>>`, `<<YOUR_NAME>>`, `<<SITE_TITLE>>`). Find-and-replace these in your editor before importing, or accept the defaults and edit them via `/settings` once you've signed in **and** promoted yourself to the owner role (step 4 below — `/settings` is owner-gated).
 2. **Environment variables** (set in `.env` for local dev or as platform secrets in production). Required-ness reflects what `artifacts/api-server/src/` actually reads via `process.env.*`:
 
    | Variable | Required | Purpose |
@@ -181,7 +181,16 @@ If someone clones this repo to run their own microblog, the path is:
    | `PORT` | optional | API server listen port (defaults to `8080`). |
    | `FRONTEND_PORT`, `API_ORIGIN` | local dev only | Vite dev port and the dev-proxy target — only consumed by the frontend dev server in `artifacts/microblog`. |
 
-3. **Pick a username**: choose the handle your profile page will live at — the URL is `/users/@<your-username>` (e.g. picking `chris` yields `/users/@chris`). Pick something short, lowercase, ASCII-only — it shows up in URLs, bylines, and the hero CTA. The hero CTA in the seed defaults to linking at `/users/@<<YOUR_USERNAME>>`, so substitute that placeholder in the SQL seed (or edit `cta_href` in the `/settings` UI later).
+3. **Pick a username**: choose the handle your profile page will live at — the URL is `/users/@<your-username>` (e.g. picking `chris` yields `/users/@chris`). Pick something short, lowercase, ASCII-only — it shows up in URLs, bylines, and the hero CTA.
+
+   **The same chosen handle string must appear in two places that match exactly:**
+
+   | Where | When | What it is |
+   |---|---|---|
+   | `site_settings.cta_href` (literal substring `<<YOUR_USERNAME>>`) | Substitute **before** importing `install.sql`, or edit `cta_href` in the `/settings` UI after step 4 below (the `/settings` page is owner-gated, so first sign-in alone isn't enough — your row must also be promoted to `owner`) | The destination URL of the hero CTA button |
+   | `users.username` column on your row | `UPDATE` **after** your first OAuth sign-in (step 4 below) | The handle that makes `/users/@<your-username>` resolve to your profile |
+
+   Both values must be the same literal string (e.g. both `chris`) or the hero CTA will link to a 404. Until you complete step 4, no row in `users` carries that username yet, so the hero CTA link is **expected to 404 on a freshly-imported install** — that resolves itself the moment you run the `UPDATE users SET username = …` in step 4.
 4. **First owner**: sign in once via OAuth at `https://<your-domain>/auth/signin` so your row is created in `users`. Then set your chosen username and promote yourself to the `owner` role. Either run the helper script (`npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com`) or, in your SQL client:
 
    ```sql
@@ -194,6 +203,27 @@ If someone clones this repo to run their own microblog, the path is:
 6. **Scheduled feed refresh** (optional, for PESOS): configure a Scheduled Deployment that POSTs to `/api/feed-sources/refresh` with the `X-Cron-Secret` header. See the Scheduled refresh section above.
 
 Adapting it for a different shape of site: the schema is intentionally narrow — there are no per-post tags, categories, or visibility levels beyond `published` / `pending`. Adding any of those is a column on `posts` plus a new `ensureColumn` call in `lib/db/src/migrate.ts` and a matching `ALTER TABLE … ADD COLUMN IF NOT EXISTS` in `install.sql`.
+
+## Optional Creatrweb Framework Files
+
+Several top-level folders and markdown files in this repo are part of the **Creatrweb framework** (https://github.com/cfornesa/creatrweb) — a convention for working with AI coding tools (Claude Code, Gemini CLI, GitHub Copilot, Replit Agent, etc.). They are **NOT runtime dependencies of the microblog application**. Forkers who don't use those AI tools — or who use a different convention — can safely delete every entry below without breaking the build, the API server, the frontend, the database schema, the tests, or anything else the app actually does at runtime.
+
+| Path | What it is |
+|---|---|
+| `.agents/` | Per-tool skill directory (Cline, Aider, etc. read this) |
+| `.claude/` | Claude Code's skill directory |
+| `.gemini/` | Gemini CLI's `settings.json` |
+| `.github/copilot-instructions.md` | GitHub Copilot's per-repo instructions |
+| `AGENTS.md` | The framework's standing rule set (cross-tool) |
+| `CLAUDE.md` | Claude Code's instruction file — primarily points at `AGENTS.md` with small Claude-specific additions |
+| `GEMINI.md` | Gemini CLI's instruction file — primarily points at `AGENTS.md` with small Gemini-specific additions |
+| `MEMORY.md` | Framework's long-term confirmed-lesson log |
+| `DECISIONS.md` | Framework's architectural-decision log |
+| `CONSTRAINTS.md` | Framework's binding-constraints log |
+| `DESIGN.md` | Framework's creative-identity document |
+| `EVAL_PROMPT.md` | Framework's session-compliance evaluator |
+
+**`README.md` and `replit.md` are NOT in the safe-to-delete list.** `README.md` is the standard repo front page and is required by every git host; `replit.md` is the Replit-specific working memory the Replit Agent reads on every session and is required if you continue developing on Replit. Keep both. The `docs/` directory and everything under `artifacts/`, `lib/`, `scripts/`, and `data/` are all app-essential — the framework callout above is the entire optional surface.
 
 ## Important Notes
 

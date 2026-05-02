@@ -59,19 +59,41 @@
 --
 --  AFTER THE IMPORT — THREE THINGS TO DO
 --  -------------------------------------
---  (A) Pick the username you want for the site owner. This is the
---      `@<<YOUR_USERNAME>>` you see throughout the seed at the bottom
---      (e.g. `@chris` for someone whose handle is "chris"). The username
---      must be unique across all users on the site, and the URL of your
---      profile page will be `/users/@<<YOUR_USERNAME>>`. Pick something
---      short and lowercase — it shows up in URLs and bylines. After you
---      sign in for the first time via OAuth (step C), set it with:
+--  (A) Pick the username you want for the site owner — e.g. `chris` for
+--      someone whose handle is "chris". Pick something short, lowercase,
+--      and ASCII-only — it shows up in URLs and bylines, and the URL of
+--      your profile page will be `/users/@<your-handle>`.
 --
---        UPDATE `users` SET `username` = '<<YOUR_USERNAME>>'
---          WHERE `email` = '<<YOUR_EMAIL>>';
+--      The chosen handle must appear in TWO PLACES that match exactly,
+--      using the same literal string in both:
 --
---      You only do this once. The frontend's /settings page can edit it
---      later if you change your mind.
+--        1. `site_settings.cta_href` — the seed at the bottom of THIS
+--           file links the hero CTA at `/users/@<<YOUR_USERNAME>>`.
+--           Substitute the placeholder BEFORE you import (Find-and-
+--           Replace `<<YOUR_USERNAME>>` in this file), or accept the
+--           placeholder for now and edit `cta_href` in the /settings UI
+--           after you complete step (C) below — the /settings page is
+--           owner-gated, so signing in alone is NOT enough; your row
+--           in `users` must also have `role = 'owner'`.
+--
+--        2. `users.username` — the column on your own user row. Set it
+--           with the maintenance query labeled #1 at the bottom of this
+--           file, AFTER you complete step (C) and your row exists in
+--           `users`:
+--
+--             UPDATE `users` SET `username` = '<<YOUR_USERNAME>>'
+--               WHERE `email` = '<<YOUR_EMAIL>>';
+--
+--      Both values MUST be the same literal string (e.g. both `chris`)
+--      or the hero CTA button on the home page will link to a 404.
+--      Until the step-(C)-and-then-#1 sequence runs, no user row carries
+--      that username yet, so the hero CTA link is **expected to 404 on a
+--      freshly-imported install** — that resolves itself the moment you
+--      run maintenance query #1.
+--
+--      You only do this once. The frontend's /settings page can edit
+--      `cta_href` later if you change your mind, and you can change
+--      `username` with another `UPDATE users SET username = …`.
 --
 --  (B) Configure OAuth in your `.env` (or your host's secrets panel).
 --      You need at minimum a GitHub OR Google OAuth app — see

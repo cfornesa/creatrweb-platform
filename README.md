@@ -202,9 +202,36 @@ npm run import-sqlite-to-mysql --workspace=@workspace/scripts
 - rich post HTML is sanitized on the server before persistence
 - public feed and export routes are part of the stable site surface
 
+## Forking This Repo
+
+If you cloned this repo to run your own microblog, the high-level path is:
+
+1. Stand up a fresh MySQL 8.0+ or MariaDB 10.5+ database. On Replit (or any Node host) the API server's `ensureTables()` builds the schema on first boot. On shared hosts (e.g. Hostinger), import `lib/db/install.sql` via phpMyAdmin — it carries its own step-by-step header comments.
+2. Configure environment variables in `.env` (or your host's secrets panel). At minimum: MySQL connection (`DB_HOST`/`DB_NAME`/`DB_USER`/`DB_PASS`), `AUTH_SECRET`, and one OAuth provider (`GITHUB_ID`/`GITHUB_SECRET` or `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`).
+3. **Pick a username** — the handle your profile page will live at, e.g. `chris` → `/users/@chris`. The same chosen string must appear in **two places that match exactly**:
+   - `site_settings.cta_href` — substitute the `<<YOUR_USERNAME>>` placeholder in `lib/db/install.sql` *before* importing, or edit `cta_href` in the `/settings` UI after you've completed step 4 below (the `/settings` page is owner-gated, so first sign-in alone isn't enough — you must also promote your row to `owner`).
+   - `users.username` — set it with `UPDATE users SET username = '<your-username>' WHERE email = '<your-email>'` *after* you've signed in once via OAuth.
+
+   Both values must be the same literal string. Until the `UPDATE` runs, no user row carries that username yet, so the hero CTA link will 404 — this is expected on a freshly-imported install and resolves the moment you set the username on your row.
+4. Sign in once via OAuth, then set your username AND promote yourself to the `owner` role (the role that unlocks `/settings`, `/admin/feeds`, and `/admin/pending`). You can use `npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com` for the promotion.
+
+User-facing seed copy in both SQL files (`install.sql` and the narrow `site_settings_install.sql`) uses a `<<PLACEHOLDER>>` convention — double angle brackets, ALL CAPS (e.g. `<<YOUR_USERNAME>>`, `<<YOUR_NAME>>`, `<<SITE_TITLE>>`) — so a fresh fork visibly says "edit me" instead of shipping someone else's identity. Find-and-replace these in your editor before importing, or accept the placeholders and edit them via `/settings` once you've signed in and promoted yourself to the owner role (step 4).
+
+The full step-by-step (every environment variable, the maintenance-query catalog, scheduled-feed-refresh setup, etc.) lives in [`replit.md`](./replit.md) under "Forking & Self-Hosting".
+
+### Optional Creatrweb framework files
+
+Several top-level folders and markdown files in this repo are part of the **Creatrweb framework** (https://github.com/cfornesa/creatrweb) — a convention for working with AI coding tools (Claude Code, Gemini CLI, GitHub Copilot, Replit Agent, etc.). They are **not runtime dependencies of the application**. Forks that don't use those AI tools can safely delete:
+
+- `.agents/`, `.claude/`, `.gemini/`, `.github/copilot-instructions.md` — per-tool skill / instruction files
+- `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` — agent rule sets (`CLAUDE.md` and `GEMINI.md` primarily point at `AGENTS.md` with small tool-specific additions)
+- `MEMORY.md`, `DECISIONS.md`, `CONSTRAINTS.md`, `DESIGN.md`, `EVAL_PROMPT.md` — Creatrweb's long-term-memory and evaluation files
+
+`README.md` and `replit.md` are **not** in the safe-to-delete list — `README.md` is the standard repo front page; `replit.md` is the Replit-specific working memory and is required if you continue developing on Replit. The `docs/`, `artifacts/`, `lib/`, `scripts/`, and `data/` directories are all app-essential. See `replit.md`'s "Optional Creatrweb Framework Files" section for the full table.
+
 ### Related Docs
 
-- [docs/auth-setup.md](/Users/Fornesus/Code/personal-microblog/docs/auth-setup.md:1)
-- [docs/dependencies.md](/Users/Fornesus/Code/personal-microblog/docs/dependencies.md:1)
-- [DECISIONS.md](/Users/Fornesus/Code/personal-microblog/DECISIONS.md:1)
-- [MEMORY.md](/Users/Fornesus/Code/personal-microblog/MEMORY.md:1)
+- [docs/auth-setup.md](./docs/auth-setup.md)
+- [docs/dependencies.md](./docs/dependencies.md)
+- [DECISIONS.md](./DECISIONS.md) (Creatrweb framework — see "Optional Creatrweb framework files" above)
+- [MEMORY.md](./MEMORY.md) (Creatrweb framework — see "Optional Creatrweb framework files" above)
