@@ -118,6 +118,10 @@ export function SearchBar() {
     // who genuinely want to clear should use the input's clear
     // control or press Esc.
     if (!trimmed && urlQ) {
+      // Re-mirror the active query into the field so "URL is the
+      // source of truth" stays visibly true after a blank submit.
+      setValue(urlQ);
+      pendingUrlQRef.current = null;
       setSheetOpen(false);
       inlineRef.current?.blur();
       sheetRef.current?.blur();

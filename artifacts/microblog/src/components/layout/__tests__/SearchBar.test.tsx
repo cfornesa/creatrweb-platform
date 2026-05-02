@@ -86,6 +86,9 @@ describe("SearchBar URL sync", () => {
     expect(window.location.pathname + window.location.search).toBe(
       "/search?q=hello",
     );
+    // The input field re-mirrors the active URL query so "URL is the
+    // source of truth" stays visibly true after the no-op submit.
+    expect(desktopInput.value).toBe("hello");
   });
 
   it("Esc clears the input without re-populating from the URL on blur", async () => {
