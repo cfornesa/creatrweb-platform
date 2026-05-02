@@ -907,6 +907,11 @@ components:
 
     UpdateUserProfileBody:
       type: object
+      description: |
+        Partial update to the current user's profile. Theme columns
+        (`theme`, `palette`, and the 14 `color*` fields) accept an explicit
+        `null` to clear the user's customization for that column, which
+        makes their profile fall back to the site-wide theme value.
       properties:
         username:
           type: string
@@ -923,6 +928,7 @@ components:
             type: string
         theme:
           type: string
+          nullable: true
           enum:
             - bauhaus
             - traditional
@@ -935,6 +941,7 @@ components:
             - artistic
         palette:
           type: string
+          nullable: true
           enum:
             - bauhaus
             - monochrome
@@ -947,58 +954,72 @@ components:
             - pastel
         colorBackground:
           type: string
+          nullable: true
           maxLength: 32
           pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
         colorForeground:
           type: string
+          nullable: true
           maxLength: 32
           pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
         colorBackgroundDark:
           type: string
+          nullable: true
           maxLength: 32
           pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
         colorForegroundDark:
           type: string
+          nullable: true
           maxLength: 32
           pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
         colorPrimary:
           type: string
+          nullable: true
           maxLength: 32
           pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
         colorPrimaryForeground:
           type: string
+          nullable: true
           maxLength: 32
           pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
         colorSecondary:
           type: string
+          nullable: true
           maxLength: 32
           pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
         colorSecondaryForeground:
           type: string
+          nullable: true
           maxLength: 32
           pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
         colorAccent:
           type: string
+          nullable: true
           maxLength: 32
           pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
         colorAccentForeground:
           type: string
+          nullable: true
           maxLength: 32
           pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
         colorMuted:
           type: string
+          nullable: true
           maxLength: 32
           pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
         colorMutedForeground:
           type: string
+          nullable: true
           maxLength: 32
           pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
         colorDestructive:
           type: string
+          nullable: true
           maxLength: 32
           pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
         colorDestructiveForeground:
           type: string
+          nullable: true
           maxLength: 32
           pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
 

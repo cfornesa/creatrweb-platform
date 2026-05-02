@@ -155,7 +155,7 @@ export interface UserProfile {
 
 export type UpdateUserProfileBodySocialLinks = {[key: string]: string};
 
-export type UpdateUserProfileBodyTheme = typeof UpdateUserProfileBodyTheme[keyof typeof UpdateUserProfileBodyTheme];
+export type UpdateUserProfileBodyTheme = typeof UpdateUserProfileBodyTheme[keyof typeof UpdateUserProfileBodyTheme] | null;
 
 
 export const UpdateUserProfileBodyTheme = {
@@ -170,7 +170,7 @@ export const UpdateUserProfileBodyTheme = {
   artistic: 'artistic',
 } as const;
 
-export type UpdateUserProfileBodyPalette = typeof UpdateUserProfileBodyPalette[keyof typeof UpdateUserProfileBodyPalette];
+export type UpdateUserProfileBodyPalette = typeof UpdateUserProfileBodyPalette[keyof typeof UpdateUserProfileBodyPalette] | null;
 
 
 export const UpdateUserProfileBodyPalette = {
@@ -185,6 +185,13 @@ export const UpdateUserProfileBodyPalette = {
   pastel: 'pastel',
 } as const;
 
+/**
+ * Partial update to the current user's profile. Theme columns
+(`theme`, `palette`, and the 14 `color*` fields) accept an explicit
+`null` to clear the user's customization for that column, which
+makes their profile fall back to the site-wide theme value.
+
+ */
 export interface UpdateUserProfileBody {
   /** @pattern ^[a-zA-Z0-9_]{3,30}$ */
   username?: string;
@@ -198,72 +205,72 @@ export interface UpdateUserProfileBody {
      * @maxLength 32
      * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
      */
-  colorBackground?: string;
+  colorBackground?: string | null;
   /**
      * @maxLength 32
      * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
      */
-  colorForeground?: string;
+  colorForeground?: string | null;
   /**
      * @maxLength 32
      * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
      */
-  colorBackgroundDark?: string;
+  colorBackgroundDark?: string | null;
   /**
      * @maxLength 32
      * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
      */
-  colorForegroundDark?: string;
+  colorForegroundDark?: string | null;
   /**
      * @maxLength 32
      * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
      */
-  colorPrimary?: string;
+  colorPrimary?: string | null;
   /**
      * @maxLength 32
      * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
      */
-  colorPrimaryForeground?: string;
+  colorPrimaryForeground?: string | null;
   /**
      * @maxLength 32
      * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
      */
-  colorSecondary?: string;
+  colorSecondary?: string | null;
   /**
      * @maxLength 32
      * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
      */
-  colorSecondaryForeground?: string;
+  colorSecondaryForeground?: string | null;
   /**
      * @maxLength 32
      * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
      */
-  colorAccent?: string;
+  colorAccent?: string | null;
   /**
      * @maxLength 32
      * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
      */
-  colorAccentForeground?: string;
+  colorAccentForeground?: string | null;
   /**
      * @maxLength 32
      * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
      */
-  colorMuted?: string;
+  colorMuted?: string | null;
   /**
      * @maxLength 32
      * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
      */
-  colorMutedForeground?: string;
+  colorMutedForeground?: string | null;
   /**
      * @maxLength 32
      * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
      */
-  colorDestructive?: string;
+  colorDestructive?: string | null;
   /**
      * @maxLength 32
      * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
      */
-  colorDestructiveForeground?: string;
+  colorDestructiveForeground?: string | null;
 }
 
 export interface FeedStats {

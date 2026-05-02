@@ -47,7 +47,7 @@ function buildSiteSettings(): SiteSettings {
   } as SiteSettings;
 }
 
-function buildUser(): UserProfile {
+function buildUser(overrides: Partial<UserProfile> = {}): UserProfile {
   return {
     id: "u1",
     name: "Test",
@@ -73,14 +73,15 @@ function buildUser(): UserProfile {
     colorMutedForeground: null,
     colorDestructive: null,
     colorDestructiveForeground: null,
+    ...overrides,
   } as UserProfile;
 }
 
-function renderCard() {
+function renderCard(user: UserProfile = buildUser()) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <UserPageCustomizationCard user={buildUser()} siteSettings={buildSiteSettings()} />
+      <UserPageCustomizationCard user={user} siteSettings={buildSiteSettings()} />
     </QueryClientProvider>,
   );
 }
@@ -160,6 +161,58 @@ describe("UserPageCustomizationCard", () => {
     for (const key of colorKeys) {
       expect(typeof callArg.data[key]).toBe("string");
       expect(callArg.data[key].length).toBeGreaterThan(0);
+    }
+  });
+
+  it("disables the clear button when the user has no saved customization", () => {
+    renderCard();
+    const clearButton = screen.getByRole("button", { name: /Clear my customization/i });
+    expect(clearButton).toBeDisabled();
+  });
+
+  it("clears every theme column with explicit nulls when a customized user clicks 'Clear my customization'", async () => {
+    const user = userEvent.setup();
+    mutateMock.mockClear();
+    // Render with a user who already has a saved per-profile theme.
+    renderCard(
+      buildUser({
+        theme: "nature",
+        palette: "ocean",
+        colorPrimary: "270 60% 50%",
+      }),
+    );
+
+    const clearButton = screen.getByRole("button", { name: /Clear my customization/i });
+    expect(clearButton).not.toBeDisabled();
+    await user.click(clearButton);
+
+    expect(mutateMock).toHaveBeenCalledTimes(1);
+    const payload = mutateMock.mock.calls[0]?.[0]?.data;
+    expect(payload).toBeDefined();
+    // Every one of the 16 theme columns is sent as explicit null so the
+    // server-side UPDATE writes SQL NULL and the user's profile reverts
+    // to inheriting the site theme.
+    const themeKeys = [
+      "theme",
+      "palette",
+      "colorBackground",
+      "colorForeground",
+      "colorBackgroundDark",
+      "colorForegroundDark",
+      "colorPrimary",
+      "colorPrimaryForeground",
+      "colorSecondary",
+      "colorSecondaryForeground",
+      "colorAccent",
+      "colorAccentForeground",
+      "colorMuted",
+      "colorMutedForeground",
+      "colorDestructive",
+      "colorDestructiveForeground",
+    ];
+    for (const key of themeKeys) {
+      expect(payload).toHaveProperty(key);
+      expect(payload[key]).toBeNull();
     }
   });
 });

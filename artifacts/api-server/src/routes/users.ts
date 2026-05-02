@@ -62,14 +62,19 @@ export function parseSocialLinks(val: unknown): Record<string, string> | null {
  * `body` after Zod validation) are written. A profile-info save (no
  * theme keys at all) returns `{}`, so the SQL UPDATE never touches a
  * user's saved theme.
+ *
+ * Explicit `null` values are passed through so the client can clear a
+ * theme column back to the site-wide default. `undefined` (key absent)
+ * and other non-string values are ignored.
  */
 export function buildThemeUpdateSet(
-  body: Partial<Record<ThemeFieldKey, string>>,
-): Partial<Record<ThemeFieldKey, string>> {
-  const themeUpdate: Partial<Record<ThemeFieldKey, string>> = {};
+  body: Partial<Record<ThemeFieldKey, string | null>>,
+): Partial<Record<ThemeFieldKey, string | null>> {
+  const themeUpdate: Partial<Record<ThemeFieldKey, string | null>> = {};
   for (const key of THEME_FIELD_KEYS) {
+    if (!(key in body)) continue;
     const value = body[key];
-    if (typeof value === "string") {
+    if (typeof value === "string" || value === null) {
       themeUpdate[key] = value;
     }
   }
@@ -193,9 +198,10 @@ router.patch("/users/me", requireAuth, async (req: Request, res: Response) => {
 
     // Build the update payload. Only include theme fields that the client
     // explicitly sent so a profile-info save (no theme keys) never wipes a
-    // user's saved theme.
+    // user's saved theme. Explicit `null` values are passed through to
+    // clear a column back to the site-wide default.
     const themeUpdate = buildThemeUpdateSet(
-      themeFields as Partial<Record<ThemeFieldKey, string>>,
+      themeFields as Partial<Record<ThemeFieldKey, string | null>>,
     );
 
     await db

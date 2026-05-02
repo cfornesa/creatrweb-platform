@@ -132,14 +132,30 @@ export function UserPageCustomizationCard({ user, siteSettings }: UserPageCustom
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, siteSettings]);
 
+  // Whether the user currently has any saved per-profile theme value at
+  // all. Used to enable/disable the "Clear my customization" action so we
+  // don't fire a no-op PATCH when the user is already inheriting the site
+  // theme.
+  const hasSavedCustomization = useMemo(() => {
+    const rec = user as unknown as Record<string, unknown>;
+    return THEME_FIELD_KEYS.some((key) => {
+      const v = rec[key];
+      return typeof v === "string" && v.length > 0;
+    });
+  }, [user]);
+
+  const invalidateUserQueries = () => {
+    queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+    if (user.username) {
+      queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(user.username) });
+    }
+    queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(user.id) });
+  };
+
   const update = useUpdateMe({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-        if (user.username) {
-          queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(user.username) });
-        }
-        queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(user.id) });
+        invalidateUserQueries();
         toast({
           title: "Profile theme saved",
           description: "Visit your profile to see the changes.",
@@ -147,6 +163,33 @@ export function UserPageCustomizationCard({ user, siteSettings }: UserPageCustom
       },
       onError: (error: unknown) => {
         const message = extractErrorMessage(error) ?? "Failed to save profile theme";
+        toast({ title: "Error", description: message, variant: "destructive" });
+      },
+    },
+  });
+
+  const clear = useUpdateMe({
+    mutation: {
+      onSuccess: () => {
+        invalidateUserQueries();
+        // After clearing, snap the in-memory form back to the current
+        // site values so the picker stops showing the old custom edits.
+        const next = buildInitialState({ ...user, theme: null, palette: null }, siteSettings);
+        for (const key of PALETTE_COLOR_KEYS) {
+          (next as Record<string, string>)[key] = (
+            siteSettings as unknown as Record<string, string>
+          )[key] ?? "";
+        }
+        setForm(next);
+        setBaseline(next);
+        lastPaletteRef.current = next.palette;
+        toast({
+          title: "Profile theme cleared",
+          description: "Your profile now follows the site theme.",
+        });
+      },
+      onError: (error: unknown) => {
+        const message = extractErrorMessage(error) ?? "Failed to clear profile theme";
         toast({ title: "Error", description: message, variant: "destructive" });
       },
     },
@@ -165,13 +208,14 @@ export function UserPageCustomizationCard({ user, siteSettings }: UserPageCustom
   };
 
   const handleResetToSite = () => {
-    // Reset to the current site defaults — same as the user has never
-    // customized. The actual blank-out of the saved fields happens when
-    // they save (we send empty strings? — no: PATCH only ever sends
-    // strings, and the schema treats empty as "not provided"). To clear
-    // a user's saved theme entirely they can just resave matching the
-    // site, which makes the per-user fields equal to the site values
-    // and visually the same as "no customization".
+    // In-memory only: snap the form back to the current site values so
+    // the user can see what "no customization" looks like before deciding
+    // what to do next. This does NOT touch the server — saving from this
+    // state would just write the current site values into the user's row
+    // (still customized, just identical to the site today). To actually
+    // wipe the saved customization so the profile keeps following the
+    // site theme into the future, use the dedicated "Clear my
+    // customization" action below, which PATCHes nulls.
     const next = buildInitialState({ ...user, theme: null, palette: null }, siteSettings);
     setForm(next);
     lastPaletteRef.current = next.palette;
@@ -193,6 +237,19 @@ export function UserPageCustomizationCard({ user, siteSettings }: UserPageCustom
     update.mutate({ data: payload });
   };
 
+  const handleClearCustomization = () => {
+    // Send explicit nulls for every theme column so the API resets the
+    // user's row, making the profile inherit the current (and future)
+    // site theme.
+    const payload: UpdateUserProfileBody = {};
+    for (const key of THEME_FIELD_KEYS) {
+      (payload as Record<string, null>)[key] = null;
+    }
+    clear.mutate({ data: payload });
+  };
+
+  const isBusy = update.isPending || clear.isPending;
+
   return (
     <Card>
       <CardHeader>
@@ -204,7 +261,7 @@ export function UserPageCustomizationCard({ user, siteSettings }: UserPageCustom
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
-        <CardContent>
+        <CardContent className="space-y-6">
           <ThemePalettePicker
             theme={form.theme}
             palette={form.palette}
@@ -213,14 +270,32 @@ export function UserPageCustomizationCard({ user, siteSettings }: UserPageCustom
             onPickPalette={handlePickPalette}
             onChangeColor={handleChangeColor}
             onResetDefaults={handleResetToSite}
-            resetLabel="Reset to site defaults"
+            resetLabel="Reset form to site defaults"
           />
+          <div className="rounded-md border border-dashed border-border p-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium">Clear my customization</p>
+              <p className="text-xs text-muted-foreground">
+                {hasSavedCustomization
+                  ? "Wipes your saved profile theme so it follows the site theme — including any future site theme changes."
+                  : "Your profile is already inheriting the site theme."}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClearCustomization}
+              disabled={isBusy || !hasSavedCustomization}
+            >
+              {clear.isPending ? "Clearing..." : "Clear my customization"}
+            </Button>
+          </div>
         </CardContent>
         <CardFooter className="flex justify-between border-t p-6">
           <p className="text-xs text-muted-foreground">
             {isDirty ? "You have unsaved changes." : "All changes saved."}
           </p>
-          <Button type="submit" disabled={update.isPending || !isDirty}>
+          <Button type="submit" disabled={isBusy || !isDirty}>
             {update.isPending ? "Saving..." : "Save profile theme"}
           </Button>
         </CardFooter>
