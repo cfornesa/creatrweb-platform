@@ -272,6 +272,19 @@ export async function ensureTables(): Promise<void> {
     "author_user_id VARCHAR(191) NULL",
   );
 
+  // App-owned profile fields not in the original Auth.js-derived
+  // `CREATE TABLE`. All nullable so existing rows stay valid; the
+  // username unique index lands after the column does.
+  await ensureColumn("users", "username", "username VARCHAR(255) NULL");
+  await ensureColumn("users", "bio", "bio TEXT NULL");
+  await ensureColumn("users", "website", "website VARCHAR(2048) NULL");
+  await ensureColumn("users", "social_links", "social_links JSON NULL");
+  await ensureIndex(
+    "users",
+    "users_username_unique",
+    "CREATE UNIQUE INDEX users_username_unique ON users (username)",
+  );
+
   // Per-user theming columns. All nullable so an unset user falls back to
   // the site owner's theme. Mirrors the 16 fields on `site_settings`.
   await ensureColumn("users", "theme", "theme VARCHAR(32) NULL");
