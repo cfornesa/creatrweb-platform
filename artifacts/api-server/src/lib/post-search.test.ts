@@ -101,6 +101,30 @@ describe("buildSearchSnippet", () => {
   });
 });
 
+describe("parseSearchQuery — short-token dual-branch coverage", () => {
+  it("emits BOTH a FULLTEXT branch and a LIKE branch for 3-char tokens", () => {
+    // 3-char tokens are right at the boundary of MySQL's FULLTEXT
+    // min-token-size. Some deployments raise it above 3, so we keep
+    // the LIKE branch as additive insurance even when FULLTEXT also
+    // accepts the token.
+    const q = parseSearchQuery("vue");
+    expect(q).not.toBeNull();
+    expect(q!.booleanExpression).toBe("vue*");
+    expect(q!.likeTerms).toEqual(["vue"]);
+    expect(q!.terms).toEqual(["vue"]);
+  });
+
+  it("mixed 2-, 3-, and 5-char tokens land in the right buckets", () => {
+    // js (2): LIKE only. iOS (3, lowercased): FULLTEXT + LIKE.
+    // react (5): FULLTEXT only.
+    const q = parseSearchQuery("js iOS react");
+    expect(q).not.toBeNull();
+    expect(q!.booleanExpression).toBe("ios* react*");
+    expect(q!.likeTerms).toEqual(["js", "ios"]);
+    expect(q!.terms).toEqual(["js", "ios", "react"]);
+  });
+});
+
 describe("validateSearchInput — pagination & format gate", () => {
   it("returns defaults when no params are provided", () => {
     const r = validateSearchInput({});

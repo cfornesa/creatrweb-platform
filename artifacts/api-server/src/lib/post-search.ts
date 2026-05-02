@@ -32,9 +32,19 @@ export type SearchQuery = {
 };
 
 // MySQL InnoDB's default `innodb_ft_min_token_size` is 3, and MyISAM's
-// default `ft_min_word_len` is 4. We use 3 here, which is correct for
-// our InnoDB tables; tokens of length 1–2 fall back to LIKE.
+// default `ft_min_word_len` is 4. We use the InnoDB default (3) here
+// because our `posts.content_text` FULLTEXT index lives on an InnoDB
+// table — that's the FULLTEXT lower bound for our setup.
+//
+// `LIKE_FALLBACK_MAX_LEN` is intentionally one larger: a token of
+// length 3 still emits a FULLTEXT branch *and* a LIKE branch. The two
+// branches are OR-composed, so the LIKE branch is just additive
+// insurance — it costs us a parameterized substring scan on those
+// short tokens, but guarantees that 3-char queries (e.g. "Vue", "iOS")
+// continue to match even if a future deploy ends up on a server where
+// `innodb_ft_min_token_size` (or `ft_min_word_len`) is bumped to 4.
 const FULLTEXT_MIN_LEN = 3;
+const LIKE_FALLBACK_MAX_LEN = 3;
 
 /**
  * Inputs the search route validates up front. The values that come
@@ -182,9 +192,17 @@ export function parseSearchQuery(raw: string): SearchQuery | null {
   const fulltextParts: string[] = [];
   const likeTerms: string[] = [];
   for (const term of terms) {
+    // Tokens long enough for the FULLTEXT index get the prefix-match
+    // branch (this is what gives us relevance scoring + index speed).
     if (term.length >= FULLTEXT_MIN_LEN) {
       fulltextParts.push(`${term}*`);
-    } else {
+    }
+    // Tokens at or below the fallback ceiling also get a LIKE branch.
+    // For tokens of length 1–2 this is the *only* way they match. For
+    // tokens of length exactly 3 it's belt-and-suspenders coverage in
+    // case the deployed MySQL has a stricter min-token threshold than
+    // the InnoDB default — see the constant declarations above.
+    if (term.length <= LIKE_FALLBACK_MAX_LEN) {
       likeTerms.push(term);
     }
   }
