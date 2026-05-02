@@ -1,5 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
-import { ingestOneItem, isDuplicateKeyError, type IngestDb } from "./feed-sources";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  ingestOneItem,
+  isDuplicateKeyError,
+  enqueueBackgroundRefresh,
+  isRefreshInFlight,
+  _resetInFlightRefreshesForTest,
+  type IngestDb,
+} from "./feed-sources";
 import { normalizeFeedItem } from "../lib/feed-ingest";
 
 const baseSource = { id: 7, name: "Some Blog" };
@@ -121,6 +128,133 @@ describe("ingestOneItem — atomicity", () => {
     expect(outcome).toBe("imported");
     expect(successOps.insertPost).toHaveBeenCalledTimes(1);
     expect(successOps.insertDedupRow).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Build a minimal FeedSourceRow-compatible object. The queue helper
+// only forwards the row to its runner, so the runtime shape doesn't
+// matter for these tests — we cast through `unknown` to keep the
+// production type narrow.
+function makeSourceRow(overrides: { id: number; name?: string }) {
+  const row = {
+    id: overrides.id,
+    name: overrides.name ?? "Some Blog",
+    feedUrl: "https://example.com/feed.xml",
+    siteUrl: null,
+    cadence: "daily",
+    enabled: 1,
+    lastFetchedAt: null,
+    nextFetchAt: null,
+    lastStatus: null,
+    lastError: null,
+    itemsImported: 0,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+  return row as unknown as Parameters<typeof enqueueBackgroundRefresh>[0];
+}
+
+describe("enqueueBackgroundRefresh", () => {
+  beforeEach(() => {
+    _resetInFlightRefreshesForTest();
+  });
+
+  it("returns immediately and runs the refresh on a later tick", async () => {
+    let runnerStarted = false;
+    let runnerResolve: (() => void) | null = null;
+    const runner = vi.fn(async () => {
+      runnerStarted = true;
+      await new Promise<void>((resolve) => {
+        runnerResolve = resolve;
+      });
+      return {
+        sourceId: 1,
+        fetched: 0,
+        imported: 0,
+        skipped: 0,
+        status: "ok" as const,
+        error: null,
+      };
+    });
+
+    const queued = enqueueBackgroundRefresh(makeSourceRow({ id: 1 }), runner);
+
+    // Synchronous return path: the runner has not been awaited and the
+    // microtask queueing means it has not even started yet.
+    expect(queued).toBe(true);
+    expect(runnerStarted).toBe(false);
+    expect(isRefreshInFlight(1)).toBe(true);
+
+    // Drain microtasks so the queued .then() schedules the runner.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(runner).toHaveBeenCalledTimes(1);
+    expect(runnerStarted).toBe(true);
+
+    // Until the runner finishes, the source remains marked in-flight
+    // so a parallel call short-circuits.
+    expect(isRefreshInFlight(1)).toBe(true);
+    runnerResolve!();
+    // Let the .finally() handler run.
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(isRefreshInFlight(1)).toBe(false);
+  });
+
+  it("skips queueing when a refresh for the same source is already running", async () => {
+    let release: (() => void) | null = null;
+    const runner = vi.fn(async () => {
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return {
+        sourceId: 5,
+        fetched: 0,
+        imported: 0,
+        skipped: 0,
+        status: "ok" as const,
+        error: null,
+      };
+    });
+
+    const first = enqueueBackgroundRefresh(makeSourceRow({ id: 5 }), runner);
+    const second = enqueueBackgroundRefresh(makeSourceRow({ id: 5 }), runner);
+
+    expect(first).toBe(true);
+    expect(second).toBe(false);
+    // Drain microtasks to let the first runner start.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(runner).toHaveBeenCalledTimes(1);
+
+    release!();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(isRefreshInFlight(5)).toBe(false);
+
+    // Once the first run is done, a fresh call queues normally.
+    const third = enqueueBackgroundRefresh(makeSourceRow({ id: 5 }), runner);
+    expect(third).toBe(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(runner).toHaveBeenCalledTimes(2);
+  });
+
+  it("releases the in-flight slot even when the background runner throws", async () => {
+    const runner = vi.fn(async () => {
+      throw new Error("upstream blew up");
+    });
+
+    enqueueBackgroundRefresh(makeSourceRow({ id: 9 }), runner);
+    expect(isRefreshInFlight(9)).toBe(true);
+
+    // Drain enough of the microtask queue for the .catch() and
+    // .finally() handlers to run.
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(runner).toHaveBeenCalledTimes(1);
+    expect(isRefreshInFlight(9)).toBe(false);
+
+    // A subsequent enqueue should succeed.
+    const requeued = enqueueBackgroundRefresh(makeSourceRow({ id: 9 }), runner);
+    expect(requeued).toBe(true);
   });
 });
 

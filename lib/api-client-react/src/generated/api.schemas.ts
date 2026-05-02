@@ -535,6 +535,12 @@ export interface FeedRefreshResult {
   skipped: number;
   status: FeedRefreshResultStatus;
   error?: string | null;
+  /** True when the per-source refresh endpoint was called while a
+  background fetch for this source was already running. The
+  endpoint returns `status: "ok"` with all counters at 0 and
+  does not start a duplicate fetch.
+   */
+  alreadyInProgress?: boolean;
 }
 
 export interface ApproveAllFromFeedSourceResponse {

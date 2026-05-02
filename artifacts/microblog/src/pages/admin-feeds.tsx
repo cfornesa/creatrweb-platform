@@ -116,14 +116,30 @@ export default function AdminFeedsPage() {
     mutation: {
       onSettled: () => setRefreshingId(null),
       onSuccess: (data) => {
-        toast({
-          title: data.status === "ok" ? "Refresh complete" : "Refresh failed",
-          description:
-            data.status === "ok"
-              ? `Imported ${data.imported} new item(s) (${data.skipped} duplicates skipped, ${data.fetched} total)`
-              : data.error ?? "Unknown error",
-          variant: data.status === "ok" ? "default" : "destructive",
-        });
+        // The server queues the fetch on a background worker and
+        // returns immediately, so we report "queued" instead of
+        // "imported N items". The actual outcome (imported counts,
+        // upstream errors) lands in the source row's last_status /
+        // last_error and shows up after the list refreshes.
+        // `alreadyInProgress` is set when the background queue still
+        // has an earlier fetch for the same source running; we tell
+        // the user nothing was re-queued so the duplicate-click case
+        // doesn't read as a successful new fetch.
+        if (data.status === "ok" && data.alreadyInProgress) {
+          toast({
+            title: "Refresh already in progress",
+            description: "An earlier fetch for this source is still running.",
+          });
+        } else {
+          toast({
+            title: data.status === "ok" ? "Refresh queued" : "Refresh failed",
+            description:
+              data.status === "ok"
+                ? "Fetching in the background — reload the page in a moment to see new items."
+                : data.error ?? "Unknown error",
+            variant: data.status === "ok" ? "default" : "destructive",
+          });
+        }
         invalidateAll();
       },
       onError: () => toast({ title: "Refresh failed", variant: "destructive" }),

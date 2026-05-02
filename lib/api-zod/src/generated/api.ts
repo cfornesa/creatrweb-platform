@@ -760,7 +760,14 @@ export const DeleteFeedSourceParams = zod.object({
 
 
 /**
- * @summary Pull this feed source now (owner only)
+ * Schedules a refresh on the background fetch worker and returns immediately.
+Outcome of the actual fetch (imported / skipped counts, upstream errors)
+lands in the source row's `last_status` / `last_error` columns and is
+visible on the next list reload. Returns `status: "ok"` when the work
+was queued; the response's `fetched` / `imported` / `skipped` counters
+are zero because the fetch has not run yet.
+
+ * @summary Queue this feed source for an immediate background refresh (owner only)
  */
 export const RefreshFeedSourceParams = zod.object({
   "id": zod.coerce.number()
@@ -772,7 +779,8 @@ export const RefreshFeedSourceResponse = zod.object({
   "imported": zod.number(),
   "skipped": zod.number(),
   "status": zod.enum(['ok', 'error']),
-  "error": zod.string().nullish()
+  "error": zod.string().nullish(),
+  "alreadyInProgress": zod.boolean().optional().describe('True when the per-source refresh endpoint was called while a\nbackground fetch for this source was already running. The\nendpoint returns `status: \"ok\"` with all counters at 0 and\ndoes not start a duplicate fetch.\n')
 })
 
 
@@ -807,7 +815,8 @@ export const RefreshAllFeedSourcesResponse = zod.object({
   "imported": zod.number(),
   "skipped": zod.number(),
   "status": zod.enum(['ok', 'error']),
-  "error": zod.string().nullish()
+  "error": zod.string().nullish(),
+  "alreadyInProgress": zod.boolean().optional().describe('True when the per-source refresh endpoint was called while a\nbackground fetch for this source was already running. The\nendpoint returns `status: \"ok\"` with all counters at 0 and\ndoes not start a duplicate fetch.\n')
 }))
 })
 

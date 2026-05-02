@@ -2028,7 +2028,14 @@ export const useDeleteFeedSource = <TError = ErrorType<void>,
     }
 
 /**
- * @summary Pull this feed source now (owner only)
+ * Schedules a refresh on the background fetch worker and returns immediately.
+Outcome of the actual fetch (imported / skipped counts, upstream errors)
+lands in the source row's `last_status` / `last_error` columns and is
+visible on the next list reload. Returns `status: "ok"` when the work
+was queued; the response's `fetched` / `imported` / `skipped` counters
+are zero because the fetch has not run yet.
+
+ * @summary Queue this feed source for an immediate background refresh (owner only)
  */
 export const getRefreshFeedSourceUrl = (id: number,) => {
 
@@ -2084,7 +2091,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type RefreshFeedSourceMutationError = ErrorType<void>
 
     /**
- * @summary Pull this feed source now (owner only)
+ * @summary Queue this feed source for an immediate background refresh (owner only)
  */
 export const useRefreshFeedSource = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshFeedSource>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}

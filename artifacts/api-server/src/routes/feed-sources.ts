@@ -84,7 +84,68 @@ type RefreshResult = {
   skipped: number;
   status: "ok" | "error";
   error: string | null;
+  // Optional flag set by the per-source refresh endpoint when a
+  // background fetch for this source was already running and the new
+  // request was a no-op. Omitted from sweep results because the cron
+  // path runs sources serially and never collides with itself.
+  alreadyInProgress?: boolean;
 };
+
+// Sources whose refresh is currently running on the background queue.
+// Lets the create + manual-refresh endpoints stay fire-and-forget without
+// stacking concurrent fetches against the same upstream feed (which would
+// just race on the dedup ledger).
+const inFlightRefreshes = new Set<number>();
+
+export function _resetInFlightRefreshesForTest(): void {
+  inFlightRefreshes.clear();
+}
+
+export function isRefreshInFlight(sourceId: number): boolean {
+  return inFlightRefreshes.has(sourceId);
+}
+
+/**
+ * Schedule a feed refresh on the next tick and return immediately.
+ *
+ * The HTTP layer (POST /feed-sources, POST /feed-sources/:id/refresh)
+ * uses this so the admin form / refresh button never block on the
+ * upstream fetch. Errors from the background fetch still land in the
+ * source row's `last_status` / `last_error` columns via
+ * `refreshOneSource`, so the admin UI surfaces them on the next list
+ * reload.
+ *
+ * Returns `false` if a refresh for this source is already running, so
+ * callers can report "already in progress" without queueing duplicate
+ * work.
+ */
+export function enqueueBackgroundRefresh(
+  source: FeedSourceRow,
+  runner: (s: FeedSourceRow) => Promise<RefreshResult> = refreshOneSource,
+): boolean {
+  if (inFlightRefreshes.has(source.id)) {
+    return false;
+  }
+  inFlightRefreshes.add(source.id);
+
+  // Detach from the request lifecycle. `refreshOneSource` already
+  // catches its own errors and writes them to the source row, so the
+  // outer .catch is a process-safety net for anything that escapes
+  // (e.g. an unexpected throw from the DB driver itself).
+  void Promise.resolve()
+    .then(() => runner(source))
+    .catch((err: unknown) => {
+      logger.error(
+        { sourceId: source.id, err: err instanceof Error ? err.message : String(err) },
+        "Background feed refresh threw unexpectedly",
+      );
+    })
+    .finally(() => {
+      inFlightRefreshes.delete(source.id);
+    });
+
+  return true;
+}
 
 // MySQL duplicate-key (1062) signals a lost (source_id, guid_hash) race.
 export function isDuplicateKeyError(err: unknown): boolean {
@@ -349,6 +410,16 @@ router.post("/feed-sources", requireAuth, requireOwner, async (req: Request, res
     if (!created) {
       return res.status(500).json({ error: "Failed to load created feed source" });
     }
+
+    // Kick off the first fetch on the background queue so the admin
+    // form returns immediately. Errors will land in last_status /
+    // last_error and surface on the next list reload. Skipped if the
+    // source was created in a disabled state — the cron sweep skips
+    // disabled sources anyway, so an immediate fetch would be wasted.
+    if (created.enabled === 1) {
+      enqueueBackgroundRefresh(created);
+    }
+
     return res.status(201).json(serialize(created));
   } catch (err) {
     return res.status(400).json({ error: "Invalid request" });
@@ -410,7 +481,11 @@ router.delete("/feed-sources/:id", requireAuth, requireOwner, async (req: Reques
   }
 });
 
-// POST /feed-sources/:id/refresh — owner only. Pull this source now.
+// POST /feed-sources/:id/refresh — owner only. Queue this source on the
+// background fetch worker and return immediately so the admin UI never
+// blocks on a slow upstream feed. Outcome of the actual fetch lands in
+// the source row's last_status / last_error columns; the FE re-reads
+// the list to surface it.
 router.post(
   "/feed-sources/:id/refresh",
   requireAuth,
@@ -422,8 +497,24 @@ router.post(
       if (!source) {
         return res.status(404).json({ error: "Feed source not found" });
       }
-      const result = await refreshOneSource(source);
-      return res.json(result);
+      const queued = enqueueBackgroundRefresh(source);
+      // Response shape stays compatible with the existing
+      // FeedRefreshResult contract (status enum is `ok | error`).
+      // `imported` / `fetched` are 0 because the work is queued, not
+      // finished — the FE reflects this by phrasing the toast as
+      // "Refresh queued" instead of "imported N items". When `queued`
+      // is false, an earlier background fetch for this source is
+      // still running; we surface that via `alreadyInProgress` so the
+      // FE can show "already in progress" instead of "queued".
+      return res.json({
+        sourceId: id,
+        fetched: 0,
+        imported: 0,
+        skipped: 0,
+        status: "ok",
+        error: null,
+        alreadyInProgress: !queued,
+      } satisfies RefreshResult);
     } catch (err) {
       return res.status(400).json({ error: "Invalid request" });
     }

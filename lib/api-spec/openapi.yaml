@@ -645,7 +645,14 @@ paths:
     post:
       operationId: refreshFeedSource
       tags: [feeds]
-      summary: Pull this feed source now (owner only)
+      summary: Queue this feed source for an immediate background refresh (owner only)
+      description: |
+        Schedules a refresh on the background fetch worker and returns immediately.
+        Outcome of the actual fetch (imported / skipped counts, upstream errors)
+        lands in the source row's `last_status` / `last_error` columns and is
+        visible on the next list reload. Returns `status: "ok"` when the work
+        was queued; the response's `fetched` / `imported` / `skipped` counters
+        are zero because the fetch has not run yet.
       parameters:
         - in: path
           name: id
@@ -1533,6 +1540,13 @@ components:
         error:
           type: string
           nullable: true
+        alreadyInProgress:
+          type: boolean
+          description: |
+            True when the per-source refresh endpoint was called while a
+            background fetch for this source was already running. The
+            endpoint returns `status: "ok"` with all counters at 0 and
+            does not start a duplicate fetch.
       required:
         - sourceId
         - fetched
