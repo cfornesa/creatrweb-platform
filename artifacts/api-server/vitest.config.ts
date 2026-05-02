@@ -1,0 +1,14 @@
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    environment: "node",
+    include: ["src/**/*.test.ts"],
+    globals: false,
+  },
+  resolve: {
+    alias: {
+      "@workspace/db": new URL("../../lib/db/src/index.ts", import.meta.url).pathname,
+    },
+  },
+});

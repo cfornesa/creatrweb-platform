@@ -5,6 +5,77 @@ import { UpdateMeBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
+// Per-user theme columns we expose on read endpoints. Keep in sync with the
+// theme columns added to `usersTable`.
+export const THEME_FIELD_KEYS = [
+  "theme",
+  "palette",
+  "colorBackground",
+  "colorForeground",
+  "colorBackgroundDark",
+  "colorForegroundDark",
+  "colorPrimary",
+  "colorPrimaryForeground",
+  "colorSecondary",
+  "colorSecondaryForeground",
+  "colorAccent",
+  "colorAccentForeground",
+  "colorMuted",
+  "colorMutedForeground",
+  "colorDestructive",
+  "colorDestructiveForeground",
+] as const;
+
+export type ThemeFieldKey = typeof THEME_FIELD_KEYS[number];
+
+type UserRow = typeof usersTable.$inferSelect;
+
+export function pickThemeFields(user: UserRow): Record<ThemeFieldKey, string | null> {
+  const out = {} as Record<ThemeFieldKey, string | null>;
+  const rec = user as unknown as Record<ThemeFieldKey, string | null | undefined>;
+  for (const key of THEME_FIELD_KEYS) {
+    out[key] = rec[key] ?? null;
+  }
+  return out;
+}
+
+export function parseSocialLinks(val: unknown): Record<string, string> | null {
+  if (!val) return null;
+  if (typeof val === "string") {
+    try {
+      return JSON.parse(val) as Record<string, string>;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof val === "object") return val as Record<string, string>;
+  return null;
+}
+
+/**
+ * Builds the per-row update payload for theme fields from a validated
+ * PATCH /users/me body. Extracted so the "preserve theme on partial
+ * save" rule can be exercised by tests without spinning up the full
+ * route.
+ *
+ * Critically: ONLY keys the client explicitly sent (i.e. present on
+ * `body` after Zod validation) are written. A profile-info save (no
+ * theme keys at all) returns `{}`, so the SQL UPDATE never touches a
+ * user's saved theme.
+ */
+export function buildThemeUpdateSet(
+  body: Partial<Record<ThemeFieldKey, string>>,
+): Partial<Record<ThemeFieldKey, string>> {
+  const themeUpdate: Partial<Record<ThemeFieldKey, string>> = {};
+  for (const key of THEME_FIELD_KEYS) {
+    const value = body[key];
+    if (typeof value === "string") {
+      themeUpdate[key] = value;
+    }
+  }
+  return themeUpdate;
+}
+
 // GET /users/me
 router.get("/users/me", requireAuth, async (req: Request, res: Response) => {
   try {
@@ -19,18 +90,6 @@ router.get("/users/me", requireAuth, async (req: Request, res: Response) => {
 
     const postCount = postCountResult[0]?.count ?? 0;
 
-    const parseSocialLinks = (val: any) => {
-      if (!val) return null;
-      if (typeof val === 'string') {
-        try {
-          return JSON.parse(val);
-        } catch (e) {
-          return null;
-        }
-      }
-      return val;
-    };
-
     return res.json({
       id: currentUser.id,
       name,
@@ -43,6 +102,7 @@ router.get("/users/me", requireAuth, async (req: Request, res: Response) => {
       role: currentUser.role,
       status: currentUser.status,
       postCount,
+      ...pickThemeFields(currentUser),
     });
   } catch (err) {
     return res.status(500).json({ error: "Server error" });
@@ -53,10 +113,10 @@ router.get("/users/me", requireAuth, async (req: Request, res: Response) => {
 router.get("/users/:id", async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    
+
     // Check if ID is a UUID or a username
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    
+
     let user;
     if (isUuid) {
       const result = await db
@@ -89,18 +149,6 @@ router.get("/users/:id", async (req: Request, res: Response) => {
 
     const postCount = postCountResult[0]?.count ?? 0;
 
-    const parseSocialLinks = (val: any) => {
-      if (!val) return null;
-      if (typeof val === 'string') {
-        try {
-          return JSON.parse(val);
-        } catch (e) {
-          return null;
-        }
-      }
-      return val;
-    };
-
     return res.json({
       id: user.id,
       name,
@@ -110,6 +158,7 @@ router.get("/users/:id", async (req: Request, res: Response) => {
       website: user.website || null,
       socialLinks: parseSocialLinks(user.socialLinks),
       postCount,
+      ...pickThemeFields(user),
     });
   } catch (err) {
     console.error("Failed to fetch user:", err);
@@ -127,7 +176,7 @@ router.patch("/users/me", requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid request body", details: bodyResult.error.format() });
     }
 
-    const { username, bio, website, socialLinks } = bodyResult.data;
+    const { username, bio, website, socialLinks, ...themeFields } = bodyResult.data;
 
     // Validate username uniqueness if it's being changed
     if (username && username !== currentUser.username) {
@@ -142,6 +191,13 @@ router.patch("/users/me", requireAuth, async (req: Request, res: Response) => {
       }
     }
 
+    // Build the update payload. Only include theme fields that the client
+    // explicitly sent so a profile-info save (no theme keys) never wipes a
+    // user's saved theme.
+    const themeUpdate = buildThemeUpdateSet(
+      themeFields as Partial<Record<ThemeFieldKey, string>>,
+    );
+
     await db
       .update(usersTable)
       .set({
@@ -149,6 +205,7 @@ router.patch("/users/me", requireAuth, async (req: Request, res: Response) => {
         bio: bio ?? undefined,
         website: website ?? undefined,
         socialLinks: socialLinks ?? undefined,
+        ...themeUpdate,
         updatedAt: new Date().toISOString(),
       })
       .where(eq(usersTable.id, currentUser.id));
@@ -171,18 +228,6 @@ router.patch("/users/me", requireAuth, async (req: Request, res: Response) => {
 
     const postCount = postCountResult[0]?.count ?? 0;
 
-    const parseSocialLinks = (val: any) => {
-      if (!val) return null;
-      if (typeof val === 'string') {
-        try {
-          return JSON.parse(val);
-        } catch (e) {
-          return null;
-        }
-      }
-      return val;
-    };
-
     return res.json({
       id: updatedUser.id,
       name,
@@ -192,6 +237,7 @@ router.patch("/users/me", requireAuth, async (req: Request, res: Response) => {
       website: updatedUser.website || null,
       socialLinks: parseSocialLinks(updatedUser.socialLinks),
       postCount,
+      ...pickThemeFields(updatedUser),
     });
   } catch (err) {
     console.error("Failed to update profile:", err);

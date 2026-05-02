@@ -143,6 +143,57 @@ export async function ensureTables(): Promise<void> {
     "author_user_id VARCHAR(191) NULL",
   );
 
+  // Per-user theming columns. All nullable so an unset user falls back to
+  // the site owner's theme. Mirrors the 16 fields on `site_settings`.
+  await ensureColumn("users", "theme", "theme VARCHAR(32) NULL");
+  await ensureColumn("users", "palette", "palette VARCHAR(32) NULL");
+  await ensureColumn("users", "color_background", "color_background VARCHAR(64) NULL");
+  await ensureColumn("users", "color_foreground", "color_foreground VARCHAR(64) NULL");
+  await ensureColumn(
+    "users",
+    "color_background_dark",
+    "color_background_dark VARCHAR(64) NULL",
+  );
+  await ensureColumn(
+    "users",
+    "color_foreground_dark",
+    "color_foreground_dark VARCHAR(64) NULL",
+  );
+  await ensureColumn("users", "color_primary", "color_primary VARCHAR(64) NULL");
+  await ensureColumn(
+    "users",
+    "color_primary_foreground",
+    "color_primary_foreground VARCHAR(64) NULL",
+  );
+  await ensureColumn("users", "color_secondary", "color_secondary VARCHAR(64) NULL");
+  await ensureColumn(
+    "users",
+    "color_secondary_foreground",
+    "color_secondary_foreground VARCHAR(64) NULL",
+  );
+  await ensureColumn("users", "color_accent", "color_accent VARCHAR(64) NULL");
+  await ensureColumn(
+    "users",
+    "color_accent_foreground",
+    "color_accent_foreground VARCHAR(64) NULL",
+  );
+  await ensureColumn("users", "color_muted", "color_muted VARCHAR(64) NULL");
+  await ensureColumn(
+    "users",
+    "color_muted_foreground",
+    "color_muted_foreground VARCHAR(64) NULL",
+  );
+  await ensureColumn(
+    "users",
+    "color_destructive",
+    "color_destructive VARCHAR(64) NULL",
+  );
+  await ensureColumn(
+    "users",
+    "color_destructive_foreground",
+    "color_destructive_foreground VARCHAR(64) NULL",
+  );
+
   await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS site_settings (
       id INT NOT NULL PRIMARY KEY DEFAULT 1,

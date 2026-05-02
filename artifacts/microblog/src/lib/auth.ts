@@ -10,6 +10,22 @@ export type CurrentUser = {
   role: "owner" | "member";
   status: "active" | "blocked";
   postCount: number;
+  theme?: string | null;
+  palette?: string | null;
+  colorBackground?: string | null;
+  colorForeground?: string | null;
+  colorBackgroundDark?: string | null;
+  colorForegroundDark?: string | null;
+  colorPrimary?: string | null;
+  colorPrimaryForeground?: string | null;
+  colorSecondary?: string | null;
+  colorSecondaryForeground?: string | null;
+  colorAccent?: string | null;
+  colorAccentForeground?: string | null;
+  colorMuted?: string | null;
+  colorMutedForeground?: string | null;
+  colorDestructive?: string | null;
+  colorDestructiveForeground?: string | null;
 };
 
 type CsrfResponse = {

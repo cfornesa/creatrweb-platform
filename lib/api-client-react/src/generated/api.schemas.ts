@@ -90,6 +90,36 @@ export interface UpdateCommentBody {
 
 export type UserProfileSocialLinks = {[key: string]: string} | null;
 
+export type UserProfileTheme = typeof UserProfileTheme[keyof typeof UserProfileTheme] | null;
+
+
+export const UserProfileTheme = {
+  bauhaus: 'bauhaus',
+  traditional: 'traditional',
+  minimalist: 'minimalist',
+  academic: 'academic',
+  airy: 'airy',
+  nature: 'nature',
+  comfort: 'comfort',
+  audacious: 'audacious',
+  artistic: 'artistic',
+} as const;
+
+export type UserProfilePalette = typeof UserProfilePalette[keyof typeof UserProfilePalette] | null;
+
+
+export const UserProfilePalette = {
+  bauhaus: 'bauhaus',
+  monochrome: 'monochrome',
+  newsprint: 'newsprint',
+  ocean: 'ocean',
+  forest: 'forest',
+  sunset: 'sunset',
+  sepia: 'sepia',
+  'high-contrast': 'high-contrast',
+  pastel: 'pastel',
+} as const;
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -99,9 +129,55 @@ export interface UserProfile {
   website?: string | null;
   socialLinks?: UserProfileSocialLinks;
   postCount: number;
+  theme?: UserProfileTheme;
+  palette?: UserProfilePalette;
+  colorBackground?: string | null;
+  colorForeground?: string | null;
+  colorBackgroundDark?: string | null;
+  colorForegroundDark?: string | null;
+  colorPrimary?: string | null;
+  colorPrimaryForeground?: string | null;
+  colorSecondary?: string | null;
+  colorSecondaryForeground?: string | null;
+  colorAccent?: string | null;
+  colorAccentForeground?: string | null;
+  colorMuted?: string | null;
+  colorMutedForeground?: string | null;
+  colorDestructive?: string | null;
+  colorDestructiveForeground?: string | null;
 }
 
 export type UpdateUserProfileBodySocialLinks = {[key: string]: string};
+
+export type UpdateUserProfileBodyTheme = typeof UpdateUserProfileBodyTheme[keyof typeof UpdateUserProfileBodyTheme];
+
+
+export const UpdateUserProfileBodyTheme = {
+  bauhaus: 'bauhaus',
+  traditional: 'traditional',
+  minimalist: 'minimalist',
+  academic: 'academic',
+  airy: 'airy',
+  nature: 'nature',
+  comfort: 'comfort',
+  audacious: 'audacious',
+  artistic: 'artistic',
+} as const;
+
+export type UpdateUserProfileBodyPalette = typeof UpdateUserProfileBodyPalette[keyof typeof UpdateUserProfileBodyPalette];
+
+
+export const UpdateUserProfileBodyPalette = {
+  bauhaus: 'bauhaus',
+  monochrome: 'monochrome',
+  newsprint: 'newsprint',
+  ocean: 'ocean',
+  forest: 'forest',
+  sunset: 'sunset',
+  sepia: 'sepia',
+  'high-contrast': 'high-contrast',
+  pastel: 'pastel',
+} as const;
 
 export interface UpdateUserProfileBody {
   /** @pattern ^[a-zA-Z0-9_]{3,30}$ */
@@ -110,6 +186,78 @@ export interface UpdateUserProfileBody {
   bio?: string;
   website?: string;
   socialLinks?: UpdateUserProfileBodySocialLinks;
+  theme?: UpdateUserProfileBodyTheme;
+  palette?: UpdateUserProfileBodyPalette;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorBackground?: string;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorForeground?: string;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorBackgroundDark?: string;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorForegroundDark?: string;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorPrimary?: string;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorPrimaryForeground?: string;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorSecondary?: string;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorSecondaryForeground?: string;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorAccent?: string;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorAccentForeground?: string;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorMuted?: string;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorMutedForeground?: string;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorDestructive?: string;
+  /**
+     * @maxLength 32
+     * @pattern ^[0-9]{1,3}(\.[0-9]+)? [0-9]{1,3}(\.[0-9]+)?% [0-9]{1,3}(\.[0-9]+)?%$
+     */
+  colorDestructiveForeground?: string;
 }
 
 export interface FeedStats {

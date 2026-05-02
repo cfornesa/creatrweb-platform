@@ -574,6 +574,74 @@ components:
           nullable: true
         postCount:
           type: integer
+        theme:
+          type: string
+          enum:
+            - bauhaus
+            - traditional
+            - minimalist
+            - academic
+            - airy
+            - nature
+            - comfort
+            - audacious
+            - artistic
+          nullable: true
+        palette:
+          type: string
+          enum:
+            - bauhaus
+            - monochrome
+            - newsprint
+            - ocean
+            - forest
+            - sunset
+            - sepia
+            - high-contrast
+            - pastel
+          nullable: true
+        colorBackground:
+          type: string
+          nullable: true
+        colorForeground:
+          type: string
+          nullable: true
+        colorBackgroundDark:
+          type: string
+          nullable: true
+        colorForegroundDark:
+          type: string
+          nullable: true
+        colorPrimary:
+          type: string
+          nullable: true
+        colorPrimaryForeground:
+          type: string
+          nullable: true
+        colorSecondary:
+          type: string
+          nullable: true
+        colorSecondaryForeground:
+          type: string
+          nullable: true
+        colorAccent:
+          type: string
+          nullable: true
+        colorAccentForeground:
+          type: string
+          nullable: true
+        colorMuted:
+          type: string
+          nullable: true
+        colorMutedForeground:
+          type: string
+          nullable: true
+        colorDestructive:
+          type: string
+          nullable: true
+        colorDestructiveForeground:
+          type: string
+          nullable: true
       required:
         - id
         - name
@@ -595,6 +663,86 @@ components:
           type: object
           additionalProperties:
             type: string
+        theme:
+          type: string
+          enum:
+            - bauhaus
+            - traditional
+            - minimalist
+            - academic
+            - airy
+            - nature
+            - comfort
+            - audacious
+            - artistic
+        palette:
+          type: string
+          enum:
+            - bauhaus
+            - monochrome
+            - newsprint
+            - ocean
+            - forest
+            - sunset
+            - sepia
+            - high-contrast
+            - pastel
+        colorBackground:
+          type: string
+          maxLength: 32
+          pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
+        colorForeground:
+          type: string
+          maxLength: 32
+          pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
+        colorBackgroundDark:
+          type: string
+          maxLength: 32
+          pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
+        colorForegroundDark:
+          type: string
+          maxLength: 32
+          pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
+        colorPrimary:
+          type: string
+          maxLength: 32
+          pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
+        colorPrimaryForeground:
+          type: string
+          maxLength: 32
+          pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
+        colorSecondary:
+          type: string
+          maxLength: 32
+          pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
+        colorSecondaryForeground:
+          type: string
+          maxLength: 32
+          pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
+        colorAccent:
+          type: string
+          maxLength: 32
+          pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
+        colorAccentForeground:
+          type: string
+          maxLength: 32
+          pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
+        colorMuted:
+          type: string
+          maxLength: 32
+          pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
+        colorMutedForeground:
+          type: string
+          maxLength: 32
+          pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
+        colorDestructive:
+          type: string
+          maxLength: 32
+          pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
+        colorDestructiveForeground:
+          type: string
+          maxLength: 32
+          pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
 
     FeedStats:
       type: object

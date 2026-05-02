@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 import { SiteCustomizationCard } from "@/components/layout/SiteCustomizationCard";
+import { UserPageCustomizationCard } from "@/components/layout/UserPageCustomizationCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -85,6 +86,12 @@ export default function SettingsPage() {
       {isOwner && siteSettings ? (
         <div className="mb-6">
           <SiteCustomizationCard settings={siteSettings} />
+        </div>
+      ) : null}
+
+      {currentUser && siteSettings ? (
+        <div className="mb-6">
+          <UserPageCustomizationCard user={currentUser} siteSettings={siteSettings} />
         </div>
       ) : null}
 

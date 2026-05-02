@@ -11,7 +11,7 @@ import { logger } from "./lib/logger";
 import { authConfig } from "./auth/config";
 import { hydrateAuth } from "./middlewares/auth";
 import { createRateLimitMiddleware } from "./lib/ratelimit";
-import { injectPostMetadata, injectThemeData } from "./lib/meta-injection";
+import { injectPostMetadata, injectThemeData, injectUserTheme } from "./lib/meta-injection";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -77,6 +77,21 @@ if (fs.existsSync(staticPath)) {
     const id = req.params.id as string;
     if (id && id !== "index.html") {
       const html = await injectPostMetadata(indexPath, id);
+      if (html) {
+        res.send(html);
+        return;
+      }
+    }
+    next();
+  });
+
+  // Per-user profile pages: inject the user's theme alongside the site
+  // theme so the profile content paints with the user's customization
+  // before React hydrates. Falls through to the site theme on miss.
+  app.get("/users/:handle", async (req, res, next) => {
+    const handle = req.params.handle as string;
+    if (handle && handle !== "index.html") {
+      const html = await injectUserTheme(indexPath, handle);
       if (html) {
         res.send(html);
         return;

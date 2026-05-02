@@ -220,7 +220,23 @@ export const GetUserResponse = zod.object({
   "bio": zod.string().nullish(),
   "website": zod.string().nullish(),
   "socialLinks": zod.record(zod.string(), zod.string()).nullish(),
-  "postCount": zod.number()
+  "postCount": zod.number(),
+  "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']).nullish(),
+  "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']).nullish(),
+  "colorBackground": zod.string().nullish(),
+  "colorForeground": zod.string().nullish(),
+  "colorBackgroundDark": zod.string().nullish(),
+  "colorForegroundDark": zod.string().nullish(),
+  "colorPrimary": zod.string().nullish(),
+  "colorPrimaryForeground": zod.string().nullish(),
+  "colorSecondary": zod.string().nullish(),
+  "colorSecondaryForeground": zod.string().nullish(),
+  "colorAccent": zod.string().nullish(),
+  "colorAccentForeground": zod.string().nullish(),
+  "colorMuted": zod.string().nullish(),
+  "colorMutedForeground": zod.string().nullish(),
+  "colorDestructive": zod.string().nullish(),
+  "colorDestructiveForeground": zod.string().nullish()
 })
 
 
@@ -235,7 +251,23 @@ export const GetMeResponse = zod.object({
   "bio": zod.string().nullish(),
   "website": zod.string().nullish(),
   "socialLinks": zod.record(zod.string(), zod.string()).nullish(),
-  "postCount": zod.number()
+  "postCount": zod.number(),
+  "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']).nullish(),
+  "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']).nullish(),
+  "colorBackground": zod.string().nullish(),
+  "colorForeground": zod.string().nullish(),
+  "colorBackgroundDark": zod.string().nullish(),
+  "colorForegroundDark": zod.string().nullish(),
+  "colorPrimary": zod.string().nullish(),
+  "colorPrimaryForeground": zod.string().nullish(),
+  "colorSecondary": zod.string().nullish(),
+  "colorSecondaryForeground": zod.string().nullish(),
+  "colorAccent": zod.string().nullish(),
+  "colorAccentForeground": zod.string().nullish(),
+  "colorMuted": zod.string().nullish(),
+  "colorMutedForeground": zod.string().nullish(),
+  "colorDestructive": zod.string().nullish(),
+  "colorDestructiveForeground": zod.string().nullish()
 })
 
 
@@ -245,13 +277,85 @@ export const GetMeResponse = zod.object({
 export const updateMeBodyUsernameRegExp = new RegExp('^[a-zA-Z0-9_]{3,30}$');
 export const updateMeBodyBioMax = 500;
 
+export const updateMeBodyColorBackgroundMax = 32;
+
+
+export const updateMeBodyColorBackgroundRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorForegroundMax = 32;
+
+
+export const updateMeBodyColorForegroundRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorBackgroundDarkMax = 32;
+
+
+export const updateMeBodyColorBackgroundDarkRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorForegroundDarkMax = 32;
+
+
+export const updateMeBodyColorForegroundDarkRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorPrimaryMax = 32;
+
+
+export const updateMeBodyColorPrimaryRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorPrimaryForegroundMax = 32;
+
+
+export const updateMeBodyColorPrimaryForegroundRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorSecondaryMax = 32;
+
+
+export const updateMeBodyColorSecondaryRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorSecondaryForegroundMax = 32;
+
+
+export const updateMeBodyColorSecondaryForegroundRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorAccentMax = 32;
+
+
+export const updateMeBodyColorAccentRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorAccentForegroundMax = 32;
+
+
+export const updateMeBodyColorAccentForegroundRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorMutedMax = 32;
+
+
+export const updateMeBodyColorMutedRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorMutedForegroundMax = 32;
+
+
+export const updateMeBodyColorMutedForegroundRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorDestructiveMax = 32;
+
+
+export const updateMeBodyColorDestructiveRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
+export const updateMeBodyColorDestructiveForegroundMax = 32;
+
+
+export const updateMeBodyColorDestructiveForegroundRegExp = new RegExp('^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$');
 
 
 export const UpdateMeBody = zod.object({
   "username": zod.string().regex(updateMeBodyUsernameRegExp).optional(),
   "bio": zod.string().max(updateMeBodyBioMax).optional(),
   "website": zod.string().url().optional(),
-  "socialLinks": zod.record(zod.string(), zod.string()).optional()
+  "socialLinks": zod.record(zod.string(), zod.string()).optional(),
+  "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']).optional(),
+  "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']).optional(),
+  "colorBackground": zod.string().max(updateMeBodyColorBackgroundMax).regex(updateMeBodyColorBackgroundRegExp).optional(),
+  "colorForeground": zod.string().max(updateMeBodyColorForegroundMax).regex(updateMeBodyColorForegroundRegExp).optional(),
+  "colorBackgroundDark": zod.string().max(updateMeBodyColorBackgroundDarkMax).regex(updateMeBodyColorBackgroundDarkRegExp).optional(),
+  "colorForegroundDark": zod.string().max(updateMeBodyColorForegroundDarkMax).regex(updateMeBodyColorForegroundDarkRegExp).optional(),
+  "colorPrimary": zod.string().max(updateMeBodyColorPrimaryMax).regex(updateMeBodyColorPrimaryRegExp).optional(),
+  "colorPrimaryForeground": zod.string().max(updateMeBodyColorPrimaryForegroundMax).regex(updateMeBodyColorPrimaryForegroundRegExp).optional(),
+  "colorSecondary": zod.string().max(updateMeBodyColorSecondaryMax).regex(updateMeBodyColorSecondaryRegExp).optional(),
+  "colorSecondaryForeground": zod.string().max(updateMeBodyColorSecondaryForegroundMax).regex(updateMeBodyColorSecondaryForegroundRegExp).optional(),
+  "colorAccent": zod.string().max(updateMeBodyColorAccentMax).regex(updateMeBodyColorAccentRegExp).optional(),
+  "colorAccentForeground": zod.string().max(updateMeBodyColorAccentForegroundMax).regex(updateMeBodyColorAccentForegroundRegExp).optional(),
+  "colorMuted": zod.string().max(updateMeBodyColorMutedMax).regex(updateMeBodyColorMutedRegExp).optional(),
+  "colorMutedForeground": zod.string().max(updateMeBodyColorMutedForegroundMax).regex(updateMeBodyColorMutedForegroundRegExp).optional(),
+  "colorDestructive": zod.string().max(updateMeBodyColorDestructiveMax).regex(updateMeBodyColorDestructiveRegExp).optional(),
+  "colorDestructiveForeground": zod.string().max(updateMeBodyColorDestructiveForegroundMax).regex(updateMeBodyColorDestructiveForegroundRegExp).optional()
 })
 
 export const UpdateMeResponse = zod.object({
@@ -262,7 +366,23 @@ export const UpdateMeResponse = zod.object({
   "bio": zod.string().nullish(),
   "website": zod.string().nullish(),
   "socialLinks": zod.record(zod.string(), zod.string()).nullish(),
-  "postCount": zod.number()
+  "postCount": zod.number(),
+  "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']).nullish(),
+  "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']).nullish(),
+  "colorBackground": zod.string().nullish(),
+  "colorForeground": zod.string().nullish(),
+  "colorBackgroundDark": zod.string().nullish(),
+  "colorForegroundDark": zod.string().nullish(),
+  "colorPrimary": zod.string().nullish(),
+  "colorPrimaryForeground": zod.string().nullish(),
+  "colorSecondary": zod.string().nullish(),
+  "colorSecondaryForeground": zod.string().nullish(),
+  "colorAccent": zod.string().nullish(),
+  "colorAccentForeground": zod.string().nullish(),
+  "colorMuted": zod.string().nullish(),
+  "colorMutedForeground": zod.string().nullish(),
+  "colorDestructive": zod.string().nullish(),
+  "colorDestructiveForeground": zod.string().nullish()
 })
 
 

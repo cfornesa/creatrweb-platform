@@ -12,13 +12,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ThemePreviewTile } from "@/components/layout/ThemePreviewTile";
+import { ThemePalettePicker } from "@/components/layout/ThemePalettePicker";
 import {
   DEFAULT_PALETTE_ID,
   DEFAULT_THEME_ID,
-  PALETTES,
   PALETTE_COLOR_KEYS,
-  THEMES,
   getPalette,
   smartMergePalette,
   type PaletteColors,
@@ -41,91 +39,6 @@ const TEXT_DEFAULTS = {
   ctaLabel: "Learn More About Me",
   ctaHref: "/users/@cfornesa",
 } as const;
-
-const COLOR_FIELDS: Array<{
-  key: keyof PaletteColors;
-  label: string;
-  helper?: string;
-}> = [
-  { key: "colorBackground", label: "Background (Light)" },
-  { key: "colorForeground", label: "Foreground (Light)" },
-  { key: "colorBackgroundDark", label: "Background (Dark)" },
-  { key: "colorForegroundDark", label: "Foreground (Dark)" },
-  { key: "colorPrimary", label: "Primary" },
-  { key: "colorPrimaryForeground", label: "Primary text" },
-  { key: "colorSecondary", label: "Secondary" },
-  { key: "colorSecondaryForeground", label: "Secondary text" },
-  { key: "colorAccent", label: "Accent" },
-  { key: "colorAccentForeground", label: "Accent text" },
-  { key: "colorMuted", label: "Muted" },
-  { key: "colorMutedForeground", label: "Muted text" },
-  { key: "colorDestructive", label: "Destructive" },
-  { key: "colorDestructiveForeground", label: "Destructive text" },
-];
-
-const PREVIEW_SWATCH_KEYS: Array<keyof PaletteColors> = [
-  "colorBackground",
-  "colorForeground",
-  "colorPrimary",
-  "colorSecondary",
-  "colorAccent",
-  "colorMuted",
-  "colorDestructive",
-];
-
-function parseHsl(input: string): { h: number; s: number; l: number } | null {
-  const match = input.trim().match(/^(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%$/);
-  if (!match) return null;
-  return { h: Number(match[1]), s: Number(match[2]), l: Number(match[3]) };
-}
-
-function formatHsl(h: number, s: number, l: number): string {
-  return `${Math.round(h)} ${Math.round(s)}% ${Math.round(l)}%`;
-}
-
-function hslToHex(input: string): string {
-  const parsed = parseHsl(input);
-  if (!parsed) return "#000000";
-  const { h, s, l } = parsed;
-  const sN = s / 100;
-  const lN = l / 100;
-  const c = (1 - Math.abs(2 * lN - 1)) * sN;
-  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-  const m = lN - c / 2;
-  let r = 0, g = 0, b = 0;
-  if (h < 60) { r = c; g = x; b = 0; }
-  else if (h < 120) { r = x; g = c; b = 0; }
-  else if (h < 180) { r = 0; g = c; b = x; }
-  else if (h < 240) { r = 0; g = x; b = c; }
-  else if (h < 300) { r = x; g = 0; b = c; }
-  else { r = c; g = 0; b = x; }
-  const toHex = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, "0");
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-}
-
-function hexToHsl(hex: string): string {
-  const cleaned = hex.replace("#", "");
-  if (cleaned.length !== 6) return formatHsl(0, 0, 0);
-  const r = parseInt(cleaned.slice(0, 2), 16) / 255;
-  const g = parseInt(cleaned.slice(2, 4), 16) / 255;
-  const b = parseInt(cleaned.slice(4, 6), 16) / 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  let h = 0;
-  let s = 0;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = ((g - b) / d + (g < b ? 6 : 0)); break;
-      case g: h = ((b - r) / d + 2); break;
-      case b: h = ((r - g) / d + 4); break;
-    }
-    h *= 60;
-  }
-  return formatHsl(h, s * 100, l * 100);
-}
 
 type FormState = Record<string, string>;
 
@@ -157,6 +70,14 @@ function buildInitialState(settings: SiteSettings): FormState {
     colorDestructive: settings.colorDestructive,
     colorDestructiveForeground: settings.colorDestructiveForeground,
   };
+}
+
+function pickColors(form: FormState): PaletteColors {
+  const out: Record<string, string> = {};
+  for (const key of PALETTE_COLOR_KEYS) {
+    out[key] = form[key] ?? "";
+  }
+  return out as unknown as PaletteColors;
 }
 
 interface SiteCustomizationCardProps {
@@ -206,9 +127,6 @@ export function SiteCustomizationCard({ settings }: SiteCustomizationCardProps) 
   const setField = (key: string, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const setColorFromHex = (key: string, hex: string) =>
-    setField(key, hexToHsl(hex));
-
   const handlePickTheme = (themeId: string) => {
     setForm((prev) => ({ ...prev, theme: themeId }));
   };
@@ -237,30 +155,6 @@ export function SiteCustomizationCard({ settings }: SiteCustomizationCardProps) 
     update.mutate({ data: form as UpdateSiteSettingsBody });
   };
 
-  const activePalette = getPalette(form.palette);
-
-  // Effective palette for the theme preview tiles: prefer the user's draft
-  // edits in the form (so swapping a single color updates every preview),
-  // falling back to the selected palette's stock value if the form somehow
-  // lacks the field, and finally to the bauhaus defaults.
-  const fallback = activePalette?.colors ?? HSL_DEFAULTS;
-  const previewPaletteColors: PaletteColors = {
-    colorBackground: form.colorBackground ?? fallback.colorBackground,
-    colorForeground: form.colorForeground ?? fallback.colorForeground,
-    colorBackgroundDark: form.colorBackgroundDark ?? fallback.colorBackgroundDark,
-    colorForegroundDark: form.colorForegroundDark ?? fallback.colorForegroundDark,
-    colorPrimary: form.colorPrimary ?? fallback.colorPrimary,
-    colorPrimaryForeground: form.colorPrimaryForeground ?? fallback.colorPrimaryForeground,
-    colorSecondary: form.colorSecondary ?? fallback.colorSecondary,
-    colorSecondaryForeground: form.colorSecondaryForeground ?? fallback.colorSecondaryForeground,
-    colorAccent: form.colorAccent ?? fallback.colorAccent,
-    colorAccentForeground: form.colorAccentForeground ?? fallback.colorAccentForeground,
-    colorMuted: form.colorMuted ?? fallback.colorMuted,
-    colorMutedForeground: form.colorMutedForeground ?? fallback.colorMutedForeground,
-    colorDestructive: form.colorDestructive ?? fallback.colorDestructive,
-    colorDestructiveForeground: form.colorDestructiveForeground ?? fallback.colorDestructiveForeground,
-  };
-
   return (
     <Card>
       <CardHeader>
@@ -272,113 +166,15 @@ export function SiteCustomizationCard({ settings }: SiteCustomizationCardProps) 
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-8">
-          <section className="space-y-4">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Theme & Palette
-            </h3>
-
-            <div className="space-y-3">
-              <div className="flex items-baseline justify-between gap-3">
-                <Label className="text-xs font-semibold uppercase tracking-wide">Theme</Label>
-                <p className="text-xs text-muted-foreground">
-                  Borders, fonts, shadows, radius — previews use the current palette
-                </p>
-              </div>
-              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {THEMES.map((theme) => {
-                  const selected = form.theme === theme.id;
-                  return (
-                    <button
-                      key={theme.id}
-                      type="button"
-                      onClick={() => handlePickTheme(theme.id)}
-                      aria-pressed={selected}
-                      className={`group text-left rounded-md border overflow-hidden transition-colors ${
-                        selected
-                          ? "border-foreground ring-2 ring-foreground/20"
-                          : "border-border hover:border-foreground/40"
-                      }`}
-                    >
-                      <ThemePreviewTile
-                        themeId={theme.id}
-                        palette={previewPaletteColors}
-                      />
-                      <div className="border-t border-border bg-background p-2.5">
-                        <div className="text-sm font-semibold">{theme.label}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                          {theme.description}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-baseline justify-between gap-3">
-                <Label className="text-xs font-semibold uppercase tracking-wide">Palette</Label>
-                <p className="text-xs text-muted-foreground">
-                  14 colors — custom edits below are preserved
-                </p>
-              </div>
-              <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {PALETTES.map((palette) => {
-                  const selected = form.palette === palette.id;
-                  return (
-                    <button
-                      key={palette.id}
-                      type="button"
-                      onClick={() => handlePickPalette(palette.id)}
-                      aria-pressed={selected}
-                      className={`text-left rounded-md border p-3 transition-colors ${
-                        selected
-                          ? "border-foreground bg-accent/40"
-                          : "border-border bg-background hover:bg-muted/40"
-                      }`}
-                    >
-                      <div className="text-sm font-semibold">{palette.label}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                        {palette.description}
-                      </div>
-                      <div className="mt-2 flex gap-1">
-                        {PREVIEW_SWATCH_KEYS.map((k) => (
-                          <span
-                            key={k}
-                            className="inline-block h-4 w-4 rounded-full border border-border"
-                            style={{ backgroundColor: `hsl(${palette.colors[k]})` }}
-                            aria-hidden="true"
-                          />
-                        ))}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {activePalette && (
-                <div className="rounded-md border border-border bg-muted/30 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
-                    Live palette preview
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {PREVIEW_SWATCH_KEYS.map((k) => (
-                      <div key={k} className="flex items-center gap-2">
-                        <span
-                          className="inline-block h-6 w-6 rounded-full border border-border"
-                          style={{ backgroundColor: `hsl(${form[k] ?? activePalette.colors[k]})` }}
-                          aria-hidden="true"
-                        />
-                        <span className="text-xs font-mono text-muted-foreground">
-                          {k.replace(/^color/, "").replace(/Foreground$/, "")}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
+          <ThemePalettePicker
+            theme={form.theme}
+            palette={form.palette}
+            colors={pickColors(form)}
+            onPickTheme={handlePickTheme}
+            onPickPalette={handlePickPalette}
+            onChangeColor={(key, value) => setField(key as string, value)}
+            onResetDefaults={handleResetDefaults}
+          />
 
           <section className="space-y-4">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -487,56 +283,6 @@ export function SiteCustomizationCard({ settings }: SiteCustomizationCardProps) 
                   maxLength={255}
                 />
               </div>
-            </div>
-          </section>
-
-          <section className="space-y-4">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  Color Palette (per-field)
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Click a swatch to override any individual color. Edits here survive when you
-                  switch palettes — only stock palette colors get replaced.
-                </p>
-              </div>
-              <Button type="button" variant="outline" size="sm" onClick={handleResetDefaults}>
-                Reset to Bauhaus defaults
-              </Button>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {COLOR_FIELDS.map((field) => {
-                const value = form[field.key] ?? "";
-                const hex = hslToHex(value);
-                return (
-                  <div
-                    key={field.key}
-                    className="flex items-center gap-3 rounded-md border border-border p-3"
-                  >
-                    <input
-                      type="color"
-                      value={hex}
-                      onChange={(e) => setColorFromHex(field.key, e.target.value)}
-                      className="h-10 w-12 cursor-pointer rounded border border-border bg-transparent"
-                      aria-label={field.label}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <Label className="text-xs font-medium" htmlFor={`color-${field.key}`}>
-                        {field.label}
-                      </Label>
-                      <Input
-                        id={`color-${field.key}`}
-                        value={value}
-                        onChange={(e) => setField(field.key, e.target.value)}
-                        placeholder="0 100% 50%"
-                        className="h-8 text-xs font-mono mt-1"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </section>
         </CardContent>

@@ -9,6 +9,7 @@ import { PostCard } from "@/components/post/PostCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, FileText, Globe, Instagram, Youtube, Twitter, Music2, Tv, Github, Linkedin } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { UserThemeScope } from "@/components/layout/UserThemeScope";
 
 export default function UserProfile() {
   const [, params] = useRoute("/users/:userId");
@@ -47,6 +48,7 @@ export default function UserProfile() {
   const socialLinks = (user?.socialLinks as Record<string, string>) || {};
 
   return (
+    <UserThemeScope user={user}>
     <div className="container mx-auto max-w-2xl px-4 py-8">
       <div className="mb-6">
         <Button asChild variant="ghost" className="gap-2 -ml-4 hover:bg-transparent hover:text-primary">
@@ -172,7 +174,7 @@ export default function UserProfile() {
         ) : null}
       </div>
 
-      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm" data-testid="user-posts-section">
         <div className="border-b border-border bg-muted/30 px-6 py-4">
           <h2 className="font-serif text-xl font-bold tracking-tight">Recent Posts</h2>
         </div>
@@ -208,5 +210,6 @@ export default function UserProfile() {
         )}
       </div>
     </div>
+    </UserThemeScope>
   );
 }
