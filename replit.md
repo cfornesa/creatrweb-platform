@@ -46,7 +46,10 @@ MySQL (Hostinger-hosted in production, also MySQL locally). Drizzle schema in `l
 
 Schema reconciliation is performed by the API server at startup via `ensureTables()` + `ensureColumn()` + `ensureForeignKey()` + `ensureIndex()` in `lib/db/src/migrate.ts`. This is the single source of truth — the post-merge script (`scripts/post-merge.sh`) runs only `npm ci`. For one-shot pushes outside the normal merge flow, `npm run push-force --workspace=@workspace/db` is documented in the script's comment block.
 
-For environments where schema is applied by hand (e.g. Hostinger via phpMyAdmin), a copy-pasteable script for the `site_settings` table is at `lib/db/site_settings_install.sql`.
+For environments where schema is applied by hand (e.g. Hostinger via phpMyAdmin), two copy-pasteable SQL scripts ship alongside the schema:
+
+- `lib/db/install.sql` — **full database install** for forkers. Creates every table (`users`, `accounts`, `sessions`, `verification_tokens`, `feed_sources`, `feed_items_seen`, `posts`, `comments`, `reactions`, `site_settings`), all indexes including the `posts_content_text_fulltext` FULLTEXT index, every foreign key, and seeds the `site_settings` singleton row with neutral placeholder copy. Idempotent (uses `CREATE TABLE IF NOT EXISTS` + `INSERT IGNORE`). The bottom of the file also lists 15 commented-out maintenance queries (promote/demote owner, list users, approve/reject pending posts, vacuum stale dedup rows, run the same FULLTEXT query the app uses, etc.).
+- `lib/db/site_settings_install.sql` — narrower script for the `site_settings` table only, kept around for upgrades from earlier deploys that pre-date the rest of the schema being applied by hand.
 
 ## API Routes
 
@@ -146,6 +149,42 @@ Visitors and the owner can search published posts at `/search` with relevance ra
 - **Endpoint**: `GET /api/posts/search` accepts `q` (text query, optional), `from` / `to` (ISO date bounds), `sources` (comma-separated `feed_source.id` values plus the literal `native` for owner-authored posts), `author` (case-insensitive substring match against `author_name`), `format` (comma-separated `html` / `plain`), and `page` / `limit` (capped at 50). Always filters `WHERE status = 'published'` even for the owner — the search and the public timeline are semantically the same set. `parseSearchQuery` rebuilds user input as `+term*` boolean-mode expression with operators stripped, so query-injection is impossible. `buildSearchSnippet` HTML-escapes the window then wraps matches in `<mark>` for safe rendering on the client via `dangerouslySetInnerHTML`.
 - **Public source list**: `GET /api/feed-sources/public` returns only `id` + `name` for sources that have at least one published post — visitors get the same source filter as the owner without leaking owner-only feed metadata (URLs, cadence, error state).
 - **Results page** (`/search`): URL is the source of truth for every filter — shareable, bookmarkable, back/forward-safe. Filter sidebar covers query, date range, sources (public list + native), author, and content format. Source filter defaults visually to "all checked" when no source param is set; unchecking one box collapses to the explicit inverse list and re-checking all collapses back to the empty default so the URL stays clean. Active-filter chips above the result list support one-click removal. Empty result set echoes the active filters back.
+- **Query-string subscription**: every interaction on `/search` is a query-string-only navigation (filters, paging, header search submits to `/search?…`), and wouter's `useLocation` only subscribes to the pathname. The page therefore subscribes to the search string directly via wouter's `useSearch` hook (built on `useSyncExternalStore` over `popstate`/`pushState`/`replaceState`/`hashchange`) so any `?…`-only URL change re-renders the page. Without this the second and subsequent searches from the header silently failed to update the page.
+- **Header `SearchBar` URL sync** (`artifacts/microblog/src/components/layout/SearchBar.tsx`): the input value mirrors the URL's `q` (so landing on `/search?q=hello` shows "hello" in the field, and removing the chip empties it). A `pendingUrlQRef` defers any URL change that arrives while one of the inputs is focused and re-applies it `onBlur`, so typing isn't clobbered mid-keystroke but back/forward-while-focused is still respected. Empty submit is a deliberate no-op when the URL already has a `q` (so users can't accidentally wipe their query with a blank field). Esc clears + blurs on both desktop and the mobile sheet input.
+- **Tests**: `src/pages/__tests__/search.test.tsx` guards the regression by changing only the query string via `history.pushState` and asserting the chip UI updates; `src/components/layout/__tests__/SearchBar.test.tsx` covers URL→input init, outside-driven re-sync, focused-input no-clobber + blur replay, blank-submit no-op, and Esc-clear.
+
+## Forking & Self-Hosting
+
+If someone clones this repo to run their own microblog, the path is:
+
+1. **Database**: create a fresh MySQL 8+ / MariaDB 10.5+ database, then either
+   - run the API server once and let `ensureTables()` build the schema (recommended on Replit / any Node host), **or**
+   - paste `lib/db/install.sql` into your SQL client (recommended on shared hosts where you only have phpMyAdmin). The script is fully idempotent and includes 15 commented-out maintenance queries at the bottom.
+2. **Environment variables** (set in `.env` for local dev or as platform secrets in production). Required-ness reflects what `artifacts/api-server/src/` actually reads via `process.env.*`:
+
+   | Variable | Required | Purpose |
+   |---|---|---|
+   | `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS` | yes | MySQL connection (read in `lib/db/src/index.ts`). |
+   | `DB_PORT` | optional | Defaults to `3306`. |
+   | `DB_SSL` | optional | `true` to require TLS on the DB connection. |
+   | `AUTH_SECRET` | yes | Long random string for Auth.js session signing. |
+   | `GITHUB_ID`, `GITHUB_SECRET` | one OAuth provider required | GitHub OAuth app credentials. |
+   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | one OAuth provider required | Google OAuth client credentials. |
+   | `ALLOWED_ORIGINS` | production | Comma-separated origins the API's CORS layer trusts. Falls back to `http://localhost:20925, http://localhost:8080` when unset, so local dev runs without it. |
+   | `CRON_SECRET` | optional | Required only if you want the bulk feed refresh endpoint to be triggerable by a Scheduled Deployment without owner cookies. |
+   | `PUBLIC_SITE_URL`, `SITE_TITLE`, `SITE_DESCRIPTION`, `SITE_AUTHOR_NAME` | optional | SSR meta-tag fallbacks for the catch-all HTML route before the singleton `site_settings` row is loaded. |
+   | `STATIC_FILES_PATH` | optional | Override for where the API server serves the built frontend bundle from in production. |
+   | `LOG_LEVEL` | optional | `debug` / `info` / `warn` / `error`; defaults to `info`. |
+   | `NODE_ENV` | optional | Standard `production` / `development` toggle (affects logging + cache headers). |
+   | `AUTH_URL` | yes in prod | Read by Auth.js itself (not directly by app code) to compute OAuth callback URLs. Set to your public origin (e.g. `https://yourdomain.com`). |
+   | `PORT` | optional | API server listen port (defaults to `8080`). |
+   | `FRONTEND_PORT`, `API_ORIGIN` | local dev only | Vite dev port and the dev-proxy target — only consumed by the frontend dev server in `artifacts/microblog`. |
+
+3. **First owner**: the first person to sign in via OAuth becomes a regular `member`. Promote them to `owner` either via the helper script (`npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com`) or directly in SQL: `UPDATE users SET role='owner' WHERE email='you@example.com';`. The owner role is what unlocks the `/settings`, `/admin/feeds`, and `/admin/pending` pages and every `requireOwner`-gated API route.
+4. **Customize**: log in as the owner and visit `/settings` to set the site title, hero copy, theme/palette, and color overrides. The schema's seed values in `install.sql` are neutral placeholders meant to be overwritten on first run.
+5. **Scheduled feed refresh** (optional, for PESOS): configure a Scheduled Deployment that POSTs to `/api/feed-sources/refresh` with the `X-Cron-Secret` header. See the Scheduled refresh section above.
+
+Adapting it for a different shape of site: the schema is intentionally narrow — there are no per-post tags, categories, or visibility levels beyond `published` / `pending`. Adding any of those is a column on `posts` plus a new `ensureColumn` call in `lib/db/src/migrate.ts` and a matching `ALTER TABLE … ADD COLUMN IF NOT EXISTS` in `install.sql`.
 
 ## Important Notes
 
