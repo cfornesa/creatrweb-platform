@@ -28,6 +28,11 @@
 2. Does this render microformats? Server Component, no use client."
 3. Does this install a package or call an external service? → Update
    docs/dependencies.md first.
+4. Does this introduce or extend a string enum that will be persisted in
+   the database or contracted in OpenAPI (e.g. theme IDs, palette IDs,
+   role names, content-format tags)? → Treat as an Irreversible Decision.
+   Confirm the value list with the human before the first write; renaming
+   or removing values later is a breaking migration.
 
 ---
 
@@ -37,7 +42,7 @@
 |---|---|---|
 | Interactive | Kilo Code, Opencode | Full question + gallery protocols |
 | Plan/Propose | Kilo Code Plan slot | Gallery as the plan; no code until approved |
-| Auto Build | Opencode Orchestrator slot | Conservative defaults; log choices to DECISIONS.md |
+| Auto Build | Opencode Orchestrator slot, Replit Agent autonomous loops | Rules 1–4 still apply at every checkpoint (assumption question, gallery, irreversible-decision sign-off, judgment amplification). Auto Build only relaxes mid-execution chatter once the question has been answered and the direction approved. Conservative defaults; log every choice to DECISIONS.md as it is made (not only at end of session). Before calling any "task complete" / "mark done" tool, propose 1–3 MEMORY.md entries + any DESIGN.md Observed Taste entries; if the human is unavailable, log as unresolved checkpoint in DECISIONS.md. |
 | Inline Edit | Kilo Code autocomplete (Codestral) | Mechanical only; no architectural decisions |
 
 In any mode: if a mandatory checkpoint is reached with no human available,
@@ -94,6 +99,20 @@ At session start, before any build work:
 > is [X]. Should I proceed and document this in docs/dependencies.md?"
 
 Ask even when the person appears to have already decided.
+
+What counts as a "new vendor dependency": any addition that causes the app
+or its visitors to talk to a third-party origin at runtime, or that ties
+the project to a third party's release cadence. Examples that all trigger
+this question:
+- Installing an npm/pip/etc. package that calls an external API at runtime.
+- Adding a `<link>` or `<script>` tag pointing to a third-party CDN
+  (e.g. `fonts.googleapis.com`, `cdn.jsdelivr.net`, analytics scripts).
+- Adding a font, image, or asset URL that is fetched from a third party
+  on every page load instead of being self-hosted.
+- Wiring a webhook, OAuth provider, or SaaS integration.
+- Switching an existing self-hosted asset to a hosted equivalent.
+
+If unsure whether something counts, ask.
 
 ---
 

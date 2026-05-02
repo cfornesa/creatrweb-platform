@@ -375,7 +375,70 @@ options regardless of session context. -->
 - Picker tiles on the customization page inherit theme button styling, which means in heavy themes (Audacious / Bauhaus) the picker tiles get chunky 4–6px borders and brutal hover transforms. This reads on-theme but may be too aggressive for picker UI specifically.
 
 ### Unresolved Checkpoints Entering Next Session
-- [ ] Decide whether the visual identity contract has changed — i.e. whether DESIGN.md "Declared Preferences" should now describe a Bauhaus *default* with optional alternates, rather than Bauhaus as the only acceptable look. Currently the file still says "rounded corners (all radii must be 0) … any decorative color outside the primary tricolor set" must never appear, but the shipped feature explicitly enables both.
+- [x] Decide whether the visual identity contract has changed — i.e. whether DESIGN.md "Declared Preferences" should now describe a Bauhaus *default* with optional alternates, rather than Bauhaus as the only acceptable look. **Confirmed 2026-05-02:** Bauhaus remains the *default* identity; the alternate themes are owner-chosen exceptions. Captured in DESIGN.md Observed Taste (2026-05-02 DIRECTION + TENSION entries).
 - [ ] Decide whether to stop the first-paint flash via server-rendered initial state (would require API server to inject a `<style>` block or `data-theme` attr into index.html before React mounts).
 - [ ] Decide whether the picker tiles in `SiteCustomizationCard` should opt out of the theme button styling so they read more like a static gallery and less like 18 chunky brutal buttons.
+
+---
+
+### 2026-05-02 — AGENTS.md Self-Eval Amendments
+
+### Trigger
+Self-evaluation against `EVAL_PROMPT.md` after the themes & palettes
+session surfaced four concrete framework gaps. Each amendment below
+addresses an actual failure observed in that session, not a hypothetical.
+
+### Decisions Confirmed
+- The AGENTS.md Safeguard requirement of "explicit human instruction" was
+  met for these edits (user message: *"You are explicitly allowed to
+  implement them in both DESIGN.md and AGENTS.md"*).
+- Four amendments to AGENTS.md were applied:
+  1. **Mode table → Auto Build row** clarified to state that Rules 1–4
+     still apply at every checkpoint, that Auto Build only relaxes
+     mid-execution chatter once the question has been answered, and that
+     before any "task complete" tool call the agent must propose
+     MEMORY.md + DESIGN.md Observed Taste entries (or log an unresolved
+     checkpoint here). The row now also names "Replit Agent autonomous
+     loops" so the rule unambiguously applies to this runtime.
+  2. **Pre-Write Check** gained a fourth bullet covering string enums
+     persisted in the database or contracted in OpenAPI (theme IDs,
+     palette IDs, role names, content-format tags). These are now
+     explicitly Irreversible Decisions requiring sign-off on the value
+     list before the first write.
+  3. **New Vendor Dependency** rule gained an explicit "What counts"
+     list covering CDN `<link>`/`<script>` tags, third-party fonts,
+     webhooks, OAuth providers, and self-hosted-to-hosted swaps. The
+     missing trigger this session was the Google Fonts addition to
+     `index.html`, which the previous prose did not unambiguously cover.
+  4. **DESIGN.md Observed Taste** entries from 2026-05-02 had their
+     PROPOSED markers removed and were confirmed: Bauhaus is now the
+     *default* identity, not the only acceptable look; the project now
+     navigates a real tension between brand discipline and self-publishing
+     autonomy.
+
+### Implementation Notes
+- No prose was changed in the Six Rules block, the Brainstorm Mode block,
+  the Core Constraints block, the Skills table, the Memory Files table,
+  or the Safeguard block. Edits were strictly additive plus the Mode
+  table row rewrite.
+- The end-of-session "propose MEMORY + Observed Taste" obligation
+  previously lived only in the Memory Files prose ("End of session
+  (interactive mode): …"), which Auto Build runtimes systematically
+  skipped because `mark_task_complete` is not perceived as "end of
+  session." It now lives in the Mode table row itself, on the row that
+  most often skipped it.
+
+### Outcome
+- AGENTS.md is now self-consistent for autonomous-build runtimes; the
+  rules that were nominally binding but procedurally invisible are now
+  procedurally visible at the moments they need to fire.
+- DESIGN.md Declared Preferences remain unchanged. They now describe the
+  *default* identity rather than an absolute prohibition; the Observed
+  Taste section carries that nuance explicitly.
+
+### Unresolved Checkpoints Entering Next Session
+- [ ] Decide whether DESIGN.md Declared Preferences itself should be
+  rewritten to describe the Bauhaus identity as a "default" in its own
+  prose, or whether keeping Declared Preferences strict + relying on
+  Observed Taste for the nuance is the preferred form.
 
