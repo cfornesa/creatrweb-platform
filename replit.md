@@ -133,13 +133,30 @@ The owner can subscribe to external sites' RSS/Atom feeds at `/admin/feeds` and 
 
 ### Scheduled refresh
 
-`POST /api/feed-sources/refresh` accepts owner cookie auth **or** an `X-Cron-Secret` header compared against `process.env.CRON_SECRET` via `crypto.timingSafeEqual`. To run it on a schedule with Replit Scheduled Deployments:
+`POST /api/feed-sources/refresh` accepts owner cookie auth **or** an `X-Cron-Secret` header compared against `process.env.CRON_SECRET` via `crypto.timingSafeEqual`. Without something hitting this endpoint on a schedule, new items only land in `/admin/pending` when the owner clicks "Refresh all" in `/admin/feeds` — the rest of the PESOS flow is hands-off, so wiring up the schedule is what makes the whole feature unattended.
 
-1. Set the `CRON_SECRET` secret in the deployment.
-2. Create a Scheduled Deployment whose command issues `curl -fsS -X POST -H "X-Cron-Secret: $CRON_SECRET" https://<your-deployed-domain>/api/feed-sources/refresh`.
-3. Pick an interval that matches your fastest cadence (e.g. hourly is fine; daily/weekly sources self-throttle via `isSourceDue`).
+The contract is intentionally provider-neutral — anything that can issue an HTTP POST with a header on a schedule will work (Replit Scheduled Deployments, cPanel cron on Hostinger / shared hosts, plain Linux `cron`, systemd timers, GitHub Actions, Vercel/Netlify cron, an external uptime monitor's "POST every hour" hook, etc.). The bare requirement on **any** host:
 
-Add `?force=1` only when you intentionally want to bypass the cadence gate (e.g. a manual debugging run from the admin UI's "Refresh all" button).
+```
+curl -fsS -X POST -H "X-Cron-Secret: $CRON_SECRET" "$PUBLIC_SITE_URL/api/feed-sources/refresh"
+```
+
+A portable wrapper script ships at `scripts/scheduled-feed-refresh.sh`. It depends only on `bash` + `curl`, reads `CRON_SECRET` and `PUBLIC_SITE_URL` from the environment, fails fast on non-2xx (so the cron host surfaces the failure), never echoes the secret to logs, and supports `FORCE=1` to bypass the cadence gate for one-off debugging runs.
+
+Setup, regardless of host:
+
+1. **Set `CRON_SECRET` on the API server** — long random string (`openssl rand -hex 32`). The same value also has to be available wherever the cron runs.
+2. **Pick a cadence** — hourly (`0 * * * *`) is a sensible default; daily/weekly feeds self-throttle via `isSourceDue`, so a faster cron just no-ops on the ones that aren't due yet.
+3. **Wire it up on your provider** — pick whichever of these matches your host:
+   - **GitHub Actions (zero-config, recommended for forkers)**: a ready-to-use workflow ships at `.github/workflows/feed-refresh.yml`. It runs `scripts/scheduled-feed-refresh.sh` on `cron: '0 * * * *'`. To enable: push the repo to GitHub and add two repo secrets — `CRON_SECRET` (Settings → Secrets and variables → Actions → New repository secret, same value as on the API server) and `PUBLIC_SITE_URL`. The workflow also exposes a "Run workflow" button (with an optional "force" toggle) for one-off manual runs from the GitHub UI.
+   - **Replit Scheduled Deployment**: Publishing tool → "New deployment" → **Scheduled**. Set `CRON_SECRET` and `PUBLIC_SITE_URL` (your `*.replit.app` or custom domain) as deployment secrets. Run command: `bash scripts/scheduled-feed-refresh.sh`. Build command: empty. Schedule: `0 * * * *`.
+   - **Hostinger / cPanel shared hosting**: cPanel → "Cron Jobs". Either upload `scripts/scheduled-feed-refresh.sh` next to the app and use it as the cron command (cPanel lets you set per-job env vars for `CRON_SECRET` and `PUBLIC_SITE_URL`), or skip the script entirely and paste a one-liner with the literal values directly into the cron command field, e.g. `curl --fail-with-body -sS -X POST -H "X-Cron-Secret: paste-your-secret-here" "https://yourdomain.com/api/feed-sources/refresh" > /dev/null`. (Inline `VAR=… command $VAR` syntax does **not** work in cron's command field — the `$VAR` would expand before the assignment takes effect — so use literal values, or wrap in `sh -c 'CRON_SECRET=… curl … "$CRON_SECRET" …'` if you really want to keep the secret in one place.) Schedule: "Once an hour" (or hand-edit to `0 * * * *`). Note: `--fail-with-body` requires curl 7.76.0+ (March 2021); on older shared hosts, drop it for plain `-fsS` (you lose the response body on errors but the exit code still propagates).
+   - **Plain Linux `cron` / VPS**: `crontab -e`, then `0 * * * * CRON_SECRET=… PUBLIC_SITE_URL=https://yourdomain.com /path/to/repo/scripts/scheduled-feed-refresh.sh >> /var/log/feed-refresh.log 2>&1`.
+   - **systemd timer**: a `feed-refresh.service` that runs `scripts/scheduled-feed-refresh.sh` (with `Environment=CRON_SECRET=…` / `Environment=PUBLIC_SITE_URL=…`) plus a sibling `feed-refresh.timer` with `OnCalendar=hourly`.
+   - **External uptime/monitor service** (UptimeRobot, Cronitor, etc.): configure a "POST every hour" check pointed at `https://yourdomain.com/api/feed-sources/refresh` with the `X-Cron-Secret` request header.
+4. **Verify** — after the first scheduled run, the cron host's logs should print `scheduled-feed-refresh: ok` (or, for the bare curl, just exit 0), and `/admin/pending` should show any new items the subscribed feeds have published since the previous run.
+
+Set `FORCE=1` on the cron environment (or append `?force=1` to the URL on the bare curl) only when intentionally bypassing the cadence gate. The admin UI's "Refresh all" button already passes `force=1` for manual debugging runs.
 
 ## Search
 
@@ -172,8 +189,9 @@ If someone clones this repo to run their own microblog, the path is:
    | `GITHUB_ID`, `GITHUB_SECRET` | one OAuth provider required | GitHub OAuth app credentials. |
    | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | one OAuth provider required | Google OAuth client credentials. |
    | `ALLOWED_ORIGINS` | production | Comma-separated origins the API's CORS layer trusts. Falls back to `http://localhost:20925, http://localhost:8080` when unset, so local dev runs without it. |
-   | `CRON_SECRET` | optional | Required only if you want the bulk feed refresh endpoint to be triggerable by a Scheduled Deployment without owner cookies. |
-   | `PUBLIC_SITE_URL`, `SITE_TITLE`, `SITE_DESCRIPTION`, `SITE_AUTHOR_NAME` | optional | SSR meta-tag fallbacks for the catch-all HTML route before the singleton `site_settings` row is loaded. |
+   | `CRON_SECRET` | optional | Required if you want the bulk feed refresh endpoint to be triggerable by an external scheduler (Replit Scheduled Deployment, Hostinger cPanel cron, plain Linux cron, GitHub Actions, etc.) without owner cookies. Must be identical on the API server (verifies the header) and on whatever sends the request (sends it as `X-Cron-Secret`). See "Inbound Feeds (PESOS)" → "Scheduled refresh". |
+   | `PUBLIC_SITE_URL` | optional | Used in two places: (1) SSR meta-tag fallback for the catch-all HTML route before the singleton `site_settings` row is loaded, and (2) read by `scripts/scheduled-feed-refresh.sh` as the target origin for the bulk refresh POST — required there if you wire up any provider's cron facility (Replit, Hostinger, etc.) to use that wrapper script. |
+   | `SITE_TITLE`, `SITE_DESCRIPTION`, `SITE_AUTHOR_NAME` | optional | SSR meta-tag fallbacks for the catch-all HTML route before the singleton `site_settings` row is loaded. |
    | `STATIC_FILES_PATH` | optional | Override for where the API server serves the built frontend bundle from in production. |
    | `LOG_LEVEL` | optional | `debug` / `info` / `warn` / `error`; defaults to `info`. |
    | `NODE_ENV` | optional | Standard `production` / `development` toggle (affects logging + cache headers). |

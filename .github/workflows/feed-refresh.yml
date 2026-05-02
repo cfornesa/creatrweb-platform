@@ -1,0 +1,47 @@
+name: Scheduled feed refresh
+
+# Hits POST /api/feed-sources/refresh on the deployed app on a schedule
+# so new items from subscribed RSS/Atom sources land in /admin/pending
+# without anyone clicking "Refresh all" in /admin/feeds.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   CRON_SECRET      — must match the API server's CRON_SECRET env var.
+#   PUBLIC_SITE_URL  — fully-qualified origin of the deployed app
+#                      (e.g. https://yourdomain.com). No trailing slash.
+#
+# This workflow is provider-neutral — it works whether the deployed
+# app is on Replit, Hostinger, a VPS, or anywhere else, because all it
+# does is HTTP POST.
+#
+# To disable, delete this file or comment out the `schedule:` block.
+# To trigger manually, use the "Run workflow" button (workflow_dispatch).
+
+on:
+  schedule:
+    # Hourly. Daily/weekly feed sources self-throttle via isSourceDue,
+    # so a faster cron just no-ops on sources that aren't due yet.
+    - cron: "0 * * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Bypass per-source cadence gate (?force=1)"
+        type: boolean
+        default: false
+
+jobs:
+  refresh:
+    name: Refresh subscribed feeds
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Hit /api/feed-sources/refresh
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          PUBLIC_SITE_URL: ${{ secrets.PUBLIC_SITE_URL }}
+          FORCE: ${{ inputs.force == true && '1' || '' }}
+        run: bash scripts/scheduled-feed-refresh.sh
