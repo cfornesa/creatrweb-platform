@@ -500,4 +500,208 @@ default timeout. Bumping to 90s did not help; the command still hung past
   catch it — at that point reconsider whether to add a manual push step
   to a *deploy* script (not the post-merge script) or build a proper
   drizzle migration runner.
+  - **Partial resolution 2026-05-02**: Task #9 needed a new foreign key
+    constraint added to `posts` after the column already existed on
+    pre-existing deploys. Resolved by extending the runtime path with
+    `ensureForeignKey()` in `lib/db/src/migrate.ts`, which adds the
+    constraint if and only if it doesn't already exist. The runtime
+    path now handles columns, foreign keys, and indexes (via
+    `ensureIndex()` added by Task #13). True non-additive changes
+    (drops, type narrowings, renames) still need a different
+    mechanism but no such change has been needed yet.
+
+---
+
+### 2026-05-02 — Per-User Profile Theming (Task #5)
+
+### Trigger
+Task #5 needed each signed-in user to be able to theme their own
+profile page (`/users/@handle`) using the same surface area as
+site-wide owner customization, without bleeding into the navbar or
+footer or interfering with the existing site customization rules.
+
+### Decision Confirmed
+- **Schema choice**: 16 nullable columns directly on the `users`
+  table (`theme`, `palette`, and 14 HSL color fields), mirroring
+  `site_settings`. Rejected alternatives: a separate `user_themes`
+  table (extra join on every profile page render for no real
+  isolation benefit), or a single JSON column (loses field-level
+  null-as-clear semantics and SQL-level enum validation).
+- **NULL-as-clear semantics**: `NULL` on a column means "use the
+  site default for that field." `PATCH /api/users/me` distinguishes
+  "key absent" (preserve current value) from "explicit null"
+  (clear), so a profile-info save never wipes a user's theme.
+- **No-flash first paint**: server-side injection of both a scoped
+  `<style>` block AND a synchronized `window.__USER_THEME_BOOTSTRAP__`
+  script. The script-and-style pair is the contract — neither alone
+  is sufficient. `<UserThemeScope>` reads the bootstrap synchronously
+  on first render via `useMemo`, so the wrapper exists with the
+  right attributes from frame 1.
+
+### Verification
+- 59 tests across api-server and microblog cover the contract,
+  including XSS-via-color-string rejection (strict HSL regex on both
+  server and client), bootstrap script body escaping, and scope-key
+  whitelisting.
+- End-to-end verified against a real user via curl during the merge.
+
+### Outcome
+- The user's per-page theme applies only to their profile content;
+  navbar and footer keep the site owner's theme.
+- Imported feed posts (which have `author_user_id = NULL`) cleanly
+  fall back to the site default theme without special-casing.
+
+---
+
+### 2026-05-02 — Persisted DB Enum: posts.status (Task #9)
+
+### Trigger
+Per the AGENTS.md amendment shipped this session, persisted DB string
+enums are Irreversible Decisions and must have their value set
+explicitly logged before a column is added. Task #9 added
+`posts.status` and the values shipped need to be on the record.
+
+### Decision Confirmed
+The full set of values shipped by Task #9 for `posts.status`:
+- `published` — visible on the public timeline. Default for all
+  existing rows (so legacy posts continue to be public) and for any
+  post created through the existing hand-written-post code path.
+- `pending` — only visible to the owner in the moderation queue.
+  Default for posts inserted by the feed ingest path.
+
+### Options Considered for the Initial Set
+- Adding a `rejected` value was considered and rejected. Reject
+  deletes the post but keeps the GUID in `feed_items_seen` so the
+  same item cannot re-import. A `rejected` row would be a tombstone
+  with no readers and no use case.
+- Adding a `scheduled` value (for future-publish) was considered
+  and rejected as out of scope for Task #9. Approve = publish now.
+
+### Outcome
+The values `published` and `pending` are the full set shipped by
+Task #9. Adding any third value (e.g. `rejected`, `scheduled`,
+`draft`) is itself an Irreversible Decision per AGENTS.md and would
+need its own DECISIONS.md entry plus explicit human confirmation.
+
+---
+
+### 2026-05-02 — New Vendor Dependency: rss-parser (Task #9)
+
+### Trigger
+Per the AGENTS.md New Vendor Dependency rule, third-party packages
+that interpret untrusted input from external services must be
+explicitly logged.
+
+### Decision Confirmed
+Added `rss-parser` to `@workspace/api-server` as the RSS 2.0 / Atom
+1.0 / JSON Feed parser for the inbound feed ingest pipeline. Small,
+no native deps, the most common Node choice for this exact job.
+Sanitization of the parsed body still happens through the project's
+own `sanitizeRichHtml` helper, so the trust boundary remains in
+project code; `rss-parser` is responsible only for XML parsing.
+
+### Outcome
+- Added at install time of Task #9.
+- `User-Agent` header for outbound fetches is set to a neutral
+  `MicroblogFeedIngest/1.0` so feed publishers can identify the
+  traffic source without leaking deployment details.
+
+---
+
+### 2026-05-02 — PESOS Architecture: Post-First, Dedup-Second Ordering (Task #9)
+
+### Trigger
+Inbound feed ingest needed dedup that is correct under both retry
+(transient post-insert failure) and concurrent refresh (two HTTP
+calls to `/api/feed-sources/refresh` racing on the same source).
+
+### Decision Confirmed
+- **Ordering rule**: in `ingestOneItem`, the post row is written
+  first, then the `(source_id, guid_hash)` ledger row is inserted
+  with `post_id` already populated. If the post insert fails for any
+  reason (validation, transient DB error), the ledger is never
+  touched — the item stays retriable on the next refresh.
+- **Race recovery**: the unique key on `(source_id, guid_hash)` is
+  the race-safety net. Two concurrent refreshes can both pass the
+  cheap `isAlreadySeen` check and both insert posts; the second
+  `insertDedupRow` throws `ER_DUP_ENTRY` (mysql errno 1062) and the
+  loser's post is removed by a compensating `deletePost`, leaving
+  exactly one row on the timeline.
+- **Testability**: per-item logic is decoupled from Drizzle behind
+  the `IngestDb` contract so the ordering rule is unit-tested with
+  stubs (no MySQL).
+
+### Options Considered
+- **Dedup-first, post-second**: rejected because a post-insert
+  failure would leave a permanent ledger entry blocking the item
+  from ever importing on a later retry.
+- **Single transaction wrapping both**: rejected because MySQL's
+  `ER_DUP_ENTRY` inside a transaction would still need explicit
+  rollback handling, the race window doesn't shrink, and the
+  ordering rule is the actual invariant — transactions don't add
+  safety beyond it.
+
+### Verification
+- 9 unit tests cover happy path, already-seen short-circuit,
+  dedup-not-written on post failure, retry on transient post
+  failure, ER_DUP_ENTRY race compensation, and non-duplicate error
+  pass-through.
+
+---
+
+### 2026-05-02 — Search Architecture: Native MySQL FULLTEXT (Task #13)
+
+### Trigger
+Task #13 needed a search backend. Three real options were considered
+during planning: native MySQL FULLTEXT, a JS-side in-memory index
+(MiniSearch / Lunr), or an external search service (Algolia,
+Meilisearch, Typesense). The user accepted the recommendation but
+the architectural reasoning needs to be on the record.
+
+### Decision Confirmed
+Native InnoDB FULLTEXT index on a new `posts.content_text` shadow
+column. The shadow column is populated by the shared
+`computeContentText` helper from `posts.content` on every insert
+and update, so the index can never drift from the rendered post
+body. Legacy rows are backfilled in app code via
+`backfillPostContentText` invoked from `index.ts` after
+`ensureTables` — using the same JS stripper as inserts, not a SQL
+approximation, so historical and new rows are stripped identically.
+
+### Options Considered
+- **JS-side index (MiniSearch / Lunr)**: would have given fuzzy /
+  edit-distance matching, but introduces a second store that needs
+  to be rebuilt on API restart and kept in sync on every write.
+  Worse fit for the single-instance API + MySQL combo.
+- **External search service**: overkill at single-author microblog
+  scale, adds a vendor dependency and recurring cost for no real
+  capability gain over FULLTEXT at this scale.
+
+### Outcome
+- Zero new infrastructure, zero new vendor dependencies for search.
+- Index lives next to the data — no second store to keep in sync.
+- Built-in relevance scoring via `MATCH() AGAINST() ORDER BY
+  score`. Boolean-mode operators available for free.
+- Performance is sub-200ms at the steady-state size of this site.
+- Reusable `ensureIndex()` helper added to `lib/db/src/migrate.ts`
+  for future tasks that need additional indexes (FULLTEXT, BTREE,
+  UNIQUE).
+
+### Decision: Search visibility for the owner
+- The `WHERE status = 'published'` predicate is applied
+  unconditionally inside the search endpoint, not as an opt-in flag
+  the client could omit. Search is semantically identical to "what
+  is publicly visible" even for the owner — the user explicitly
+  chose this option ("option B") during the planning phase. Pending
+  feed-imports are reachable only through the dedicated pending-
+  review queue from Task #9, never through search.
+
+### Decision: Public source list endpoint
+- A new `GET /api/feed-sources/public` was added so visitors can use
+  the source filter on the search page. It returns only `id` and
+  `name` for sources that have at least one published post — no
+  URLs, no cadence, no error state. The owner-only
+  `/api/feed-sources` endpoint still exposes the full row to the
+  owner, so this is a deliberately narrowed projection rather than
+  a change to the existing endpoint.
 

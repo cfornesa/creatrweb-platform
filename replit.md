@@ -42,10 +42,11 @@ Full-stack microblogging platform ("Microblog") — npm workspace monorepo, Type
 
 ## Database
 
-SQLite file stored at `data/microblog.db` (relative to workspace root). Core tables now include `users`, `accounts`, `sessions`, `verification_tokens`, `posts`, `comments`, `reactions`, and `site_settings` (singleton row, id=1).
-Drizzle schema in `lib/db/src/schema/`. Use `npm run push --workspace=@workspace/db` to apply schema changes.
+MySQL (Hostinger-hosted in production, also MySQL locally). Drizzle schema in `lib/db/src/schema/`. Core tables: `users`, `accounts`, `sessions`, `verification_tokens`, `posts`, `comments`, `reactions`, `site_settings` (singleton row, id=1), `feed_sources` (owner-subscribed RSS/Atom feeds), and `feed_items_seen` (per-source dedup ledger). Legacy SQLite material under `data/` is retained only as historical import material from the migration; nothing reads or writes it at runtime.
 
-For environments where schema is applied by hand (e.g. Hostinger via phpMyAdmin), a copy-pasteable script for the `site_settings` table is at `lib/db/site_settings_install.sql`. On startup, `ensureTables()` creates this table automatically and seeds a default row with `INSERT IGNORE`, so re-running is safe. The script also includes idempotent `ALTER TABLE … ADD COLUMN IF NOT EXISTS` statements for the `theme` and `palette` columns so older databases can be upgraded in place.
+Schema reconciliation is performed by the API server at startup via `ensureTables()` + `ensureColumn()` + `ensureForeignKey()` + `ensureIndex()` in `lib/db/src/migrate.ts`. This is the single source of truth — the post-merge script (`scripts/post-merge.sh`) runs only `npm ci`. For one-shot pushes outside the normal merge flow, `npm run push-force --workspace=@workspace/db` is documented in the script's comment block.
+
+For environments where schema is applied by hand (e.g. Hostinger via phpMyAdmin), a copy-pasteable script for the `site_settings` table is at `lib/db/site_settings_install.sql`.
 
 ## API Routes
 
@@ -71,6 +72,8 @@ For environments where schema is applied by hand (e.g. Hostinger via phpMyAdmin)
 - `GET /api/posts/pending` — list items waiting for review (owner only)
 - `POST /api/posts/:id/approve` — promote pending → published (owner only)
 - `POST /api/posts/:id/reject` — discard a pending item (owner only)
+- `GET /api/posts/search` — full-text post search with filters (public)
+- `GET /api/feed-sources/public` — list of feed sources that have at least one published post (public; `id` + `name` only)
 
 ## Auth.js
 
@@ -98,6 +101,20 @@ A "Reset to Bauhaus defaults" button restores theme=`bauhaus`, palette=`bauhaus`
 
 Backend storage: singleton row in `site_settings` (id=1) with `theme` and `palette` columns (varchar(32) NOT NULL DEFAULT `'bauhaus'`). Backed by `requireOwner` middleware on `PATCH /api/site-settings`. The frontend hook is `useSiteSettings()` in `artifacts/microblog/src/hooks/use-site-settings.ts`. Google Fonts (Lora, EB Garamond, Inter, Nunito, Quicksand, Space Grotesk, Bebas Neue, Caveat) are preloaded in `index.html`.
 
+## Per-User Profile Theming
+
+Any signed-in user can theme their own profile page (`/users/@handle`) using the same 9-themes × 9-palettes × 14-color-overrides surface that powers site-wide owner customization. Their theme applies only to their profile content; the navbar and footer always keep the site owner's theme.
+
+- **Schema**: 16 nullable columns on `users` mirroring `site_settings` (`theme`, `palette`, and the 14 HSL color fields). Backfilled by `ensureColumn` so existing rows stay valid. NULL on every column means "use the site default."
+- **Null-as-clear semantics**: `PATCH /api/users/me` accepts explicit `null` for any theme column, which writes SQL NULL and snaps the user back to the site default for that field. The 16 columns are documented as nullable in OpenAPI; orval-regenerated `UpdateMeBody` is `.nullish()` on every theme key. A profile-info save (no theme keys present in the payload) preserves the user's saved theme — `buildThemeUpdateSet` distinguishes "absent key" from "explicit null."
+- **Settings UI**: the **Profile Page Theme** card on `/settings` renders the same picker as the site card (extracted as a shared component) and includes a "Clear my customization" action that PATCHes nulls for all 16 fields. The picker also has a separate "Reset form to site defaults" action that only edits the in-memory form so the user can preview a reset before saving.
+- **No-flash first paint (SSR hookup)**: the API server's catch-all HTML route for `/users/:handle` calls `injectUserTheme()` (`artifacts/api-server/src/lib/meta-injection.ts`), which injects two synchronized hooks into the initial HTML when the user has any customization:
+  1. `<style id="user-theme-server-style">` with the scoped CSS targeting `[data-user-theme-scope="user-<id>"]`.
+  2. `<script id="user-theme-bootstrap">` publishing `{scopeKey, theme}` on `window.__USER_THEME_BOOTSTRAP__`.
+  `<UserThemeScope>` reads the bootstrap synchronously on its first render via `useMemo`, so the wrapper exists with the right attributes from frame 1 — even before the React Query fetch resolves.
+- **Security hardening**: every interpolated color is validated against a strict HSL regex (`<h> <s>% <l>%`, max 32 chars) on both the server style builder and the client component, so a bad value is dropped rather than rendered. The bootstrap script body is JSON-stringified with `<` escaped as defense-in-depth. The scope key is whitelisted to `user-[a-zA-Z0-9_-]+` server- and client-side so the attribute selector cannot break out.
+- **Imported posts and theming**: feed-imported posts have `author_user_id = NULL` (their byline is the original feed author, who is not a local user), so they correctly fall back to the site default theme — they have no per-user theme to apply.
+
 ## Inbound Feeds (PESOS)
 
 The owner can subscribe to external sites' RSS/Atom feeds at `/admin/feeds` and review imported items at `/admin/pending` before they appear on the public timeline.
@@ -120,6 +137,15 @@ The owner can subscribe to external sites' RSS/Atom feeds at `/admin/feeds` and 
 3. Pick an interval that matches your fastest cadence (e.g. hourly is fine; daily/weekly sources self-throttle via `isSourceDue`).
 
 Add `?force=1` only when you intentionally want to bypass the cadence gate (e.g. a manual debugging run from the admin UI's "Refresh all" button).
+
+## Search
+
+Visitors and the owner can search published posts at `/search` with relevance ranking and structured filters. The header search bar is reachable on every page on every viewport (inline input on sm+, magnifier-icon-button + bottom-sheet on mobile). The `/` hotkey focuses the inline input on desktop or opens the sheet on mobile (skips form/contenteditable targets); `Esc` clears and blurs.
+
+- **Index**: native MySQL InnoDB FULLTEXT on `posts.content_text` (a nullable text shadow column populated automatically by `computeContentText` in `artifacts/api-server/src/lib/html.ts` — the single source of truth for "what does the reader see in this post body"). Both insert and update paths in `routes/posts.ts` and the production ingest path in `routes/feed-sources.ts` populate `content_text` with the same helper, so the index never drifts from the rendered text. Legacy rows are backfilled in app code via `backfillPostContentText`, invoked from `index.ts` after `ensureTables` — the same JS stripper is used for backfill as for inserts so historical and new rows are identical. Idempotent: cheap no-op once every row is filled. The FULLTEXT index `posts_content_text_fulltext` is created via `ensureIndex()` in `lib/db/src/migrate.ts` (a reusable wrapper for `CREATE FULLTEXT INDEX IF NOT EXISTS`).
+- **Endpoint**: `GET /api/posts/search` accepts `q` (text query, optional), `from` / `to` (ISO date bounds), `sources` (comma-separated `feed_source.id` values plus the literal `native` for owner-authored posts), `author` (case-insensitive substring match against `author_name`), `format` (comma-separated `html` / `plain`), and `page` / `limit` (capped at 50). Always filters `WHERE status = 'published'` even for the owner — the search and the public timeline are semantically the same set. `parseSearchQuery` rebuilds user input as `+term*` boolean-mode expression with operators stripped, so query-injection is impossible. `buildSearchSnippet` HTML-escapes the window then wraps matches in `<mark>` for safe rendering on the client via `dangerouslySetInnerHTML`.
+- **Public source list**: `GET /api/feed-sources/public` returns only `id` + `name` for sources that have at least one published post — visitors get the same source filter as the owner without leaking owner-only feed metadata (URLs, cadence, error state).
+- **Results page** (`/search`): URL is the source of truth for every filter — shareable, bookmarkable, back/forward-safe. Filter sidebar covers query, date range, sources (public list + native), author, and content format. Source filter defaults visually to "all checked" when no source param is set; unchecking one box collapses to the explicit inverse list and re-checking all collapses back to the empty default so the URL stays clean. Active-filter chips above the result list support one-click removal. Empty result set echoes the active filters back.
 
 ## Important Notes
 
