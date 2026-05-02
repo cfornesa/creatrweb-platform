@@ -1,0 +1,21 @@
+{
+  "name": "@workspace/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "hello": "node --env-file-if-exists=../.env --import tsx ./src/hello.ts",
+    "import-sqlite-to-mysql": "node --env-file-if-exists=../.env --import tsx ./src/import-sqlite-to-mysql.ts",
+    "list-users": "node --env-file-if-exists=../.env --import tsx ./src/list-users.ts",
+    "promote-owner": "node --env-file-if-exists=../.env --import tsx ./src/promote-owner.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.15.15",
+    "@workspace/db": "0.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "tsx": "^4.21.0"
+  }
+}
