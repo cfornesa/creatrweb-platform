@@ -140,7 +140,7 @@ The frontend dev server proxies `/api/*` and `/auth/*` to the backend.
 
 ### Environment Variables
 
-Core local variables are documented in [docs/auth-setup.md](/Users/Fornesus/Code/personal-microblog/docs/auth-setup.md:1) and [`.env.example`](/Users/Fornesus/Code/personal-microblog/.env.example:1). The main ones are:
+Core local variables are documented in [docs/auth-setup.md](./docs/auth-setup.md) and [`.env.example`](./.env.example). The main ones are:
 
 - `PORT`
 - `FRONTEND_PORT`
@@ -231,7 +231,7 @@ Several top-level folders and markdown files in this repo are part of the **Crea
 
 ### Related Docs
 
-- [docs/auth-setup.md](/Users/Fornesus/Code/personal-microblog/docs/auth-setup.md:1)
-- [docs/dependencies.md](/Users/Fornesus/Code/personal-microblog/docs/dependencies.md:1)
-- [DECISIONS.md](/Users/Fornesus/Code/personal-microblog/DECISIONS.md:1)
-- [MEMORY.md](/Users/Fornesus/Code/personal-microblog/MEMORY.md:1)
+- [docs/auth-setup.md](./docs/auth-setup.md)
+- [docs/dependencies.md](./docs/dependencies.md)
+- [DECISIONS.md](./DECISIONS.md)
+- [MEMORY.md](./MEMORY.md)
