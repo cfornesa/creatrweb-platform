@@ -6,10 +6,13 @@ import {
   useApprovePost,
   useRejectPost,
   useApproveAllFromFeedSource,
+  useUpdatePost,
+  useUploadMedia,
   getListPendingPostsQueryKey,
   getListPostsQueryKey,
   getListFeedSourcesQueryKey,
   type PendingPost,
+  type PendingPostsPage,
 } from "@workspace/api-client-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useToast } from "@/hooks/use-toast";
@@ -26,8 +29,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { CheckCircle2, XCircle, Inbox, ExternalLink, Rss, CheckCheck } from "lucide-react";
+import { CheckCircle2, XCircle, Inbox, ExternalLink, Rss, CheckCheck, Pencil } from "lucide-react";
 import { PostContent } from "@/components/post/PostContent";
+import { RichPostEditor } from "@/components/post/RichPostEditor";
 
 function formatPubDate(value: Date | string | null | undefined): string {
   if (!value) return "";
@@ -62,6 +66,138 @@ function groupBySource(posts: PendingPost[]): SourceGroup[] {
     if (b.sourceFeedId == null) return -1;
     return (a.sourceFeedName ?? "").localeCompare(b.sourceFeedName ?? "");
   });
+}
+
+type PendingPostCardProps = {
+  post: PendingPost;
+  isMutating: boolean;
+  onApprove: (id: number) => void;
+  onReject: (id: number) => void;
+};
+
+// Per-row component so each card owns its own edit state and editor
+// instance — keeps the editor unmounted (and out of memory) for posts
+// the owner isn't actively touching.
+function PendingPostCard({ post, isMutating, onApprove, onReject }: PendingPostCardProps) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [isEditing, setIsEditing] = useState(false);
+
+  const updatePost = useUpdatePost({
+    mutation: {
+      onSuccess: (updatedPost) => {
+        // Patch the cached pending queue in place so the trimmed body
+        // shows immediately without a refetch round-trip and without
+        // dropping the row out of its current group.
+        queryClient.setQueriesData(
+          { queryKey: getListPendingPostsQueryKey() },
+          (existing: PendingPostsPage | undefined) =>
+            existing
+              ? {
+                  ...existing,
+                  posts: existing.posts.map((candidate) =>
+                    candidate.id === updatedPost.id
+                      ? {
+                          ...candidate,
+                          content: updatedPost.content,
+                          contentFormat:
+                            updatedPost.contentFormat as PendingPost["contentFormat"],
+                        }
+                      : candidate,
+                  ),
+                }
+              : existing,
+        );
+        setIsEditing(false);
+        toast({ title: "Edits saved", description: "Click Approve to publish." });
+      },
+      onError: () => toast({ title: "Failed to save edits", variant: "destructive" }),
+    },
+  });
+
+  const uploadMedia = useUploadMedia({
+    mutation: {
+      onError: () => toast({ title: "Failed to upload image", variant: "destructive" }),
+    },
+  });
+
+  const isSavingEdit = updatePost.isPending || uploadMedia.isPending;
+  const disableActions = isMutating || isSavingEdit;
+
+  return (
+    <Card data-testid={`pending-post-${post.id}`}>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+          <span>{post.authorName}</span>
+          <span className="text-muted-foreground text-xs font-normal">
+            • {formatPubDate(post.createdAt)}
+          </span>
+        </CardTitle>
+        {post.sourceCanonicalUrl ? (
+          <CardDescription>
+            <a
+              href={post.sourceCanonicalUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              Read original <ExternalLink className="h-3 w-3" />
+            </a>
+          </CardDescription>
+        ) : null}
+      </CardHeader>
+      <CardContent>
+        <div className="border-t pt-3">
+          {isEditing ? (
+            <RichPostEditor
+              initialContent={post.content}
+              submitLabel="Save edits"
+              cancelLabel="Cancel"
+              isSubmitting={isSavingEdit}
+              onCancel={() => setIsEditing(false)}
+              onUpload={async (file) => {
+                const uploaded = await uploadMedia.mutateAsync({ data: { file } });
+                return uploaded.url;
+              }}
+              onSubmit={(payload) => {
+                updatePost.mutate({ id: post.id, data: payload });
+              }}
+            />
+          ) : (
+            <PostContent content={post.content} contentFormat={post.contentFormat} />
+          )}
+        </div>
+        {!isEditing ? (
+          <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsEditing(true)}
+              disabled={disableActions}
+              data-testid={`button-edit-pending-${post.id}`}
+            >
+              <Pencil className="mr-1.5 h-4 w-4" /> Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onReject(post.id)}
+              disabled={disableActions}
+            >
+              <XCircle className="mr-1.5 h-4 w-4" /> Reject
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => onApprove(post.id)}
+              disabled={disableActions}
+            >
+              <CheckCircle2 className="mr-1.5 h-4 w-4" /> Approve
+            </Button>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function AdminPendingPage() {
@@ -141,6 +277,8 @@ export default function AdminPendingPage() {
     approveAll.mutate({ id: sourceFeedId });
   };
 
+  const isMutating = approve.isPending || reject.isPending;
+
   return (
     <div className="container mx-auto max-w-3xl px-4 py-8">
       <div className="mb-8">
@@ -218,50 +356,13 @@ export default function AdminPendingPage() {
 
               <div className="space-y-4">
                 {group.posts.map((post) => (
-                  <Card key={post.id} data-testid={`pending-post-${post.id}`}>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center gap-2 flex-wrap">
-                        <span>{post.authorName}</span>
-                        <span className="text-muted-foreground text-xs font-normal">
-                          • {formatPubDate(post.createdAt)}
-                        </span>
-                      </CardTitle>
-                      {post.sourceCanonicalUrl ? (
-                        <CardDescription>
-                          <a
-                            href={post.sourceCanonicalUrl}
-                            target="_blank"
-                            rel="noopener noreferrer nofollow"
-                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                          >
-                            Read original <ExternalLink className="h-3 w-3" />
-                          </a>
-                        </CardDescription>
-                      ) : null}
-                    </CardHeader>
-                    <CardContent>
-                      <div className="border-t pt-3">
-                        <PostContent content={post.content} contentFormat={post.contentFormat} />
-                      </div>
-                      <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => reject.mutate({ id: post.id })}
-                          disabled={reject.isPending || approve.isPending}
-                        >
-                          <XCircle className="mr-1.5 h-4 w-4" /> Reject
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => approve.mutate({ id: post.id })}
-                          disabled={reject.isPending || approve.isPending}
-                        >
-                          <CheckCircle2 className="mr-1.5 h-4 w-4" /> Approve
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <PendingPostCard
+                    key={post.id}
+                    post={post}
+                    isMutating={isMutating}
+                    onApprove={(id) => approve.mutate({ id })}
+                    onReject={(id) => reject.mutate({ id })}
+                  />
                 ))}
               </div>
             </section>
