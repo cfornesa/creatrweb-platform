@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { ThemePreviewTile } from "@/components/layout/ThemePreviewTile";
 import {
   DEFAULT_PALETTE_ID,
   DEFAULT_THEME_ID,
@@ -238,6 +239,28 @@ export function SiteCustomizationCard({ settings }: SiteCustomizationCardProps) 
 
   const activePalette = getPalette(form.palette);
 
+  // Effective palette for the theme preview tiles: prefer the user's draft
+  // edits in the form (so swapping a single color updates every preview),
+  // falling back to the selected palette's stock value if the form somehow
+  // lacks the field, and finally to the bauhaus defaults.
+  const fallback = activePalette?.colors ?? HSL_DEFAULTS;
+  const previewPaletteColors: PaletteColors = {
+    colorBackground: form.colorBackground ?? fallback.colorBackground,
+    colorForeground: form.colorForeground ?? fallback.colorForeground,
+    colorBackgroundDark: form.colorBackgroundDark ?? fallback.colorBackgroundDark,
+    colorForegroundDark: form.colorForegroundDark ?? fallback.colorForegroundDark,
+    colorPrimary: form.colorPrimary ?? fallback.colorPrimary,
+    colorPrimaryForeground: form.colorPrimaryForeground ?? fallback.colorPrimaryForeground,
+    colorSecondary: form.colorSecondary ?? fallback.colorSecondary,
+    colorSecondaryForeground: form.colorSecondaryForeground ?? fallback.colorSecondaryForeground,
+    colorAccent: form.colorAccent ?? fallback.colorAccent,
+    colorAccentForeground: form.colorAccentForeground ?? fallback.colorAccentForeground,
+    colorMuted: form.colorMuted ?? fallback.colorMuted,
+    colorMutedForeground: form.colorMutedForeground ?? fallback.colorMutedForeground,
+    colorDestructive: form.colorDestructive ?? fallback.colorDestructive,
+    colorDestructiveForeground: form.colorDestructiveForeground ?? fallback.colorDestructiveForeground,
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -258,10 +281,10 @@ export function SiteCustomizationCard({ settings }: SiteCustomizationCardProps) 
               <div className="flex items-baseline justify-between gap-3">
                 <Label className="text-xs font-semibold uppercase tracking-wide">Theme</Label>
                 <p className="text-xs text-muted-foreground">
-                  Borders, fonts, shadows, radius
+                  Borders, fonts, shadows, radius — previews use the current palette
                 </p>
               </div>
-              <div className="grid gap-2 grid-cols-2 sm:grid-cols-3">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {THEMES.map((theme) => {
                   const selected = form.theme === theme.id;
                   return (
@@ -270,15 +293,21 @@ export function SiteCustomizationCard({ settings }: SiteCustomizationCardProps) 
                       type="button"
                       onClick={() => handlePickTheme(theme.id)}
                       aria-pressed={selected}
-                      className={`text-left rounded-md border p-3 transition-colors ${
+                      className={`group text-left rounded-md border overflow-hidden transition-colors ${
                         selected
-                          ? "border-foreground bg-accent/40"
-                          : "border-border bg-background hover:bg-muted/40"
+                          ? "border-foreground ring-2 ring-foreground/20"
+                          : "border-border hover:border-foreground/40"
                       }`}
                     >
-                      <div className="text-sm font-semibold">{theme.label}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                        {theme.description}
+                      <ThemePreviewTile
+                        themeId={theme.id}
+                        palette={previewPaletteColors}
+                      />
+                      <div className="border-t border-border bg-background p-2.5">
+                        <div className="text-sm font-semibold">{theme.label}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                          {theme.description}
+                        </div>
                       </div>
                     </button>
                   );
