@@ -194,6 +194,13 @@ describe("injectUserTheme — first-paint paths", () => {
     });
     const result = await injectUserTheme(htmlPath, "@fan");
     expect(result).not.toBeNull();
+    // Site theme block is always present so navbar/footer keep matching
+    // the rest of the site even on a per-user profile page.
+    expect(result).toContain(`<style id="site-settings-theme">`);
+    expect(result).toMatch(/<html[^>]*\sdata-theme="[a-z]+"/);
+    // User-scoped theme block is emitted alongside the site theme,
+    // targeting the `[data-user-theme-scope]` attribute selector.
+    expect(result).toContain(`<style id="user-theme-server-style">`);
     expect(result).toContain(
       `[data-user-theme-scope="user-6953bb74-768e-4ee8-9159-464e3450e0a2"]`,
     );
@@ -215,6 +222,10 @@ describe("injectUserTheme — first-paint paths", () => {
     });
     const result = await injectUserTheme(htmlPath, id);
     expect(result).not.toBeNull();
+    // Both blocks ride along on the UUID path too — the lookup just
+    // switches columns; the injection contract is identical.
+    expect(result).toContain(`<style id="site-settings-theme">`);
+    expect(result).toContain(`<style id="user-theme-server-style">`);
     expect(result).toContain(`[data-user-theme-scope="user-${id}"]`);
   });
 
