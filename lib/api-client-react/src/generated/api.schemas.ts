@@ -124,9 +124,39 @@ export interface UploadedMedia {
   height?: number | null;
 }
 
+export type SiteSettingsTheme = typeof SiteSettingsTheme[keyof typeof SiteSettingsTheme];
+
+
+export const SiteSettingsTheme = {
+  bauhaus: 'bauhaus',
+  traditional: 'traditional',
+  minimalist: 'minimalist',
+  academic: 'academic',
+  airy: 'airy',
+  nature: 'nature',
+  comfort: 'comfort',
+  audacious: 'audacious',
+  artistic: 'artistic',
+} as const;
+
+export type SiteSettingsPalette = typeof SiteSettingsPalette[keyof typeof SiteSettingsPalette];
+
+
+export const SiteSettingsPalette = {
+  bauhaus: 'bauhaus',
+  monochrome: 'monochrome',
+  newsprint: 'newsprint',
+  ocean: 'ocean',
+  forest: 'forest',
+  sunset: 'sunset',
+  sepia: 'sepia',
+  'high-contrast': 'high-contrast',
+  pastel: 'pastel',
+} as const;
+
 export interface SiteSettings {
-  theme: string;
-  palette: string;
+  theme: SiteSettingsTheme;
+  palette: SiteSettingsPalette;
   siteTitle: string;
   heroHeading: string;
   heroSubheading: string;
@@ -152,11 +182,39 @@ export interface SiteSettings {
   colorDestructiveForeground: string;
 }
 
+export type UpdateSiteSettingsBodyTheme = typeof UpdateSiteSettingsBodyTheme[keyof typeof UpdateSiteSettingsBodyTheme];
+
+
+export const UpdateSiteSettingsBodyTheme = {
+  bauhaus: 'bauhaus',
+  traditional: 'traditional',
+  minimalist: 'minimalist',
+  academic: 'academic',
+  airy: 'airy',
+  nature: 'nature',
+  comfort: 'comfort',
+  audacious: 'audacious',
+  artistic: 'artistic',
+} as const;
+
+export type UpdateSiteSettingsBodyPalette = typeof UpdateSiteSettingsBodyPalette[keyof typeof UpdateSiteSettingsBodyPalette];
+
+
+export const UpdateSiteSettingsBodyPalette = {
+  bauhaus: 'bauhaus',
+  monochrome: 'monochrome',
+  newsprint: 'newsprint',
+  ocean: 'ocean',
+  forest: 'forest',
+  sunset: 'sunset',
+  sepia: 'sepia',
+  'high-contrast': 'high-contrast',
+  pastel: 'pastel',
+} as const;
+
 export interface UpdateSiteSettingsBody {
-  /** @maxLength 32 */
-  theme?: string;
-  /** @maxLength 32 */
-  palette?: string;
+  theme?: UpdateSiteSettingsBodyTheme;
+  palette?: UpdateSiteSettingsBodyPalette;
   /** @maxLength 255 */
   siteTitle?: string;
   /** @maxLength 255 */

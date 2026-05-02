@@ -629,8 +629,28 @@ components:
       properties:
         theme:
           type: string
+          enum:
+            - bauhaus
+            - traditional
+            - minimalist
+            - academic
+            - airy
+            - nature
+            - comfort
+            - audacious
+            - artistic
         palette:
           type: string
+          enum:
+            - bauhaus
+            - monochrome
+            - newsprint
+            - ocean
+            - forest
+            - sunset
+            - sepia
+            - high-contrast
+            - pastel
         siteTitle:
           type: string
         heroHeading:
@@ -709,10 +729,28 @@ components:
       properties:
         theme:
           type: string
-          maxLength: 32
+          enum:
+            - bauhaus
+            - traditional
+            - minimalist
+            - academic
+            - airy
+            - nature
+            - comfort
+            - audacious
+            - artistic
         palette:
           type: string
-          maxLength: 32
+          enum:
+            - bauhaus
+            - monochrome
+            - newsprint
+            - ocean
+            - forest
+            - sunset
+            - sepia
+            - high-contrast
+            - pastel
         siteTitle:
           type: string
           maxLength: 255

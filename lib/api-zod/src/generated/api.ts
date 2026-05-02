@@ -287,8 +287,8 @@ export const UploadMediaBody = zod.object({
  * @summary Get site-wide settings (title, copy, palette)
  */
 export const GetSiteSettingsResponse = zod.object({
-  "theme": zod.string(),
-  "palette": zod.string(),
+  "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']),
+  "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']),
   "siteTitle": zod.string(),
   "heroHeading": zod.string(),
   "heroSubheading": zod.string(),
@@ -318,10 +318,6 @@ export const GetSiteSettingsResponse = zod.object({
 /**
  * @summary Update site-wide settings (owner only)
  */
-export const updateSiteSettingsBodyThemeMax = 32;
-
-export const updateSiteSettingsBodyPaletteMax = 32;
-
 export const updateSiteSettingsBodySiteTitleMax = 255;
 
 export const updateSiteSettingsBodyHeroHeadingMax = 255;
@@ -371,8 +367,8 @@ export const updateSiteSettingsBodyColorDestructiveForegroundMax = 64;
 
 
 export const UpdateSiteSettingsBody = zod.object({
-  "theme": zod.string().max(updateSiteSettingsBodyThemeMax).optional(),
-  "palette": zod.string().max(updateSiteSettingsBodyPaletteMax).optional(),
+  "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']).optional(),
+  "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']).optional(),
   "siteTitle": zod.string().max(updateSiteSettingsBodySiteTitleMax).optional(),
   "heroHeading": zod.string().max(updateSiteSettingsBodyHeroHeadingMax).optional(),
   "heroSubheading": zod.string().max(updateSiteSettingsBodyHeroSubheadingMax).optional(),
@@ -399,8 +395,8 @@ export const UpdateSiteSettingsBody = zod.object({
 })
 
 export const UpdateSiteSettingsResponse = zod.object({
-  "theme": zod.string(),
-  "palette": zod.string(),
+  "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']),
+  "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']),
   "siteTitle": zod.string(),
   "heroHeading": zod.string(),
   "heroSubheading": zod.string(),
