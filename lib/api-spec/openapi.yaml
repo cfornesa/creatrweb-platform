@@ -16,6 +16,8 @@ tags:
     description: Comment operations
   - name: users
     description: User operations
+  - name: site
+    description: Site-wide settings
 paths:
   /healthz:
     get:
@@ -349,6 +351,42 @@ paths:
         "403":
           description: Forbidden
 
+  /site-settings:
+    get:
+      operationId: getSiteSettings
+      tags: [site]
+      summary: Get site-wide settings (title, copy, palette)
+      responses:
+        "200":
+          description: Site settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteSettings"
+    patch:
+      operationId: updateSiteSettings
+      tags: [site]
+      summary: Update site-wide settings (owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSiteSettingsBody"
+      responses:
+        "200":
+          description: Updated site settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteSettings"
+        "400":
+          description: Invalid request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
   /media/{fileName}:
     get:
       operationId: getMedia
@@ -585,3 +623,150 @@ components:
       required:
         - url
         - mimeType
+
+    SiteSettings:
+      type: object
+      properties:
+        siteTitle:
+          type: string
+        heroHeading:
+          type: string
+        heroSubheading:
+          type: string
+        aboutHeading:
+          type: string
+        aboutBody:
+          type: string
+        copyrightLine:
+          type: string
+        footerCredit:
+          type: string
+        ctaLabel:
+          type: string
+        ctaHref:
+          type: string
+        colorBackground:
+          type: string
+        colorForeground:
+          type: string
+        colorBackgroundDark:
+          type: string
+        colorForegroundDark:
+          type: string
+        colorPrimary:
+          type: string
+        colorPrimaryForeground:
+          type: string
+        colorSecondary:
+          type: string
+        colorSecondaryForeground:
+          type: string
+        colorAccent:
+          type: string
+        colorAccentForeground:
+          type: string
+        colorMuted:
+          type: string
+        colorMutedForeground:
+          type: string
+        colorDestructive:
+          type: string
+        colorDestructiveForeground:
+          type: string
+      required:
+        - siteTitle
+        - heroHeading
+        - heroSubheading
+        - aboutHeading
+        - aboutBody
+        - copyrightLine
+        - footerCredit
+        - ctaLabel
+        - ctaHref
+        - colorBackground
+        - colorForeground
+        - colorBackgroundDark
+        - colorForegroundDark
+        - colorPrimary
+        - colorPrimaryForeground
+        - colorSecondary
+        - colorSecondaryForeground
+        - colorAccent
+        - colorAccentForeground
+        - colorMuted
+        - colorMutedForeground
+        - colorDestructive
+        - colorDestructiveForeground
+
+    UpdateSiteSettingsBody:
+      type: object
+      properties:
+        siteTitle:
+          type: string
+          maxLength: 255
+        heroHeading:
+          type: string
+          maxLength: 255
+        heroSubheading:
+          type: string
+          maxLength: 1000
+        aboutHeading:
+          type: string
+          maxLength: 255
+        aboutBody:
+          type: string
+          maxLength: 2000
+        copyrightLine:
+          type: string
+          maxLength: 255
+        footerCredit:
+          type: string
+          maxLength: 255
+        ctaLabel:
+          type: string
+          maxLength: 255
+        ctaHref:
+          type: string
+          maxLength: 2048
+        colorBackground:
+          type: string
+          maxLength: 64
+        colorForeground:
+          type: string
+          maxLength: 64
+        colorBackgroundDark:
+          type: string
+          maxLength: 64
+        colorForegroundDark:
+          type: string
+          maxLength: 64
+        colorPrimary:
+          type: string
+          maxLength: 64
+        colorPrimaryForeground:
+          type: string
+          maxLength: 64
+        colorSecondary:
+          type: string
+          maxLength: 64
+        colorSecondaryForeground:
+          type: string
+          maxLength: 64
+        colorAccent:
+          type: string
+          maxLength: 64
+        colorAccentForeground:
+          type: string
+          maxLength: 64
+        colorMuted:
+          type: string
+          maxLength: 64
+        colorMutedForeground:
+          type: string
+          maxLength: 64
+        colorDestructive:
+          type: string
+          maxLength: 64
+        colorDestructiveForeground:
+          type: string
+          maxLength: 64

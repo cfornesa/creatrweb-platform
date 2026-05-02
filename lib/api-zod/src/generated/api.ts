@@ -284,6 +284,140 @@ export const UploadMediaBody = zod.object({
 
 
 /**
+ * @summary Get site-wide settings (title, copy, palette)
+ */
+export const GetSiteSettingsResponse = zod.object({
+  "siteTitle": zod.string(),
+  "heroHeading": zod.string(),
+  "heroSubheading": zod.string(),
+  "aboutHeading": zod.string(),
+  "aboutBody": zod.string(),
+  "copyrightLine": zod.string(),
+  "footerCredit": zod.string(),
+  "ctaLabel": zod.string(),
+  "ctaHref": zod.string(),
+  "colorBackground": zod.string(),
+  "colorForeground": zod.string(),
+  "colorBackgroundDark": zod.string(),
+  "colorForegroundDark": zod.string(),
+  "colorPrimary": zod.string(),
+  "colorPrimaryForeground": zod.string(),
+  "colorSecondary": zod.string(),
+  "colorSecondaryForeground": zod.string(),
+  "colorAccent": zod.string(),
+  "colorAccentForeground": zod.string(),
+  "colorMuted": zod.string(),
+  "colorMutedForeground": zod.string(),
+  "colorDestructive": zod.string(),
+  "colorDestructiveForeground": zod.string()
+})
+
+
+/**
+ * @summary Update site-wide settings (owner only)
+ */
+export const updateSiteSettingsBodySiteTitleMax = 255;
+
+export const updateSiteSettingsBodyHeroHeadingMax = 255;
+
+export const updateSiteSettingsBodyHeroSubheadingMax = 1000;
+
+export const updateSiteSettingsBodyAboutHeadingMax = 255;
+
+export const updateSiteSettingsBodyAboutBodyMax = 2000;
+
+export const updateSiteSettingsBodyCopyrightLineMax = 255;
+
+export const updateSiteSettingsBodyFooterCreditMax = 255;
+
+export const updateSiteSettingsBodyCtaLabelMax = 255;
+
+export const updateSiteSettingsBodyCtaHrefMax = 2048;
+
+export const updateSiteSettingsBodyColorBackgroundMax = 64;
+
+export const updateSiteSettingsBodyColorForegroundMax = 64;
+
+export const updateSiteSettingsBodyColorBackgroundDarkMax = 64;
+
+export const updateSiteSettingsBodyColorForegroundDarkMax = 64;
+
+export const updateSiteSettingsBodyColorPrimaryMax = 64;
+
+export const updateSiteSettingsBodyColorPrimaryForegroundMax = 64;
+
+export const updateSiteSettingsBodyColorSecondaryMax = 64;
+
+export const updateSiteSettingsBodyColorSecondaryForegroundMax = 64;
+
+export const updateSiteSettingsBodyColorAccentMax = 64;
+
+export const updateSiteSettingsBodyColorAccentForegroundMax = 64;
+
+export const updateSiteSettingsBodyColorMutedMax = 64;
+
+export const updateSiteSettingsBodyColorMutedForegroundMax = 64;
+
+export const updateSiteSettingsBodyColorDestructiveMax = 64;
+
+export const updateSiteSettingsBodyColorDestructiveForegroundMax = 64;
+
+
+
+export const UpdateSiteSettingsBody = zod.object({
+  "siteTitle": zod.string().max(updateSiteSettingsBodySiteTitleMax).optional(),
+  "heroHeading": zod.string().max(updateSiteSettingsBodyHeroHeadingMax).optional(),
+  "heroSubheading": zod.string().max(updateSiteSettingsBodyHeroSubheadingMax).optional(),
+  "aboutHeading": zod.string().max(updateSiteSettingsBodyAboutHeadingMax).optional(),
+  "aboutBody": zod.string().max(updateSiteSettingsBodyAboutBodyMax).optional(),
+  "copyrightLine": zod.string().max(updateSiteSettingsBodyCopyrightLineMax).optional(),
+  "footerCredit": zod.string().max(updateSiteSettingsBodyFooterCreditMax).optional(),
+  "ctaLabel": zod.string().max(updateSiteSettingsBodyCtaLabelMax).optional(),
+  "ctaHref": zod.string().max(updateSiteSettingsBodyCtaHrefMax).optional(),
+  "colorBackground": zod.string().max(updateSiteSettingsBodyColorBackgroundMax).optional(),
+  "colorForeground": zod.string().max(updateSiteSettingsBodyColorForegroundMax).optional(),
+  "colorBackgroundDark": zod.string().max(updateSiteSettingsBodyColorBackgroundDarkMax).optional(),
+  "colorForegroundDark": zod.string().max(updateSiteSettingsBodyColorForegroundDarkMax).optional(),
+  "colorPrimary": zod.string().max(updateSiteSettingsBodyColorPrimaryMax).optional(),
+  "colorPrimaryForeground": zod.string().max(updateSiteSettingsBodyColorPrimaryForegroundMax).optional(),
+  "colorSecondary": zod.string().max(updateSiteSettingsBodyColorSecondaryMax).optional(),
+  "colorSecondaryForeground": zod.string().max(updateSiteSettingsBodyColorSecondaryForegroundMax).optional(),
+  "colorAccent": zod.string().max(updateSiteSettingsBodyColorAccentMax).optional(),
+  "colorAccentForeground": zod.string().max(updateSiteSettingsBodyColorAccentForegroundMax).optional(),
+  "colorMuted": zod.string().max(updateSiteSettingsBodyColorMutedMax).optional(),
+  "colorMutedForeground": zod.string().max(updateSiteSettingsBodyColorMutedForegroundMax).optional(),
+  "colorDestructive": zod.string().max(updateSiteSettingsBodyColorDestructiveMax).optional(),
+  "colorDestructiveForeground": zod.string().max(updateSiteSettingsBodyColorDestructiveForegroundMax).optional()
+})
+
+export const UpdateSiteSettingsResponse = zod.object({
+  "siteTitle": zod.string(),
+  "heroHeading": zod.string(),
+  "heroSubheading": zod.string(),
+  "aboutHeading": zod.string(),
+  "aboutBody": zod.string(),
+  "copyrightLine": zod.string(),
+  "footerCredit": zod.string(),
+  "ctaLabel": zod.string(),
+  "ctaHref": zod.string(),
+  "colorBackground": zod.string(),
+  "colorForeground": zod.string(),
+  "colorBackgroundDark": zod.string(),
+  "colorForegroundDark": zod.string(),
+  "colorPrimary": zod.string(),
+  "colorPrimaryForeground": zod.string(),
+  "colorSecondary": zod.string(),
+  "colorSecondaryForeground": zod.string(),
+  "colorAccent": zod.string(),
+  "colorAccentForeground": zod.string(),
+  "colorMuted": zod.string(),
+  "colorMutedForeground": zod.string(),
+  "colorDestructive": zod.string(),
+  "colorDestructiveForeground": zod.string()
+})
+
+
+/**
  * @summary Fetch an uploaded media asset
  */
 export const GetMediaParams = zod.object({

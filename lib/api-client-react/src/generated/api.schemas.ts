@@ -124,6 +124,81 @@ export interface UploadedMedia {
   height?: number | null;
 }
 
+export interface SiteSettings {
+  siteTitle: string;
+  heroHeading: string;
+  heroSubheading: string;
+  aboutHeading: string;
+  aboutBody: string;
+  copyrightLine: string;
+  footerCredit: string;
+  ctaLabel: string;
+  ctaHref: string;
+  colorBackground: string;
+  colorForeground: string;
+  colorBackgroundDark: string;
+  colorForegroundDark: string;
+  colorPrimary: string;
+  colorPrimaryForeground: string;
+  colorSecondary: string;
+  colorSecondaryForeground: string;
+  colorAccent: string;
+  colorAccentForeground: string;
+  colorMuted: string;
+  colorMutedForeground: string;
+  colorDestructive: string;
+  colorDestructiveForeground: string;
+}
+
+export interface UpdateSiteSettingsBody {
+  /** @maxLength 255 */
+  siteTitle?: string;
+  /** @maxLength 255 */
+  heroHeading?: string;
+  /** @maxLength 1000 */
+  heroSubheading?: string;
+  /** @maxLength 255 */
+  aboutHeading?: string;
+  /** @maxLength 2000 */
+  aboutBody?: string;
+  /** @maxLength 255 */
+  copyrightLine?: string;
+  /** @maxLength 255 */
+  footerCredit?: string;
+  /** @maxLength 255 */
+  ctaLabel?: string;
+  /** @maxLength 2048 */
+  ctaHref?: string;
+  /** @maxLength 64 */
+  colorBackground?: string;
+  /** @maxLength 64 */
+  colorForeground?: string;
+  /** @maxLength 64 */
+  colorBackgroundDark?: string;
+  /** @maxLength 64 */
+  colorForegroundDark?: string;
+  /** @maxLength 64 */
+  colorPrimary?: string;
+  /** @maxLength 64 */
+  colorPrimaryForeground?: string;
+  /** @maxLength 64 */
+  colorSecondary?: string;
+  /** @maxLength 64 */
+  colorSecondaryForeground?: string;
+  /** @maxLength 64 */
+  colorAccent?: string;
+  /** @maxLength 64 */
+  colorAccentForeground?: string;
+  /** @maxLength 64 */
+  colorMuted?: string;
+  /** @maxLength 64 */
+  colorMutedForeground?: string;
+  /** @maxLength 64 */
+  colorDestructive?: string;
+  /** @maxLength 64 */
+  colorDestructiveForeground?: string;
+}
+
 export type ListPostsParams = {
 page?: number;
 limit?: number;

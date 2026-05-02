@@ -10,10 +10,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useSiteSettings } from "@/hooks/use-site-settings";
 import { signOut } from "@/lib/auth";
 
 export function Navbar() {
   const { currentUser, isAuthenticated } = useCurrentUser();
+  const { data: siteSettings } = useSiteSettings();
   const [, setLocation] = useLocation();
 
   return (
@@ -27,7 +29,7 @@ export function Navbar() {
               <line x1="9" y1="14" x2="15" y2="14"/>
             </svg>
           </div>
-          <span className="font-serif text-lg font-bold tracking-tight text-foreground">Chris Fornesa</span>
+          <span className="font-serif text-lg font-bold tracking-tight text-foreground">{siteSettings?.siteTitle ?? ""}</span>
         </Link>
 
         <div className="flex items-center gap-4">

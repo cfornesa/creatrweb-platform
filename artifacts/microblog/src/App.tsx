@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { Navbar } from "@/components/layout/Navbar";
+import { ThemeInjector } from "@/components/layout/ThemeInjector";
 import Home from "@/pages/home";
 import SettingsPage from "@/pages/settings";
 import PostDetail from "@/pages/post-detail";
@@ -22,6 +23,7 @@ function AppShell() {
   if (isEmbed) {
     return (
       <QueryClientProvider client={queryClient}>
+        <ThemeInjector />
         <Switch>
           <Route path="/embed/posts/:id" component={PostEmbed} />
         </Switch>
@@ -32,6 +34,7 @@ function AppShell() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ThemeInjector />
       <div className="flex min-h-[100dvh] flex-col bg-background">
         <Navbar />
         <main className="flex-1">

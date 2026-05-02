@@ -4,6 +4,8 @@ import { useUpdateMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useSiteSettings } from "@/hooks/use-site-settings";
+import { SiteCustomizationCard } from "@/components/layout/SiteCustomizationCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +14,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Globe, Instagram, Youtube, Twitter, Music2, Tv, Github, Linkedin } from "lucide-react";
 
 export default function SettingsPage() {
-  const { currentUser, isLoading: isUserLoading } = useCurrentUser();
+  const { currentUser, isLoading: isUserLoading, isOwner } = useCurrentUser();
+  const { data: siteSettings } = useSiteSettings();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -78,6 +81,12 @@ export default function SettingsPage() {
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">Settings</h1>
+
+      {isOwner && siteSettings ? (
+        <div className="mb-6">
+          <SiteCustomizationCard settings={siteSettings} />
+        </div>
+      ) : null}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>

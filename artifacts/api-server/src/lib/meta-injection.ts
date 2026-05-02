@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { db, postsTable, eq } from "@workspace/db";
+import { db, postsTable, siteSettingsTable, eq } from "@workspace/db";
 
 export async function injectPostMetadata(htmlPath: string, postId: string): Promise<string | null> {
   try {
@@ -15,6 +15,8 @@ export async function injectPostMetadata(htmlPath: string, postId: string): Prom
     let html = fs.readFileSync(htmlPath, "utf-8");
 
     // 3. Prepare metadata
+    const settingsRows = await db.select().from(siteSettingsTable).where(eq(siteSettingsTable.id, 1)).limit(1);
+    const siteTitle = settingsRows[0]?.siteTitle ?? "Microblog";
     const siteUrl = process.env.PUBLIC_SITE_URL || "https://chrisfornesa.com";
     const authorName = post[0].authorName;
     // Strip HTML if it's a rich post for the description
@@ -27,9 +29,9 @@ export async function injectPostMetadata(htmlPath: string, postId: string): Prom
 
     const metaTags = `
     <!-- Dynamic Social Metadata -->
-    <title>Post by ${authorName} | CreatrWeb</title>
+    <title>Post by ${authorName} | ${siteTitle}</title>
     <meta name="description" content="${description}">
-    <meta property="og:title" content="Post by ${authorName} | CreatrWeb">
+    <meta property="og:title" content="Post by ${authorName} | ${siteTitle}">
     <meta property="og:description" content="${description}">
     <meta property="og:image" content="${ogImageUrl}">
     <meta property="og:url" content="${postUrl}">
