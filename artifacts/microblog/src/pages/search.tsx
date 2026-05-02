@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { Search, X, ChevronLeft, ChevronRight, Rss, ExternalLink } from "lucide-react";
 import {
   useSearchPosts,
@@ -94,13 +94,16 @@ function filtersToSearchParams(f: Filters): SearchPostsParams {
 }
 
 export default function SearchPage() {
-  const [location, setLocation] = useLocation();
-  // Strip the leading path; wouter's useLocation returns just the
-  // pathname. We read filter state straight off `window.location.search`
-  // so popstate (back/forward) takes effect without us subscribing.
-  const search =
-    typeof window !== "undefined" ? window.location.search : "";
-  const filters = useMemo(() => parseFiltersFromSearch(search), [search, location]);
+  const [, setLocation] = useLocation();
+  // wouter's `useLocation` only subscribes to the pathname, but every
+  // interaction on this page is a query-string-only navigation
+  // (filters, paging, header search submits to /search?q=…). Subscribe
+  // to the search string directly via `useSearch` so any `?…`-only
+  // URL change re-renders the page. `useSearch` is built on the same
+  // popstate / pushState / replaceState listeners as `useLocation`,
+  // so back/forward keep working.
+  const search = useSearch();
+  const filters = useMemo(() => parseFiltersFromSearch(search), [search]);
 
   // Local mirror so we can debounce text inputs without firing a
   // navigation per keystroke. On filter "commit" (Enter, blur, or

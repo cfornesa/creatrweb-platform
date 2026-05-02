@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -28,10 +28,44 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
  */
 export function SearchBar() {
   const [, setLocation] = useLocation();
-  const [value, setValue] = useState("");
+  // Subscribe to the URL's query string so the input mirrors the
+  // active query (e.g. landing on `/search?q=hello` shows "hello",
+  // and removing the `q` chip empties the input).
+  const search = useSearch();
+  const urlQ = new URLSearchParams(search).get("q") ?? "";
+  const [value, setValue] = useState(urlQ);
   const [sheetOpen, setSheetOpen] = useState(false);
   const inlineRef = useRef<HTMLInputElement>(null);
   const sheetRef = useRef<HTMLInputElement>(null);
+  // When the URL changes while the user is focused in one of our
+  // inputs we don't want to clobber their in-flight text. Stash the
+  // pending URL value and apply it on blur — so e.g. browser
+  // back/forward while typing is still respected once focus leaves.
+  const pendingUrlQRef = useRef<string | null>(null);
+
+  // Re-sync local input state whenever the URL `q` changes from the
+  // outside (chip removal, back/forward, in-page search submit).
+  useEffect(() => {
+    const focused = document.activeElement;
+    if (focused === inlineRef.current || focused === sheetRef.current) {
+      // Defer the sync until the user blurs so we don't overwrite
+      // what they're typing mid-keystroke.
+      pendingUrlQRef.current = urlQ;
+      return;
+    }
+    pendingUrlQRef.current = null;
+    setValue(urlQ);
+  }, [urlQ]);
+
+  // On blur, adopt any URL change that arrived while focused. If
+  // nothing changed (or the user just pressed Esc to clear), this is
+  // a no-op and we keep whatever the user left in the field.
+  function applyPendingUrlSync() {
+    if (pendingUrlQRef.current !== null) {
+      setValue(pendingUrlQRef.current);
+      pendingUrlQRef.current = null;
+    }
+  }
 
   useEffect(() => {
     function isTypingTarget(target: EventTarget | null): boolean {
@@ -78,6 +112,17 @@ export function SearchBar() {
 
   function submit() {
     const trimmed = value.trim();
+    // Submitting with an empty input while the URL already carries a
+    // `q` would silently wipe the active query — almost never what
+    // the user meant. Treat it as a no-op (just close/blur). Users
+    // who genuinely want to clear should use the input's clear
+    // control or press Esc.
+    if (!trimmed && urlQ) {
+      setSheetOpen(false);
+      inlineRef.current?.blur();
+      sheetRef.current?.blur();
+      return;
+    }
     // Navigating to `/search` with no `q` is intentional — the
     // results page also serves as the filter-only entry point.
     const params = new URLSearchParams();
@@ -103,6 +148,16 @@ export function SearchBar() {
     if (e.key === "Escape") {
       setValue("");
       inlineRef.current?.blur();
+    }
+  }
+
+  // Sheet input mirrors the desktop Esc behavior so the keyboard
+  // affordance is consistent across surfaces. Radix's Sheet also
+  // closes on Esc; clearing first means a re-open starts empty.
+  function onSheetKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      setValue("");
+      sheetRef.current?.blur();
     }
   }
 
@@ -132,6 +187,7 @@ export function SearchBar() {
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={onInlineKeyDown}
+            onBlur={applyPendingUrlSync}
             placeholder="Search posts…"
             aria-label="Search posts"
             // `enterKeyHint=search` flips the mobile keyboard's return key
@@ -185,6 +241,8 @@ export function SearchBar() {
                 name="q"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
+                onKeyDown={onSheetKeyDown}
+                onBlur={applyPendingUrlSync}
                 placeholder="Search posts…"
                 aria-label="Search posts"
                 enterKeyHint="search"
