@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureTables } from "@workspace/db";
 import { ensureMediaRoot } from "./lib/media";
+import { backfillPostContentText } from "./lib/html";
 
 const rawPort = process.env["PORT"] ?? "8080";
 
@@ -12,6 +13,7 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 ensureTables()
+  .then(() => backfillPostContentText())
   .then(() => {
     ensureMediaRoot();
     app.listen(port, (err) => {

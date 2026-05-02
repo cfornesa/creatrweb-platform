@@ -231,6 +231,15 @@ export async function ensureTables(): Promise<void> {
     "source_canonical_url VARCHAR(2048) NULL",
   );
 
+  // Plain-text shadow of `content`, populated by every write path that
+  // touches `content`. Backs the FULLTEXT index that powers
+  // `/api/posts/search`. Nullable so adding the column on an existing
+  // deploy doesn't reject existing rows; legacy rows are backfilled
+  // by `backfillPostContentText` in the API server's startup, which
+  // calls the same `computeContentText` helper used at write time so
+  // there is exactly one HTML-to-text implementation.
+  await ensureColumn("posts", "content_text", "content_text TEXT NULL");
+
   // Index on status so the very common "published only" filter on the
   // public timeline does not table-scan as the queue grows.
   await ensureIndex(
@@ -242,6 +251,19 @@ export async function ensureTables(): Promise<void> {
     "posts",
     "posts_source_feed_idx",
     "CREATE INDEX posts_source_feed_idx ON posts (source_feed_id)",
+  );
+
+  // FULLTEXT index over the stripped-text shadow column. InnoDB-native;
+  // self-maintaining on insert/update/delete so deletions need no
+  // separate reindex pass. The accompanying search endpoint uses
+  // `MATCH(content_text) AGAINST(? IN BOOLEAN MODE)` for relevance
+  // ranking. Created via the same `ensureIndex` shim that handles
+  // BTREE/UNIQUE — `CREATE FULLTEXT INDEX` is idempotent here because
+  // the helper short-circuits when an index of that name already exists.
+  await ensureIndex(
+    "posts",
+    "posts_content_text_fulltext",
+    "CREATE FULLTEXT INDEX posts_content_text_fulltext ON posts (content_text)",
   );
 
   await ensureColumn(

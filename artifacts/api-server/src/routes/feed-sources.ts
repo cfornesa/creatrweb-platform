@@ -17,6 +17,7 @@ import {
   isSourceDue,
   normalizeFeedItem,
 } from "../lib/feed-ingest";
+import { computeContentText } from "../lib/html";
 import { logger } from "../lib/logger";
 import {
   CreateFeedSourceBody,
@@ -180,6 +181,10 @@ function makeProductionIngestDb(): IngestDb {
           authorName: values.authorName,
           authorImageUrl: null,
           content: values.content,
+          // Same shadow-column derivation as the manual create/update
+          // paths so search hits the words a reader sees regardless of
+          // origin (owner-authored vs feed-imported).
+          contentText: computeContentText(values.content, values.contentFormat),
           contentFormat: values.contentFormat,
           status: "pending",
           sourceFeedId: values.sourceId,
@@ -278,6 +283,29 @@ async function refreshOneSource(source: FeedSourceRow): Promise<RefreshResult> {
 
   return result;
 }
+
+// GET /feed-sources/public — anonymous-safe digest of feed sources
+// that have at least one published post on this site. Returns only
+// the id and display name (no feed URL, no fetch state) so the
+// search filter sidebar can offer "filter by source" to every
+// visitor without leaking internal subscription metadata.
+router.get("/feed-sources/public", async (_req: Request, res: Response) => {
+  try {
+    const rows = await db
+      .selectDistinct({
+        id: feedSourcesTable.id,
+        name: feedSourcesTable.name,
+      })
+      .from(feedSourcesTable)
+      .innerJoin(postsTable, eq(postsTable.sourceFeedId, feedSourcesTable.id))
+      .where(eq(postsTable.status, "published"))
+      .orderBy(feedSourcesTable.name);
+    return res.json({ sources: rows });
+  } catch (err) {
+    logger.error({ err }, "Failed to list public feed sources");
+    return res.status(500).json({ error: "Server error" });
+  }
+});
 
 // GET /feed-sources — owner only. Lists every configured feed.
 router.get("/feed-sources", requireAuth, requireOwner, async (_req: Request, res: Response) => {

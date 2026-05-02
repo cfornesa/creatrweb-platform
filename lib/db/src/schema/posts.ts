@@ -29,6 +29,11 @@ export const postsTable = mysqlTable(
     authorName: varchar("author_name", { length: 255 }).notNull(),
     authorImageUrl: varchar("author_image_url", { length: 2048 }),
     content: text("content").notNull(),
+    // Plain-text shadow of `content`, kept in sync by every write path.
+    // Backs the FULLTEXT index used by `/api/posts/search` so search hits
+    // the words a reader actually sees instead of raw HTML tags. Nullable
+    // so the runtime migration can land before the backfill completes.
+    contentText: text("content_text"),
     contentFormat: varchar("content_format", { length: 16 }).notNull().default("plain"),
     status: varchar("status", { length: 16 }).notNull().default("published"),
     // FK → `feed_sources(id)`. ON DELETE SET NULL so unsubscribing

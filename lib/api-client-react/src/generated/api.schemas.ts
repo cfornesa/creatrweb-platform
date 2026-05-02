@@ -41,6 +41,51 @@ export interface PostsPage {
   limit: number;
 }
 
+export type SearchPostContentFormat = typeof SearchPostContentFormat[keyof typeof SearchPostContentFormat];
+
+
+export const SearchPostContentFormat = {
+  plain: 'plain',
+  html: 'html',
+} as const;
+
+/**
+ * A post in a search result list. Extends the base `Post` shape with a
+server-rendered HTML `snippet` (already escaped + wrapped in `<mark>`
+tags around matched terms) and an optional relevance `score`. The
+score is omitted when the request had no `q` parameter.
+
+ */
+export interface SearchPost {
+  id: number;
+  authorId: string;
+  authorName: string;
+  authorImageUrl?: string | null;
+  content: string;
+  contentFormat: SearchPostContentFormat;
+  commentCount: number;
+  sourceFeedId?: number | null;
+  sourceFeedName?: string | null;
+  sourceCanonicalUrl?: string | null;
+  createdAt: string;
+  /** HTML-safe excerpt of `content_text` centered on the first matched
+  term, with `<mark>` tags around matched tokens. Render with
+  `dangerouslySetInnerHTML` — sanitization happens server-side.
+   */
+  snippet: string;
+  /** MySQL FULLTEXT relevance score; omitted when `q` was empty. */
+  score?: number | null;
+}
+
+export interface SearchPostsPage {
+  posts: SearchPost[];
+  total: number;
+  page: number;
+  limit: number;
+  /** Echo of the `q` parameter the server actually used (post-trim). */
+  query: string;
+}
+
 export interface Comment {
   id: number;
   postId: number;
@@ -423,6 +468,18 @@ export interface FeedSourcesList {
   sources: FeedSource[];
 }
 
+/**
+ * Anonymous-safe digest of a feed source (id + display name only).
+ */
+export interface PublicFeedSource {
+  id: number;
+  name: string;
+}
+
+export interface PublicFeedSourcesList {
+  sources: PublicFeedSource[];
+}
+
 export type CreateFeedSourceBodyCadence = typeof CreateFeedSourceBodyCadence[keyof typeof CreateFeedSourceBodyCadence];
 
 
@@ -576,6 +633,40 @@ export interface UpdateSiteSettingsBody {
 }
 
 export type ListPostsParams = {
+page?: number;
+limit?: number;
+};
+
+export type SearchPostsParams = {
+/**
+ * Free-text query. When omitted, results fall back to newest-first.
+ */
+q?: string;
+/**
+ * Inclusive lower bound on `createdAt` (ISO-8601 date or datetime).
+ */
+from?: string;
+/**
+ * Inclusive upper bound on `createdAt` (ISO-8601 date or datetime).
+ */
+to?: string;
+/**
+ * Comma-separated list of `feed_sources.id` values, plus the literal
+`native` for "this site's own posts." Empty / omitted means all
+sources.
+
+ */
+sources?: string;
+/**
+ * Case-insensitive substring match against `authorName`.
+ */
+author?: string;
+/**
+ * Comma-separated content-format filter. Allowed: `html`, `plain`.
+Both (or neither) means no format restriction.
+
+ */
+format?: string;
 page?: number;
 limit?: number;
 };

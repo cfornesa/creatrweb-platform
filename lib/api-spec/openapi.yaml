@@ -146,6 +146,72 @@ paths:
         "404":
           description: Not found
 
+  /posts/search:
+    get:
+      operationId: searchPosts
+      tags: [posts]
+      summary: Relevance-ranked, filterable post search (published only)
+      description: |
+        Free-text search over post bodies (the `content_text` shadow column,
+        which is the rendered text with HTML tags stripped) plus structured
+        filters. Results are ranked by `MATCH ... AGAINST` score when `q` is
+        present and by recency otherwise. Always restricted to
+        `status = 'published'` regardless of caller — pending feed-imports
+        only surface in the moderation queue.
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Free-text query. When omitted, results fall back to newest-first.
+        - in: query
+          name: from
+          schema:
+            type: string
+          description: Inclusive lower bound on `createdAt` (ISO-8601 date or datetime).
+        - in: query
+          name: to
+          schema:
+            type: string
+          description: Inclusive upper bound on `createdAt` (ISO-8601 date or datetime).
+        - in: query
+          name: sources
+          schema:
+            type: string
+          description: |
+            Comma-separated list of `feed_sources.id` values, plus the literal
+            `native` for "this site's own posts." Empty / omitted means all
+            sources.
+        - in: query
+          name: author
+          schema:
+            type: string
+          description: Case-insensitive substring match against `authorName`.
+        - in: query
+          name: format
+          schema:
+            type: string
+          description: |
+            Comma-separated content-format filter. Allowed: `html`, `plain`.
+            Both (or neither) means no format restriction.
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchPostsPage"
+
   /posts/user/{userId}:
     get:
       operationId: getPostsByUser
@@ -467,6 +533,22 @@ paths:
         "409":
           description: Post is not pending
 
+  /feed-sources/public:
+    get:
+      operationId: listPublicFeedSources
+      tags: [feeds]
+      summary: Public list of feed sources that have at least one published post
+      description: >
+        Returns id+name only — no feed URL or fetch state — for any visitor
+        to power the source filter on the search results page.
+      responses:
+        "200":
+          description: Public sources
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicFeedSourcesList"
+
   /feed-sources:
     get:
       operationId: listFeedSources
@@ -721,6 +803,85 @@ components:
         - total
         - page
         - limit
+
+    SearchPost:
+      type: object
+      description: |
+        A post in a search result list. Extends the base `Post` shape with a
+        server-rendered HTML `snippet` (already escaped + wrapped in `<mark>`
+        tags around matched terms) and an optional relevance `score`. The
+        score is omitted when the request had no `q` parameter.
+      properties:
+        id:
+          type: integer
+        authorId:
+          type: string
+        authorName:
+          type: string
+        authorImageUrl:
+          type: string
+          nullable: true
+        content:
+          type: string
+        contentFormat:
+          type: string
+          enum: [plain, html]
+        commentCount:
+          type: integer
+        sourceFeedId:
+          type: integer
+          nullable: true
+        sourceFeedName:
+          type: string
+          nullable: true
+        sourceCanonicalUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        snippet:
+          type: string
+          description: |
+            HTML-safe excerpt of `content_text` centered on the first matched
+            term, with `<mark>` tags around matched tokens. Render with
+            `dangerouslySetInnerHTML` — sanitization happens server-side.
+        score:
+          type: number
+          nullable: true
+          description: MySQL FULLTEXT relevance score; omitted when `q` was empty.
+      required:
+        - id
+        - authorId
+        - authorName
+        - content
+        - contentFormat
+        - commentCount
+        - createdAt
+        - snippet
+
+    SearchPostsPage:
+      type: object
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchPost"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        query:
+          type: string
+          description: Echo of the `q` parameter the server actually used (post-trim).
+      required:
+        - posts
+        - total
+        - page
+        - limit
+        - query
 
     Comment:
       type: object
@@ -1283,6 +1444,28 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FeedSource"
+      required:
+        - sources
+
+    PublicFeedSource:
+      type: object
+      description: Anonymous-safe digest of a feed source (id + display name only).
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+      required:
+        - id
+        - name
+
+    PublicFeedSourcesList:
+      type: object
+      properties:
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicFeedSource"
       required:
         - sources
 

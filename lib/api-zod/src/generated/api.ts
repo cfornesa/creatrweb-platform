@@ -133,6 +133,53 @@ export const DeletePostParams = zod.object({
 
 
 /**
+ * Free-text search over post bodies (the `content_text` shadow column,
+which is the rendered text with HTML tags stripped) plus structured
+filters. Results are ranked by `MATCH ... AGAINST` score when `q` is
+present and by recency otherwise. Always restricted to
+`status = 'published'` regardless of caller — pending feed-imports
+only surface in the moderation queue.
+
+ * @summary Relevance-ranked, filterable post search (published only)
+ */
+export const searchPostsQueryPageDefault = 1;
+export const searchPostsQueryLimitDefault = 20;
+
+export const SearchPostsQueryParams = zod.object({
+  "q": zod.coerce.string().optional().describe('Free-text query. When omitted, results fall back to newest-first.'),
+  "from": zod.coerce.string().optional().describe('Inclusive lower bound on `createdAt` (ISO-8601 date or datetime).'),
+  "to": zod.coerce.string().optional().describe('Inclusive upper bound on `createdAt` (ISO-8601 date or datetime).'),
+  "sources": zod.coerce.string().optional().describe('Comma-separated list of `feed_sources.id` values, plus the literal\n`native` for \"this site\'s own posts.\" Empty \/ omitted means all\nsources.\n'),
+  "author": zod.coerce.string().optional().describe('Case-insensitive substring match against `authorName`.'),
+  "format": zod.coerce.string().optional().describe('Comma-separated content-format filter. Allowed: `html`, `plain`.\nBoth (or neither) means no format restriction.\n'),
+  "page": zod.coerce.number().default(searchPostsQueryPageDefault),
+  "limit": zod.coerce.number().default(searchPostsQueryLimitDefault)
+})
+
+export const SearchPostsResponse = zod.object({
+  "posts": zod.array(zod.object({
+  "id": zod.number(),
+  "authorId": zod.string(),
+  "authorName": zod.string(),
+  "authorImageUrl": zod.string().nullish(),
+  "content": zod.string(),
+  "contentFormat": zod.enum(['plain', 'html']),
+  "commentCount": zod.number(),
+  "sourceFeedId": zod.number().nullish(),
+  "sourceFeedName": zod.string().nullish(),
+  "sourceCanonicalUrl": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "snippet": zod.string().describe('HTML-safe excerpt of `content_text` centered on the first matched\nterm, with `<mark>` tags around matched tokens. Render with\n`dangerouslySetInnerHTML` — sanitization happens server-side.\n'),
+  "score": zod.number().nullish().describe('MySQL FULLTEXT relevance score; omitted when `q` was empty.')
+}).describe('A post in a search result list. Extends the base `Post` shape with a\nserver-rendered HTML `snippet` (already escaped + wrapped in `<mark>`\ntags around matched terms) and an optional relevance `score`. The\nscore is omitted when the request had no `q` parameter.\n')),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number(),
+  "query": zod.string().describe('Echo of the `q` parameter the server actually used (post-trim).')
+})
+
+
+/**
  * @summary Get all posts by a specific user
  */
 export const GetPostsByUserParams = zod.object({
@@ -605,6 +652,19 @@ export const ApprovePostResponse = zod.object({
  */
 export const RejectPostParams = zod.object({
   "id": zod.coerce.number()
+})
+
+
+/**
+ * Returns id+name only — no feed URL or fetch state — for any visitor to power the source filter on the search results page.
+
+ * @summary Public list of feed sources that have at least one published post
+ */
+export const ListPublicFeedSourcesResponse = zod.object({
+  "sources": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+}).describe('Anonymous-safe digest of a feed source (id + display name only).'))
 })
 
 

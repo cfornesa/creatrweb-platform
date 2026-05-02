@@ -12,6 +12,7 @@ import {
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 import { signOut } from "@/lib/auth";
+import { SearchBar } from "@/components/layout/SearchBar";
 
 export function Navbar() {
   const { currentUser, isAuthenticated } = useCurrentUser();
@@ -32,7 +33,8 @@ export function Navbar() {
           <span className="font-serif text-lg font-bold tracking-tight text-foreground">{siteSettings?.siteTitle ?? ""}</span>
         </Link>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <SearchBar />
           {!isAuthenticated ? (
             <>
             <Button variant="ghost" asChild className="hidden sm:inline-flex">

@@ -39,7 +39,10 @@ import type {
   Post,
   PostWithComments,
   PostsPage,
+  PublicFeedSourcesList,
   RefreshAllFeedSourcesParams,
+  SearchPostsPage,
+  SearchPostsParams,
   SiteSettings,
   UpdateCommentBody,
   UpdateFeedSourceBody,
@@ -513,6 +516,97 @@ export const useDeletePost = <TError = ErrorType<void>,
       > => {
       return useMutation(getDeletePostMutationOptions(options));
     }
+
+/**
+ * Free-text search over post bodies (the `content_text` shadow column,
+which is the rendered text with HTML tags stripped) plus structured
+filters. Results are ranked by `MATCH ... AGAINST` score when `q` is
+present and by recency otherwise. Always restricted to
+`status = 'published'` regardless of caller — pending feed-imports
+only surface in the moderation queue.
+
+ * @summary Relevance-ranked, filterable post search (published only)
+ */
+export const getSearchPostsUrl = (params?: SearchPostsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/posts/search?${stringifiedParams}` : `/api/posts/search`
+}
+
+export const searchPosts = async (params?: SearchPostsParams, options?: RequestInit): Promise<SearchPostsPage> => {
+
+  return customFetch<SearchPostsPage>(getSearchPostsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchPostsQueryKey = (params?: SearchPostsParams,) => {
+    return [
+    `/api/posts/search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchPostsQueryOptions = <TData = Awaited<ReturnType<typeof searchPosts>>, TError = ErrorType<unknown>>(params?: SearchPostsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchPostsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchPosts>>> = ({ signal }) => searchPosts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchPosts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchPostsQueryResult = NonNullable<Awaited<ReturnType<typeof searchPosts>>>
+export type SearchPostsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Relevance-ranked, filterable post search (published only)
+ */
+
+export function useSearchPosts<TData = Awaited<ReturnType<typeof searchPosts>>, TError = ErrorType<unknown>>(
+ params?: SearchPostsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchPostsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 /**
  * @summary Get all posts by a specific user
@@ -1563,6 +1657,85 @@ export const useRejectPost = <TError = ErrorType<void>,
       > => {
       return useMutation(getRejectPostMutationOptions(options));
     }
+
+/**
+ * Returns id+name only — no feed URL or fetch state — for any visitor to power the source filter on the search results page.
+
+ * @summary Public list of feed sources that have at least one published post
+ */
+export const getListPublicFeedSourcesUrl = () => {
+
+
+
+
+  return `/api/feed-sources/public`
+}
+
+export const listPublicFeedSources = async ( options?: RequestInit): Promise<PublicFeedSourcesList> => {
+
+  return customFetch<PublicFeedSourcesList>(getListPublicFeedSourcesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPublicFeedSourcesQueryKey = () => {
+    return [
+    `/api/feed-sources/public`
+    ] as const;
+    }
+
+
+export const getListPublicFeedSourcesQueryOptions = <TData = Awaited<ReturnType<typeof listPublicFeedSources>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPublicFeedSources>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPublicFeedSourcesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPublicFeedSources>>> = ({ signal }) => listPublicFeedSources({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPublicFeedSources>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPublicFeedSourcesQueryResult = NonNullable<Awaited<ReturnType<typeof listPublicFeedSources>>>
+export type ListPublicFeedSourcesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Public list of feed sources that have at least one published post
+ */
+
+export function useListPublicFeedSources<TData = Awaited<ReturnType<typeof listPublicFeedSources>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPublicFeedSources>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPublicFeedSourcesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 /**
  * @summary List configured RSS / Atom sources (owner only)

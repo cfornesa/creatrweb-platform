@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import sanitizeHtml from "sanitize-html";
 import { db, postsTable, desc, eq } from "@workspace/db";
+import { stripHtmlToText } from "../lib/html";
 
 type FeedPost = {
   id: number;
@@ -28,15 +28,6 @@ function getSiteDescription(): string {
     process.env.SITE_DESCRIPTION?.trim() ||
     "A personal microblog with rich posts, comments, and portable feed exports."
   );
-}
-
-function stripHtmlToText(value: string): string {
-  const withoutTags = sanitizeHtml(value, {
-    allowedTags: [],
-    allowedAttributes: {},
-  });
-
-  return withoutTags.replace(/\s+/g, " ").trim();
 }
 
 function toVisibleText(post: FeedPost): string {
