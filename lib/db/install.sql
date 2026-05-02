@@ -1,61 +1,127 @@
 -- ============================================================================
---  Microblog — full database install script
+--  Microblog — full database install script (SQL schema for forkers)
 --
---  Run this once on a fresh MySQL 8+ / MariaDB 10.5+ database to create every
---  table the app expects. Use this if you are forking the repo and applying
---  schema by hand (e.g. via phpMyAdmin on a shared host like Hostinger).
+--  WHO THIS IS FOR
+--  ---------------
+--  You forked this repo and want to host your own Microblog. Run this script
+--  ONCE on a fresh, empty MySQL 8.0+ or MariaDB 10.5+ database to create
+--  every table the app expects.
 --
---  On Replit (and any other environment that boots `npm run dev:api`), the
---  same tables are created automatically by `ensureTables()` in
---  `lib/db/src/migrate.ts` at server startup, so this script is optional.
+--  YOU DO NOT NEED THIS SCRIPT IF…
+--  -------------------------------
+--  …you are running on Replit, or anywhere else that boots `npm run dev:api`.
+--  In those environments the same tables are created automatically by
+--  `ensureTables()` in `lib/db/src/migrate.ts` the first time the API server
+--  starts. This script is for shared hosts (e.g. Hostinger) where the only
+--  tool you have is phpMyAdmin and you cannot run Node migrations directly.
 --
---  Safe to re-run: every CREATE uses `IF NOT EXISTS`. Re-running will NOT
---  drop or modify existing rows.
+--  HOW TO IMPORT IN phpMyAdmin
+--  ---------------------------
+--  1. Log in to phpMyAdmin and select your empty database in the left sidebar
+--     (the database name itself, NOT the server root).
+--  2. Click the "Import" tab in the top menu.
+--  3. Under "File to import", click "Choose file" and pick THIS file
+--     (`install.sql`).
+--  4. Leave the format set to "SQL" and the character set to "utf-8".
+--  5. Scroll to the bottom and click "Go". You should see a green
+--     "Import has been successfully finished" banner.
+--  6. Click the database name again — you should now see all 10 tables
+--     listed: `users`, `accounts`, `sessions`, `verification_tokens`,
+--     `feed_sources`, `feed_items_seen`, `posts`, `comments`, `reactions`,
+--     `site_settings`. The `site_settings` table will already contain one
+--     row (id = 1) with the placeholder copy seeded below.
 --
---  Order matters because of foreign keys:
---    1. users
---    2. accounts, sessions, verification_tokens (Auth.js — depend on users)
---    3. feed_sources, feed_items_seen
---    4. posts (depends on users + feed_sources)
---    5. comments, reactions (depend on posts + users)
---    6. site_settings (singleton, no dependencies)
+--  PLACEHOLDER CONVENTION
+--  ----------------------
+--  Anywhere you see `<<SOMETHING_LIKE_THIS>>` (double angle brackets, ALL
+--  CAPS) you should replace it with your own value BEFORE running the
+--  script. The placeholders are deliberately ugly so they fail loudly
+--  if you forget to substitute one. Suggested workflow: open this file
+--  in a text editor, do a Find-and-Replace for each placeholder, save,
+--  then upload to phpMyAdmin.
 --
---  After running this script, seed the singleton row in `site_settings` (see
---  the bottom of this file) and then promote your first signed-in user to
---  the `owner` role:
+--  RE-RUNNING IS SAFE
+--  ------------------
+--  Every CREATE TABLE uses `IF NOT EXISTS` and the seed `INSERT IGNORE`s
+--  on conflict, so re-running this script will NEVER drop or modify
+--  existing rows. If you want to start fresh, drop the tables manually
+--  in phpMyAdmin first.
 --
---    UPDATE users SET role='owner' WHERE email='you@example.com';
+--  TABLE ORDER MATTERS
+--  -------------------
+--  Foreign keys mean tables must be created in the right order:
+--    1. users                                       (no FKs)
+--    2. accounts, sessions, verification_tokens     (Auth.js — depend on users)
+--    3. feed_sources, feed_items_seen               (PESOS feed subscriptions)
+--    4. posts                                       (depends on users + feed_sources)
+--    5. comments, reactions                         (depend on posts + users)
+--    6. site_settings                               (singleton, no FKs)
 --
---  …or run `npm run promote-owner --workspace=@workspace/scripts -- --email
---  you@example.com` from the repo.
+--  AFTER THE IMPORT — THREE THINGS TO DO
+--  -------------------------------------
+--  (A) Pick the username you want for the site owner. This is the
+--      `@<<YOUR_USERNAME>>` you see throughout the seed at the bottom
+--      (e.g. `@chris` for someone whose handle is "chris"). The username
+--      must be unique across all users on the site, and the URL of your
+--      profile page will be `/users/@<<YOUR_USERNAME>>`. Pick something
+--      short and lowercase — it shows up in URLs and bylines. After you
+--      sign in for the first time via OAuth (step C), set it with:
+--
+--        UPDATE `users` SET `username` = '<<YOUR_USERNAME>>'
+--          WHERE `email` = '<<YOUR_EMAIL>>';
+--
+--      You only do this once. The frontend's /settings page can edit it
+--      later if you change your mind.
+--
+--  (B) Configure OAuth in your `.env` (or your host's secrets panel).
+--      You need at minimum a GitHub OR Google OAuth app — see
+--      `docs/auth-setup.md` and the env-var table in `replit.md`.
+--
+--  (C) Sign in once via OAuth at `https://<your-domain>/auth/signin`.
+--      That creates your row in the `users` table. Then promote yourself
+--      to the owner role (the role that unlocks /settings, /admin/feeds,
+--      and /admin/pending) with one of:
+--
+--        UPDATE `users` SET `role` = 'owner'
+--          WHERE `email` = '<<YOUR_EMAIL>>';
+--
+--      …or, if you have shell access to the repo:
+--
+--        npm run promote-owner --workspace=@workspace/scripts -- \
+--          --email <<YOUR_EMAIL>>
 -- ============================================================================
 
 SET NAMES utf8mb4;
 
 -- ----------------------------------------------------------------------------
--- 1. users — local accounts (Auth.js + app-owned profile + per-user theme)
+-- 1. `users` — local accounts.
+--    Combines (a) the Auth.js-required columns (id, name, email,
+--    email_verified, image), (b) app-owned profile fields (username, bio,
+--    website, social_links, role, status, post_count), and (c) optional
+--    per-user profile-page theming (theme + palette + 14 color overrides,
+--    all NULL by default which means "fall back to the site default").
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `users` (
-  `id`               VARCHAR(191) NOT NULL PRIMARY KEY,
-  `name`             VARCHAR(255),
-  `username`         VARCHAR(255),
-  `email`            VARCHAR(191),
-  `email_verified`   TIMESTAMP(3) NULL DEFAULT NULL,
-  `image`            VARCHAR(2048),
-  `bio`              TEXT,
-  `website`          VARCHAR(2048),
-  `social_links`     JSON,
-  `role`             VARCHAR(32) NOT NULL DEFAULT 'member',
-  `status`           VARCHAR(32) NOT NULL DEFAULT 'active',
+  `id`               VARCHAR(191) NOT NULL PRIMARY KEY,            -- UUID generated by the app at signup
+  `name`             VARCHAR(255),                                  -- display name from the OAuth provider
+  `username`         VARCHAR(255),                                  -- chosen handle; URL is /users/@<username>
+  `email`            VARCHAR(191),                                  -- from OAuth provider; unique
+  `email_verified`   TIMESTAMP(3) NULL DEFAULT NULL,                -- set by Auth.js when email is verified
+  `image`            VARCHAR(2048),                                 -- avatar URL from the OAuth provider
+  `bio`              TEXT,                                          -- short profile description
+  `website`          VARCHAR(2048),                                 -- personal site URL
+  `social_links`     JSON,                                          -- {"twitter":"@…","mastodon":"…",…}
+  `role`             VARCHAR(32) NOT NULL DEFAULT 'member',         -- 'owner' | 'member'
+  `status`           VARCHAR(32) NOT NULL DEFAULT 'active',         -- 'active' | 'blocked'
   `created_at`       DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at`       DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  `last_login_at`    DATETIME(3),
-  `post_count`       INT NOT NULL DEFAULT 0,
+  `last_login_at`    DATETIME(3),                                   -- updated on every successful sign-in
+  `post_count`       INT NOT NULL DEFAULT 0,                        -- denormalized for /users/@handle pages
 
-  -- Per-user profile-page theme. NULL on every column == "use site default".
-  `theme`                        VARCHAR(32),
-  `palette`                      VARCHAR(32),
-  `color_background`             VARCHAR(64),
+  -- ---- Per-user profile-page theme. NULL == use site-wide default. ----
+  `theme`                        VARCHAR(32),                       -- e.g. 'bauhaus', 'minimalist', …
+  `palette`                      VARCHAR(32),                       -- e.g. 'bauhaus', 'ocean', …
+  `color_background`             VARCHAR(64),                       -- HSL components, e.g. '0 0% 100%'
   `color_foreground`             VARCHAR(64),
   `color_background_dark`        VARCHAR(64),
   `color_foreground_dark`        VARCHAR(64),
@@ -70,97 +136,101 @@ CREATE TABLE IF NOT EXISTS `users` (
   `color_destructive`            VARCHAR(64),
   `color_destructive_foreground` VARCHAR(64),
 
-  UNIQUE KEY `users_email_unique`    (`email`),
-  UNIQUE KEY `users_username_unique` (`username`)
+  UNIQUE KEY `users_email_unique`    (`email`),                     -- one account per OAuth email
+  UNIQUE KEY `users_username_unique` (`username`)                   -- one /users/@<handle> per username
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
--- 2. Auth.js tables: accounts, sessions, verification_tokens
+-- 2. Auth.js tables: `accounts`, `sessions`, `verification_tokens`.
+--    These three exactly match what `@auth/drizzle-adapter` expects;
+--    do NOT rename columns or you will break sign-in.
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `accounts` (
-  `user_id`              VARCHAR(191) NOT NULL,
-  `type`                 VARCHAR(64)  NOT NULL,
-  `provider`             VARCHAR(191) NOT NULL,
-  `provider_account_id`  VARCHAR(191) NOT NULL,
-  `refresh_token`        TEXT,
-  `access_token`         TEXT,
-  `expires_at`           INT,
+  `user_id`              VARCHAR(191) NOT NULL,                     -- FK -> users.id
+  `type`                 VARCHAR(64)  NOT NULL,                     -- 'oauth' | 'email' | …
+  `provider`             VARCHAR(191) NOT NULL,                     -- 'github' | 'google' | …
+  `provider_account_id`  VARCHAR(191) NOT NULL,                     -- the user's id at the OAuth provider
+  `refresh_token`        TEXT,                                      -- OAuth refresh token (provider-specific)
+  `access_token`         TEXT,                                      -- OAuth access token
+  `expires_at`           INT,                                       -- unix seconds, when access_token expires
   `token_type`           VARCHAR(64),
   `scope`                TEXT,
-  `id_token`             TEXT,
+  `id_token`             TEXT,                                      -- JWT id_token (OIDC providers)
   `session_state`        VARCHAR(255),
-  PRIMARY KEY (`provider`, `provider_account_id`),
+  PRIMARY KEY (`provider`, `provider_account_id`),                  -- one row per OAuth identity
   CONSTRAINT `accounts_user_id_fk`
     FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `sessions` (
-  `session_token` VARCHAR(191) NOT NULL PRIMARY KEY,
-  `user_id`       VARCHAR(191) NOT NULL,
-  `expires`       TIMESTAMP(3) NOT NULL,
+  `session_token` VARCHAR(191) NOT NULL PRIMARY KEY,                -- random token stored in cookie
+  `user_id`       VARCHAR(191) NOT NULL,                            -- FK -> users.id
+  `expires`       TIMESTAMP(3) NOT NULL,                            -- when the cookie/session expires
   CONSTRAINT `sessions_user_id_fk`
     FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `verification_tokens` (
-  `identifier` VARCHAR(191) NOT NULL,
-  `token`      VARCHAR(191) NOT NULL,
+  `identifier` VARCHAR(191) NOT NULL,                               -- typically the email being verified
+  `token`      VARCHAR(191) NOT NULL,                               -- one-time token sent in the email link
   `expires`    TIMESTAMP(3) NOT NULL,
   PRIMARY KEY (`identifier`, `token`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
--- 3. Inbound feeds (PESOS): feed_sources + feed_items_seen
+-- 3. Inbound feeds (PESOS): `feed_sources` (subscriptions) +
+--    `feed_items_seen` (per-source dedup ledger). Both empty after install
+--    — populate them through the /admin/feeds UI as the owner.
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `feed_sources` (
   `id`               INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `name`             VARCHAR(255)  NOT NULL,
-  `feed_url`         VARCHAR(2048) NOT NULL,
-  `site_url`         VARCHAR(2048),
-  `cadence`          VARCHAR(16) NOT NULL DEFAULT 'daily',  -- daily | weekly | monthly
-  `enabled`          INT NOT NULL DEFAULT 1,                -- 1 | 0
-  `last_fetched_at`  DATETIME(3),
-  `next_fetch_at`    DATETIME(3),                           -- NULL = due
-  `last_status`      VARCHAR(32),
-  `last_error`       TEXT,
-  `items_imported`   INT NOT NULL DEFAULT 0,
+  `name`             VARCHAR(255)  NOT NULL,                        -- display name (e.g. "Jane's Blog")
+  `feed_url`         VARCHAR(2048) NOT NULL,                        -- the actual RSS/Atom URL
+  `site_url`         VARCHAR(2048),                                 -- optional homepage of the source
+  `cadence`          VARCHAR(16) NOT NULL DEFAULT 'daily',          -- 'daily' | 'weekly' | 'monthly'
+  `enabled`          INT NOT NULL DEFAULT 1,                        -- 1 = poll on schedule, 0 = paused
+  `last_fetched_at`  DATETIME(3),                                   -- last successful fetch
+  `next_fetch_at`    DATETIME(3),                                   -- NULL means "due now"
+  `last_status`      VARCHAR(32),                                   -- 'ok' | 'error' | …
+  `last_error`       TEXT,                                          -- last error message, if any
+  `items_imported`   INT NOT NULL DEFAULT 0,                        -- running counter
   `created_at`       DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at`       DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `feed_items_seen` (
   `id`         INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `source_id`  INT NOT NULL,
-  `guid_hash`  CHAR(64) NOT NULL,    -- lowercase hex SHA-256
+  `source_id`  INT NOT NULL,                                        -- FK -> feed_sources.id
+  `guid_hash`  CHAR(64) NOT NULL,                                   -- lowercase hex SHA-256 of the item GUID
   `seen_at`    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  `post_id`    INT,                  -- back-pointer to posts.id (soft link, no FK)
-  UNIQUE KEY `feed_items_seen_source_guid_unique` (`source_id`, `guid_hash`),
-  KEY `feed_items_seen_source_idx` (`source_id`),
+  `post_id`    INT,                                                 -- back-pointer to posts.id (soft link)
+  UNIQUE KEY `feed_items_seen_source_guid_unique` (`source_id`, `guid_hash`),  -- dedup key
+  KEY `feed_items_seen_source_idx` (`source_id`),                   -- "everything from source X" lookup
   CONSTRAINT `feed_items_seen_source_fk`
     FOREIGN KEY (`source_id`) REFERENCES `feed_sources` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
--- 4. posts — owner-authored AND feed-imported
---    (FULLTEXT index on `content_text` powers /api/posts/search)
+-- 4. `posts` — every post on the site, owner-authored AND feed-imported.
+--    The FULLTEXT index on `content_text` powers `/api/posts/search`.
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `posts` (
   `id`                    INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `author_id`             VARCHAR(191) NOT NULL,         -- 'feed:<sourceId>' for imports
-  `author_user_id`        VARCHAR(191),                  -- FK -> users.id (NULL for imports)
-  `author_name`           VARCHAR(255) NOT NULL,
-  `author_image_url`      VARCHAR(2048),
-  `content`               TEXT NOT NULL,                 -- canonical body (HTML or plain)
-  `content_text`          TEXT,                          -- stripped/plain shadow for FULLTEXT
-  `content_format`        VARCHAR(16) NOT NULL DEFAULT 'plain',  -- 'plain' | 'html'
-  `status`                VARCHAR(16) NOT NULL DEFAULT 'published', -- 'published' | 'pending'
-  `source_feed_id`        INT,                           -- FK -> feed_sources.id
-  `source_guid`           VARCHAR(1024),
-  `source_canonical_url`  VARCHAR(2048),
+  `author_id`             VARCHAR(191) NOT NULL,                    -- 'feed:<sourceId>' for imported posts
+  `author_user_id`        VARCHAR(191),                             -- FK -> users.id (NULL for imports)
+  `author_name`           VARCHAR(255) NOT NULL,                    -- byline shown on the post
+  `author_image_url`      VARCHAR(2048),                            -- byline avatar
+  `content`               TEXT NOT NULL,                            -- canonical body (HTML or plain text)
+  `content_text`          TEXT,                                     -- stripped/plain shadow for FULLTEXT
+  `content_format`        VARCHAR(16) NOT NULL DEFAULT 'plain',     -- 'plain' | 'html'
+  `status`                VARCHAR(16) NOT NULL DEFAULT 'published', -- 'published' | 'pending' (mod queue)
+  `source_feed_id`        INT,                                      -- FK -> feed_sources.id (NULL for owner posts)
+  `source_guid`           VARCHAR(1024),                            -- original feed item id (for traceability)
+  `source_canonical_url`  VARCHAR(2048),                            -- original article URL
   `created_at`            DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  KEY `posts_status_idx`        (`status`),
-  KEY `posts_source_feed_idx`   (`source_feed_id`),
-  FULLTEXT KEY `posts_content_text_fulltext` (`content_text`),
+  KEY `posts_status_idx`        (`status`),                         -- speeds the "WHERE status='published'" filter
+  KEY `posts_source_feed_idx`   (`source_feed_id`),                 -- "everything from source X" lookup
+  FULLTEXT KEY `posts_content_text_fulltext` (`content_text`),      -- powers MATCH(...) AGAINST(...)
   CONSTRAINT `posts_author_user_id_fk`
     FOREIGN KEY (`author_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `posts_source_feed_id_fk`
@@ -168,30 +238,30 @@ CREATE TABLE IF NOT EXISTS `posts` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
--- 5. comments + reactions
+-- 5. `comments` + `reactions`. Visitors must be signed in to use either.
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `comments` (
   `id`                INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `post_id`           INT NOT NULL,
-  `author_id`         VARCHAR(191) NOT NULL,
-  `author_user_id`    VARCHAR(191),
-  `author_name`       VARCHAR(255) NOT NULL,
-  `author_image_url`  VARCHAR(2048),
+  `post_id`           INT NOT NULL,                                 -- FK -> posts.id
+  `author_id`         VARCHAR(191) NOT NULL,                        -- mirrors users.id (or external for imports)
+  `author_user_id`    VARCHAR(191),                                 -- FK -> users.id (NULL if user deleted)
+  `author_name`       VARCHAR(255) NOT NULL,                        -- byline
+  `author_image_url`  VARCHAR(2048),                                -- byline avatar
   `content`           TEXT NOT NULL,
   `created_at`        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   CONSTRAINT `comments_post_id_fk`
-    FOREIGN KEY (`post_id`) REFERENCES `posts` (`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`post_id`) REFERENCES `posts` (`id`) ON DELETE CASCADE,        -- delete post = delete its comments
   CONSTRAINT `comments_author_user_id_fk`
-    FOREIGN KEY (`author_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+    FOREIGN KEY (`author_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL -- delete user = orphan their comments
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `reactions` (
   `id`         INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `post_id`    INT NOT NULL,
-  `user_id`    VARCHAR(191) NOT NULL,
-  `type`       VARCHAR(32) NOT NULL,    -- 'like' is the only value today
+  `post_id`    INT NOT NULL,                                        -- FK -> posts.id
+  `user_id`    VARCHAR(191) NOT NULL,                               -- FK -> users.id
+  `type`       VARCHAR(32) NOT NULL,                                -- 'like' is the only value today
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  UNIQUE KEY `reactions_post_user_type_unique` (`post_id`, `user_id`, `type`),
+  UNIQUE KEY `reactions_post_user_type_unique` (`post_id`, `user_id`, `type`),  -- one like per user per post
   CONSTRAINT `reactions_post_id_fk`
     FOREIGN KEY (`post_id`) REFERENCES `posts` (`id`) ON DELETE CASCADE,
   CONSTRAINT `reactions_user_id_fk`
@@ -199,24 +269,26 @@ CREATE TABLE IF NOT EXISTS `reactions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
--- 6. site_settings — singleton row at id=1
---    See `lib/db/site_settings_install.sql` for the seed defaults; this
---    create-only block is duplicated here so the install script is one-shot.
+-- 6. `site_settings` — one-row table (id = 1) holding every owner-editable
+--    site identity field plus the active theme + palette + 14 colors.
+--    The seed at the end of this section is what visitors see BEFORE you
+--    sign in and customize via /settings. Replace each `<<PLACEHOLDER>>`
+--    with your own value, or accept the defaults and edit them in the UI.
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `site_settings` (
-  `id`                            INT NOT NULL PRIMARY KEY DEFAULT 1,
-  `theme`                         VARCHAR(32) NOT NULL DEFAULT 'bauhaus',
-  `palette`                       VARCHAR(32) NOT NULL DEFAULT 'bauhaus',
-  `site_title`                    VARCHAR(255) NOT NULL,
-  `hero_heading`                  VARCHAR(255) NOT NULL,
-  `hero_subheading`               TEXT NOT NULL,
-  `about_heading`                 VARCHAR(255) NOT NULL,
-  `about_body`                    TEXT NOT NULL,
-  `copyright_line`                VARCHAR(255) NOT NULL,
-  `footer_credit`                 VARCHAR(255) NOT NULL,
-  `cta_label`                     VARCHAR(255) NOT NULL,
-  `cta_href`                      VARCHAR(2048) NOT NULL,
-  `color_background`              VARCHAR(64) NOT NULL,
+  `id`                            INT NOT NULL PRIMARY KEY DEFAULT 1,           -- always 1; this is a singleton
+  `theme`                         VARCHAR(32) NOT NULL DEFAULT 'bauhaus',       -- structural theme name
+  `palette`                       VARCHAR(32) NOT NULL DEFAULT 'bauhaus',       -- color palette name
+  `site_title`                    VARCHAR(255) NOT NULL,                        -- navbar wordmark + browser tab
+  `hero_heading`                  VARCHAR(255) NOT NULL,                        -- big headline on the home page
+  `hero_subheading`               TEXT NOT NULL,                                -- supporting text under the headline
+  `about_heading`                 VARCHAR(255) NOT NULL,                        -- "About This Platform" card title
+  `about_body`                    TEXT NOT NULL,                                -- "About" card body
+  `copyright_line`                VARCHAR(255) NOT NULL,                        -- "© 2025 <copyright_line>"
+  `footer_credit`                 VARCHAR(255) NOT NULL,                        -- "Built with …" footer line
+  `cta_label`                     VARCHAR(255) NOT NULL,                        -- hero CTA button text
+  `cta_href`                      VARCHAR(2048) NOT NULL,                       -- hero CTA destination URL
+  `color_background`              VARCHAR(64) NOT NULL,                         -- HSL components, e.g. '0 0% 100%'
   `color_foreground`              VARCHAR(64) NOT NULL,
   `color_background_dark`         VARCHAR(64) NOT NULL,
   `color_foreground_dark`         VARCHAR(64) NOT NULL,
@@ -233,75 +305,103 @@ CREATE TABLE IF NOT EXISTS `site_settings` (
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Seed the singleton row with neutral placeholder copy. Customize in the
--- /settings UI after first login (or edit this block before running).
+-- ---- Seed the singleton row. Edit BEFORE importing, or after via /settings. --
 -- INSERT IGNORE means re-running this script will not overwrite your edits.
+-- Replace every `<<PLACEHOLDER>>` below with your own value. The placeholders
+-- you most likely want to change are:
+--   <<YOUR_USERNAME>>  — the URL handle the hero CTA links to (e.g. 'chris'
+--                         results in '/users/@chris'); must match the
+--                         `username` you'll set on your `users` row after
+--                         signing in.
+--   <<YOUR_NAME>>      — your display name in the copyright line.
+--   <<SITE_TITLE>>     — the wordmark in the navbar / browser tab.
 INSERT IGNORE INTO `site_settings` (
   `id`, `theme`, `palette`,
   `site_title`, `hero_heading`, `hero_subheading`,
   `about_heading`, `about_body`,
   `copyright_line`, `footer_credit`,
   `cta_label`, `cta_href`,
-  `color_background`, `color_foreground`,
-  `color_background_dark`, `color_foreground_dark`,
-  `color_primary`, `color_primary_foreground`,
-  `color_secondary`, `color_secondary_foreground`,
-  `color_accent`, `color_accent_foreground`,
-  `color_muted`, `color_muted_foreground`,
-  `color_destructive`, `color_destructive_foreground`
+  `color_background`,        `color_foreground`,
+  `color_background_dark`,   `color_foreground_dark`,
+  `color_primary`,           `color_primary_foreground`,
+  `color_secondary`,         `color_secondary_foreground`,
+  `color_accent`,            `color_accent_foreground`,
+  `color_muted`,             `color_muted_foreground`,
+  `color_destructive`,       `color_destructive_foreground`
 ) VALUES (
-  1, 'bauhaus', 'bauhaus',
-  'My Microblog', 'Welcome',
-  'A short tagline goes here. Edit this in /settings after you sign in and become the owner.',
-  'About', 'Tell visitors who you are and what this site is for.',
-  'Your Name', 'Built with the open-source Microblog template.',
-  'Get in touch', '/',
-  '0 0% 100%', '0 0% 0%',
-  '0 0% 0%',   '0 0% 100%',
-  '0 100% 50%','0 0% 100%',
-  '240 100% 50%','0 0% 100%',
-  '60 100% 50%', '0 0% 0%',
-  '60 100% 50%', '0 0% 0%',
-  '0 100% 50%',  '0 0% 100%'
+  1,                                            -- id (always 1; singleton)
+  'bauhaus',                                    -- theme — pick one of: bauhaus, traditional, minimalist, academic, airy, nature, comfort, audacious, artistic
+  'bauhaus',                                    -- palette — pick one of: bauhaus, monochrome, newsprint, ocean, forest, sunset, sepia, high-contrast, pastel
+  '<<SITE_TITLE>>',                             -- e.g. 'Jane Doe' or 'Jane''s Notebook' (escape apostrophes by doubling them)
+  '<<HERO_HEADING>>',                           -- e.g. 'Welcome!' — the big headline on the home page
+  '<<HERO_SUBHEADING>>',                        -- one or two sentences under the headline
+  'About This Platform',                        -- about_heading — usually fine to leave as-is
+  '<<ABOUT_BODY>>',                             -- one paragraph describing the site
+  '<<YOUR_NAME>>',                              -- copyright_line — shown in the footer as "© 2025 <name>"
+  '<<FOOTER_CREDIT>>',                          -- e.g. 'Built with the Microblog template.'
+  '<<CTA_LABEL>>',                              -- hero button text — e.g. 'Learn more about me'
+  '/users/@<<YOUR_USERNAME>>',                  -- hero button link — defaults to your own profile page
+  -- ---- Bauhaus tricolor defaults (red / blue / yellow). Each value is the ----
+  -- ---- HSL components portion of `hsl(...)`, e.g. '0 100% 50%' === pure red. --
+  '0 0% 100%',     '0 0% 0%',                    -- background (light) / foreground (light)
+  '0 0% 0%',       '0 0% 100%',                  -- background (dark)  / foreground (dark)
+  '0 100% 50%',    '0 0% 100%',                  -- primary (red)      / on-primary (white)
+  '240 100% 50%',  '0 0% 100%',                  -- secondary (blue)   / on-secondary (white)
+  '60 100% 50%',   '0 0% 0%',                    -- accent (yellow)    / on-accent (black)
+  '60 100% 50%',   '0 0% 0%',                    -- muted              / on-muted
+  '0 100% 50%',    '0 0% 100%'                   -- destructive (red)  / on-destructive (white)
 );
 
 -- ============================================================================
--- Useful queries for forkers — paste into phpMyAdmin / your MySQL client.
+-- Useful queries for forkers — paste into phpMyAdmin's "SQL" tab as needed.
 -- A mix of read (SELECT) and write (UPDATE / DELETE) statements; uncomment
--- the line(s) you want to run. Read each query carefully before executing
--- — the writes are not undoable without a backup.
+-- the line(s) you want to run, replace any `<<PLACEHOLDER>>` first, and read
+-- carefully before executing — the writes are not undoable without a backup.
 -- ============================================================================
 
--- 1. Promote a user to the owner role (the ONLY role that sees the admin UI).
---    Run this once after the user has signed in for the first time via OAuth.
--- UPDATE `users` SET `role` = 'owner' WHERE `email` = 'you@example.com';
+-- 1. Set your chosen username AFTER signing in for the first time. This is
+--    what `/users/@<<YOUR_USERNAME>>` will resolve to. Pick something short,
+--    lowercase, and ASCII-only — it shows up in URLs and bylines.
+-- UPDATE `users` SET `username` = '<<YOUR_USERNAME>>'
+--   WHERE `email`    = '<<YOUR_EMAIL>>';
 
--- 2. List every user with their role + signup time.
+-- 2. Promote yourself to the owner role. The owner is the only role that
+--    sees /settings, /admin/feeds, and /admin/pending. Run this once after
+--    you've signed in via OAuth at least once.
+-- UPDATE `users` SET `role` = 'owner'
+--   WHERE `email`    = '<<YOUR_EMAIL>>';
+
+-- 3. List every user with their role + signup time (sanity check after
+--    you sign in: confirms your row exists).
 -- SELECT id, email, username, role, status, created_at, last_login_at
 --   FROM users
 --   ORDER BY created_at DESC;
 
--- 3. Demote (or block) a user.
--- UPDATE `users` SET `role` = 'member' WHERE `email` = 'them@example.com';
--- UPDATE `users` SET `status` = 'blocked' WHERE `email` = 'them@example.com';
+-- 4. Demote, or block, another user.
+-- UPDATE `users` SET `role`   = 'member'  WHERE `email` = '<<TARGET_EMAIL>>';
+-- UPDATE `users` SET `status` = 'blocked' WHERE `email` = '<<TARGET_EMAIL>>';
 
--- 4. Re-customize the site title / hero copy directly (faster than the UI for bulk edits).
--- UPDATE `site_settings`
---   SET site_title = 'My New Title',
---       hero_heading = 'New hero copy',
---       hero_subheading = 'New subtitle…'
--- WHERE id = 1;
+-- 5. Re-customize the site identity directly (faster than the UI for bulk
+--    edits, e.g. after copying the install seed verbatim).
+-- UPDATE `site_settings` SET
+--     site_title      = '<<NEW_SITE_TITLE>>',
+--     hero_heading    = '<<NEW_HERO_HEADING>>',
+--     hero_subheading = '<<NEW_HERO_SUBHEADING>>',
+--     copyright_line  = '<<YOUR_NAME>>',
+--     cta_href        = '/users/@<<YOUR_USERNAME>>'
+--   WHERE id = 1;
 
--- 5. List feed subscriptions and how many items each one has imported.
--- SELECT id, name, feed_url, cadence, enabled, last_fetched_at,
---        next_fetch_at, items_imported, last_status
+-- 6. List feed subscriptions and how many items each one has imported so far.
+-- SELECT id, name, feed_url, cadence, enabled,
+--        last_fetched_at, next_fetch_at, items_imported, last_status
 --   FROM feed_sources
 --   ORDER BY name;
 
--- 6. Pause a feed source without unsubscribing (stops the scheduled refresh).
+-- 7. Pause a feed source without unsubscribing (stops the scheduled refresh
+--    but keeps already-imported posts). Replace `?` with the source's id.
 -- UPDATE `feed_sources` SET `enabled` = 0 WHERE `id` = ?;
 
--- 7. Show the moderation queue (posts waiting for owner approval).
+-- 8. Show the moderation queue (posts waiting for owner approval).
 -- SELECT p.id, p.created_at, p.author_name, fs.name AS source,
 --        LEFT(p.content_text, 120) AS preview
 --   FROM posts p
@@ -309,16 +409,18 @@ INSERT IGNORE INTO `site_settings` (
 --   WHERE p.status = 'pending'
 --   ORDER BY p.created_at DESC;
 
--- 8. Approve or reject a single pending post by id.
+-- 9. Approve, or reject, a single pending post by id. Replace `?` with the id.
 -- UPDATE `posts` SET `status` = 'published' WHERE `id` = ? AND `status` = 'pending';
--- DELETE FROM `posts` WHERE `id` = ? AND `status` = 'pending';
+-- DELETE FROM `posts`                      WHERE `id` = ? AND `status` = 'pending';
 
--- 9. Find imported posts whose `content_text` shadow column is NULL
---    (these are picked up by the automatic backfill at server startup).
+-- 10. Find imported posts whose `content_text` shadow column is NULL (these
+--     are picked up by the automatic backfill at server startup; this query
+--     just shows you which rows are pending).
 -- SELECT id, created_at, author_name FROM posts
 --   WHERE content_text IS NULL ORDER BY id DESC LIMIT 50;
 
--- 10. Most-commented published posts (top 20).
+-- 11. Most-commented published posts (top 20 — handy for an "About" page
+--     or a "popular" list).
 -- SELECT p.id, p.author_name, COUNT(c.id) AS comment_count, p.created_at
 --   FROM posts p
 --   LEFT JOIN comments c ON c.post_id = p.id
@@ -327,26 +429,31 @@ INSERT IGNORE INTO `site_settings` (
 --   ORDER BY comment_count DESC, p.created_at DESC
 --   LIMIT 20;
 
--- 11. Word-count stats by author for published posts.
+-- 12. Word-count stats by author for published posts (rough — counts spaces
+--     in the FULLTEXT shadow column rather than tokenizing).
 -- SELECT author_name,
---        COUNT(*) AS posts,
---        SUM(CHAR_LENGTH(content_text) - CHAR_LENGTH(REPLACE(content_text, ' ', '')) + 1) AS approx_words
+--        COUNT(*)                                                    AS posts,
+--        SUM(CHAR_LENGTH(content_text)
+--              - CHAR_LENGTH(REPLACE(content_text, ' ', '')) + 1)    AS approx_words
 --   FROM posts
 --   WHERE status = 'published'
 --   GROUP BY author_name
 --   ORDER BY posts DESC;
 
--- 12. Same full-text query the app uses (boolean mode, prefix match) for "hello world".
+-- 13. Same FULLTEXT query the search endpoint uses, for the phrase
+--     "<<SEARCH_PHRASE>>" (boolean mode, prefix-matched). Replace the
+--     placeholder, then duplicate the term-list shape: each word becomes
+--     `+word*` joined by spaces.
 -- SELECT id, author_name, created_at,
---        MATCH(content_text) AGAINST ('+hello* +world*' IN BOOLEAN MODE) AS score
+--        MATCH(content_text) AGAINST ('+<<SEARCH_PHRASE>>*' IN BOOLEAN MODE) AS score
 --   FROM posts
 --   WHERE status = 'published'
---     AND MATCH(content_text) AGAINST ('+hello* +world*' IN BOOLEAN MODE)
+--     AND MATCH(content_text) AGAINST ('+<<SEARCH_PHRASE>>*' IN BOOLEAN MODE)
 --   ORDER BY score DESC
 --   LIMIT 20;
 
--- 13. Vacuum check: rows in `feed_items_seen` whose linked post no longer exists.
---     Safe to delete — a re-fetch will create a fresh seen row + post.
+-- 14. Vacuum check: rows in `feed_items_seen` whose linked post no longer
+--     exists. Safe to delete — a re-fetch will create a fresh seen row + post.
 -- SELECT s.id, s.source_id, s.guid_hash, s.post_id
 --   FROM feed_items_seen s
 --   LEFT JOIN posts p ON p.id = s.post_id
@@ -355,19 +462,19 @@ INSERT IGNORE INTO `site_settings` (
 --   LEFT JOIN posts p ON p.id = s.post_id
 --   WHERE s.post_id IS NOT NULL AND p.id IS NULL;
 
--- 14. Reset `next_fetch_at` for every enabled source (forces a refresh on
+-- 15. Reset `next_fetch_at` for every enabled source (forces a refresh on
 --     the next scheduled run; useful after manual edits to cadence).
 -- UPDATE `feed_sources` SET `next_fetch_at` = NULL WHERE `enabled` = 1;
 
--- 15. Hard reset: blank out per-user theme on a single user (snaps them
---     back to the site default everywhere).
--- UPDATE `users`
---   SET theme = NULL, palette = NULL,
---       color_background = NULL, color_foreground = NULL,
---       color_background_dark = NULL, color_foreground_dark = NULL,
---       color_primary = NULL, color_primary_foreground = NULL,
---       color_secondary = NULL, color_secondary_foreground = NULL,
---       color_accent = NULL, color_accent_foreground = NULL,
---       color_muted = NULL, color_muted_foreground = NULL,
---       color_destructive = NULL, color_destructive_foreground = NULL
---   WHERE email = 'them@example.com';
+-- 16. Hard-reset per-user theme on a single user (snaps them back to the
+--     site default everywhere). Replace `<<TARGET_EMAIL>>` first.
+-- UPDATE `users` SET
+--     theme = NULL, palette = NULL,
+--     color_background = NULL, color_foreground = NULL,
+--     color_background_dark = NULL, color_foreground_dark = NULL,
+--     color_primary = NULL, color_primary_foreground = NULL,
+--     color_secondary = NULL, color_secondary_foreground = NULL,
+--     color_accent = NULL, color_accent_foreground = NULL,
+--     color_muted = NULL, color_muted_foreground = NULL,
+--     color_destructive = NULL, color_destructive_foreground = NULL
+--   WHERE email = '<<TARGET_EMAIL>>';

@@ -26,18 +26,21 @@ const HSL_DEFAULTS: PaletteColors = {
   ...getPalette(DEFAULT_PALETTE_ID)!.colors,
 };
 
+// "Reset to defaults" copy for the owner's customization UI. Mirrors
+// `siteSettingsDefaults` in `@workspace/db` and the SQL install seeds —
+// keep those four sources in sync. The `<<PLACEHOLDER>>` strings are
+// the same fail-loudly templates a fresh fork starts with, so clicking
+// "Reset" returns the form to the original "edit me" state.
 const TEXT_DEFAULTS = {
-  siteTitle: "Chris Fornesa",
-  heroHeading: "Buenas at Kumusta!",
-  heroSubheading:
-    "Welcome to my digital garden where I cultivate my thoughts, feelings, hopes, dreams, and more.",
+  siteTitle: "<<SITE_TITLE>>",
+  heroHeading: "<<HERO_HEADING>>",
+  heroSubheading: "<<HERO_SUBHEADING>>",
   aboutHeading: "About This Platform",
-  aboutBody:
-    "A space where I share my thoughts, ideas, and experiences with the world. Built with React using Replit, Claude Code, Codex, and Gemini CLI.",
-  copyrightLine: "Chris Fornesa",
-  footerCredit: "Built with React using Replit, Claude Code, Codex, and Gemini CLI.",
-  ctaLabel: "Learn More About Me",
-  ctaHref: "/users/@cfornesa",
+  aboutBody: "<<ABOUT_BODY>>",
+  copyrightLine: "<<YOUR_NAME>>",
+  footerCredit: "<<FOOTER_CREDIT>>",
+  ctaLabel: "<<CTA_LABEL>>",
+  ctaHref: "/users/@<<YOUR_USERNAME>>",
 } as const;
 
 type FormState = Record<string, string>;

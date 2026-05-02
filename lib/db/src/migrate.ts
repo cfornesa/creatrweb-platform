@@ -399,32 +399,41 @@ export async function ensureTables(): Promise<void> {
       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     )
     `,
+    // Forker-facing seed for the `site_settings` singleton. Runs ONCE
+    // on a fresh database (INSERT IGNORE makes it a no-op once the row
+    // exists). The `<<PLACEHOLDER>>` text strings are deliberately ugly
+    // so a fresh fork's home page visibly says "edit me" instead of
+    // shipping someone else's identity. Owner edits via /settings
+    // overwrite these immediately. Keep in sync with `siteSettingsDefaults`
+    // in `lib/db/src/schema/site-settings.ts` and the matching INSERT
+    // IGNORE blocks in `lib/db/install.sql` + `site_settings_install.sql`.
     [
-      "bauhaus",
-      "bauhaus",
-      "Chris Fornesa",
-      "Buenas at Kumusta!",
-      "Welcome to my digital garden where I cultivate my thoughts, feelings, hopes, dreams, and more.",
-      "About This Platform",
-      "A space where I share my thoughts, ideas, and experiences with the world. Built with React using Replit, Claude Code, Codex, and Gemini CLI.",
-      "Chris Fornesa",
-      "Built with React using Replit, Claude Code, Codex, and Gemini CLI.",
-      "Learn More About Me",
-      "/users/@cfornesa",
-      "0 0% 100%",
-      "0 0% 0%",
-      "0 0% 0%",
-      "0 0% 100%",
-      "0 100% 50%",
-      "0 0% 100%",
-      "240 100% 50%",
-      "0 0% 100%",
-      "60 100% 50%",
-      "0 0% 0%",
-      "60 100% 50%",
-      "0 0% 0%",
-      "0 100% 50%",
-      "0 0% 100%",
+      "bauhaus",                   // theme
+      "bauhaus",                   // palette
+      "<<SITE_TITLE>>",            // site_title — navbar wordmark + browser tab
+      "<<HERO_HEADING>>",          // hero_heading — big home-page headline
+      "<<HERO_SUBHEADING>>",       // hero_subheading — supporting text
+      "About This Platform",       // about_heading — usually fine to leave as-is
+      "<<ABOUT_BODY>>",            // about_body — one paragraph describing the site
+      "<<YOUR_NAME>>",             // copyright_line — "© 2025 <name>" in the footer
+      "<<FOOTER_CREDIT>>",         // footer_credit — "Built with …"
+      "<<CTA_LABEL>>",             // cta_label — hero button text
+      "/users/@<<YOUR_USERNAME>>", // cta_href — defaults to your own profile page
+      // ---- Bauhaus tricolor defaults (red / blue / yellow). HSL components only. ----
+      "0 0% 100%",     // color_background      (light)
+      "0 0% 0%",       // color_foreground      (light)
+      "0 0% 0%",       // color_background_dark
+      "0 0% 100%",     // color_foreground_dark
+      "0 100% 50%",    // color_primary         (red)
+      "0 0% 100%",     // color_primary_foreground   (white)
+      "240 100% 50%",  // color_secondary       (blue)
+      "0 0% 100%",     // color_secondary_foreground (white)
+      "60 100% 50%",   // color_accent          (yellow)
+      "0 0% 0%",       // color_accent_foreground    (black)
+      "60 100% 50%",   // color_muted
+      "0 0% 0%",       // color_muted_foreground
+      "0 100% 50%",    // color_destructive     (red)
+      "0 0% 100%",     // color_destructive_foreground (white)
     ],
   );
 

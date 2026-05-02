@@ -40,21 +40,27 @@ export const siteSettingsTable = mysqlTable("site_settings", {
 export type SiteSettings = typeof siteSettingsTable.$inferSelect;
 export type InsertSiteSettings = typeof siteSettingsTable.$inferInsert;
 
+// Forker-facing defaults. These mirror the seed `INSERT IGNORE` in
+// `lib/db/install.sql` and `lib/db/site_settings_install.sql`. The
+// `<<PLACEHOLDER>>` strings (double angle brackets, ALL CAPS) are
+// deliberately ugly so a fresh fork displays an obviously-unset value
+// instead of someone else's personal copy. Replace via `/settings`
+// after first owner login, or by editing the row directly in SQL.
+// Keep these three sources in sync (this file, install.sql,
+// site_settings_install.sql) — that's our canonical default copy.
 export const siteSettingsDefaults = {
   theme: "bauhaus",
   palette: "bauhaus",
 
-  siteTitle: "Chris Fornesa",
-  heroHeading: "Buenas at Kumusta!",
-  heroSubheading:
-    "Welcome to my digital garden where I cultivate my thoughts, feelings, hopes, dreams, and more.",
+  siteTitle: "<<SITE_TITLE>>",
+  heroHeading: "<<HERO_HEADING>>",
+  heroSubheading: "<<HERO_SUBHEADING>>",
   aboutHeading: "About This Platform",
-  aboutBody:
-    "A space where I share my thoughts, ideas, and experiences with the world. Built with React using Replit, Claude Code, Codex, and Gemini CLI.",
-  copyrightLine: "Chris Fornesa",
-  footerCredit: "Built with React using Replit, Claude Code, Codex, and Gemini CLI.",
-  ctaLabel: "Learn More About Me",
-  ctaHref: "/users/@cfornesa",
+  aboutBody: "<<ABOUT_BODY>>",
+  copyrightLine: "<<YOUR_NAME>>",
+  footerCredit: "<<FOOTER_CREDIT>>",
+  ctaLabel: "<<CTA_LABEL>>",
+  ctaHref: "/users/@<<YOUR_USERNAME>>",
 
   colorBackground: "0 0% 100%",
   colorForeground: "0 0% 0%",

@@ -159,7 +159,8 @@ If someone clones this repo to run their own microblog, the path is:
 
 1. **Database**: create a fresh MySQL 8+ / MariaDB 10.5+ database, then either
    - run the API server once and let `ensureTables()` build the schema (recommended on Replit / any Node host), **or**
-   - paste `lib/db/install.sql` into your SQL client (recommended on shared hosts where you only have phpMyAdmin). The script is fully idempotent and includes 15 commented-out maintenance queries at the bottom.
+   - import `lib/db/install.sql` via phpMyAdmin (recommended on shared hosts like Hostinger). To import: log in to phpMyAdmin → click your empty database in the sidebar → "Import" tab → "Choose file" → select `install.sql` → "Go". Both SQL files (the full install and the narrow `site_settings_install.sql`) include the same step-by-step phpMyAdmin instructions in their header comments. The script is fully idempotent and ends with 16 copy-pasteable maintenance queries (set username, promote owner, list users, approve/reject pending posts, vacuum stale dedup rows, etc.).
+   - All user-facing seed values in both SQL files use a `<<PLACEHOLDER>>` convention (double angle brackets, ALL CAPS — e.g. `<<YOUR_USERNAME>>`, `<<YOUR_NAME>>`, `<<SITE_TITLE>>`). Find-and-replace these in your editor before importing, or accept the defaults and edit them via `/settings` after first login.
 2. **Environment variables** (set in `.env` for local dev or as platform secrets in production). Required-ness reflects what `artifacts/api-server/src/` actually reads via `process.env.*`:
 
    | Variable | Required | Purpose |
@@ -180,9 +181,17 @@ If someone clones this repo to run their own microblog, the path is:
    | `PORT` | optional | API server listen port (defaults to `8080`). |
    | `FRONTEND_PORT`, `API_ORIGIN` | local dev only | Vite dev port and the dev-proxy target — only consumed by the frontend dev server in `artifacts/microblog`. |
 
-3. **First owner**: the first person to sign in via OAuth becomes a regular `member`. Promote them to `owner` either via the helper script (`npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com`) or directly in SQL: `UPDATE users SET role='owner' WHERE email='you@example.com';`. The owner role is what unlocks the `/settings`, `/admin/feeds`, and `/admin/pending` pages and every `requireOwner`-gated API route.
-4. **Customize**: log in as the owner and visit `/settings` to set the site title, hero copy, theme/palette, and color overrides. The schema's seed values in `install.sql` are neutral placeholders meant to be overwritten on first run.
-5. **Scheduled feed refresh** (optional, for PESOS): configure a Scheduled Deployment that POSTs to `/api/feed-sources/refresh` with the `X-Cron-Secret` header. See the Scheduled refresh section above.
+3. **Pick a username**: choose the handle your profile page will live at — the URL is `/users/@<your-username>` (e.g. picking `chris` yields `/users/@chris`). Pick something short, lowercase, ASCII-only — it shows up in URLs, bylines, and the hero CTA. The hero CTA in the seed defaults to linking at `/users/@<<YOUR_USERNAME>>`, so substitute that placeholder in the SQL seed (or edit `cta_href` in the `/settings` UI later).
+4. **First owner**: sign in once via OAuth at `https://<your-domain>/auth/signin` so your row is created in `users`. Then set your chosen username and promote yourself to the `owner` role. Either run the helper script (`npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com`) or, in your SQL client:
+
+   ```sql
+   UPDATE users SET username = '<your-username>' WHERE email = '<your-email>';
+   UPDATE users SET role     = 'owner'           WHERE email = '<your-email>';
+   ```
+
+   The owner role unlocks `/settings`, `/admin/feeds`, `/admin/pending`, and every `requireOwner`-gated API route.
+5. **Customize**: log in as the owner and visit `/settings` to set the site title, hero copy, theme/palette, and color overrides. The schema's seed values in `install.sql` are placeholder strings (`<<…>>`) deliberately designed to fail loudly if you forget to substitute them.
+6. **Scheduled feed refresh** (optional, for PESOS): configure a Scheduled Deployment that POSTs to `/api/feed-sources/refresh` with the `X-Cron-Secret` header. See the Scheduled refresh section above.
 
 Adapting it for a different shape of site: the schema is intentionally narrow — there are no per-post tags, categories, or visibility levels beyond `published` / `pending`. Adding any of those is a column on `posts` plus a new `ensureColumn` call in `lib/db/src/migrate.ts` and a matching `ALTER TABLE … ADD COLUMN IF NOT EXISTS` in `install.sql`.
 
