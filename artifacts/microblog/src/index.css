@@ -39,28 +39,28 @@
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-destructive-border: var(--destructive-border);
 
-  --font-sans: var(--app-font-sans);
-  --font-serif: var(--app-font-serif);
+  --font-sans: var(--app-font-body);
+  --font-serif: var(--app-font-body);
   --font-mono: var(--app-font-mono);
 
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
-  --radius-xl: 0px;
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
 }
 
 :root {
-  /* Bauhaus/Brutalist Palette - STRICT TRICOLOR */
-  --bauhaus-red: 0 100% 50%;     /* DEEP PURE RED - #FF0000 */
-  --bauhaus-blue: 240 100% 50%;   /* #0000FF */
-  --bauhaus-yellow: 60 100% 50%;  /* #FFFF00 */
+  /* Bauhaus/Brutalist Palette - STRICT TRICOLOR (initial defaults; ThemeInjector
+     overrides at runtime from server settings). */
+  --bauhaus-red: 0 100% 50%;
+  --bauhaus-blue: 240 100% 50%;
+  --bauhaus-yellow: 60 100% 50%;
   --bauhaus-white: 0 0% 100%;
   --bauhaus-black: 0 0% 0%;
 
-  /* Base Colors */
   --background: var(--bauhaus-white);
   --foreground: var(--bauhaus-black);
-  
+
   --card: var(--bauhaus-white);
   --card-foreground: var(--bauhaus-black);
   --card-border: var(--bauhaus-black);
@@ -69,22 +69,18 @@
   --popover-foreground: var(--bauhaus-black);
   --popover-border: var(--bauhaus-black);
 
-  /* Primary is RED */
   --primary: var(--bauhaus-red);
   --primary-foreground: var(--bauhaus-white);
   --primary-border: var(--bauhaus-black);
 
-  /* Secondary is BLUE */
   --secondary: var(--bauhaus-blue);
   --secondary-foreground: var(--bauhaus-white);
   --secondary-border: var(--bauhaus-black);
 
-  /* Tricolor Rule: Muted is YELLOW */
   --muted: var(--bauhaus-yellow);
   --muted-foreground: var(--bauhaus-black);
   --muted-border: var(--bauhaus-black);
 
-  /* Accent is YELLOW */
   --accent: var(--bauhaus-yellow);
   --accent-foreground: var(--bauhaus-black);
   --accent-border: var(--bauhaus-black);
@@ -97,15 +93,45 @@
   --input: var(--bauhaus-white);
   --ring: var(--bauhaus-blue);
 
-  --app-font-sans: 'Space Grotesk', system-ui, sans-serif;
-  --app-font-serif: 'Inter', sans-serif;
-  --app-font-mono: monospace;
-  
-  --radius: 0rem; 
-  
-  --shadow-sm: 2px 2px 0px 0px #000000;
-  --shadow: 4px 4px 0px 0px #000000;
-  --shadow-md: 8px 8px 0px 0px #000000;
+  --app-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Per-theme structural variables. Defaults match Bauhaus and are overridden
+     by `[data-theme="..."]` rules below. */
+  --app-font-body: 'Space Grotesk', system-ui, sans-serif;
+  --app-font-heading: 'Space Grotesk', system-ui, sans-serif;
+  --app-body-weight: 700;
+  --app-heading-weight: 900;
+  --app-heading-transform: uppercase;
+  --app-heading-tracking: -0.05em;
+
+  --radius: 0rem;
+
+  --app-button-border-width: 4px;
+  --app-button-radius: var(--radius);
+  --app-button-shadow: 8px 8px 0 0 hsl(var(--border));
+  --app-button-active-shadow: 2px 2px 0 0 hsl(var(--border));
+  --app-button-hover-shadow: 8px 8px 0 0 hsl(var(--border));
+  --app-button-hover-transform: translate(-4px, -4px);
+  --app-button-hover-filter: brightness(1.2);
+
+  --app-card-border-width: 4px;
+  --app-card-radius: var(--radius);
+  --app-card-shadow: 8px 8px 0 0 hsl(var(--border));
+  --app-card-hover-shadow: 12px 12px 0 0 hsl(var(--border));
+  --app-card-hover-transform: translate(-4px, -4px);
+
+  --app-avatar-border-width: 4px;
+  --app-avatar-radius: var(--radius);
+  --app-avatar-shadow: 2px 2px 0 0 hsl(var(--border));
+
+  --app-grid-border-width: 4px;
+  --app-nav-border-width: 8px;
+  --app-footer-border-width: 4px;
+
+  /* Tailwind shadow tokens still drive a few utility classes. */
+  --shadow-sm: 2px 2px 0px 0px hsl(var(--border));
+  --shadow: 4px 4px 0px 0px hsl(var(--border));
+  --shadow-md: 8px 8px 0px 0px hsl(var(--border));
 
   --sidebar-primary-border: hsl(var(--primary));
   --sidebar-accent-border: hsl(var(--accent));
@@ -141,91 +167,422 @@
   --border: var(--bauhaus-white);
   --input: var(--bauhaus-black);
   --ring: var(--bauhaus-blue);
-
-  --shadow-sm: 2px 2px 0px 0px #FFFFFF;
-  --shadow: 4px 4px 0px 0px #FFFFFF;
-  --shadow-md: 8px 8px 0px 0px #FFFFFF;
 }
+
+/* ===========================================================================
+   Theme variants
+   --------------------------------------------------------------------------- */
+
+[data-theme="traditional"] {
+  --app-font-body: 'Lora', Georgia, 'Times New Roman', serif;
+  --app-font-heading: 'Lora', Georgia, 'Times New Roman', serif;
+  --app-body-weight: 400;
+  --app-heading-weight: 700;
+  --app-heading-transform: none;
+  --app-heading-tracking: -0.005em;
+
+  --radius: 0.25rem;
+
+  --app-button-border-width: 1px;
+  --app-button-shadow: none;
+  --app-button-active-shadow: none;
+  --app-button-hover-shadow: none;
+  --app-button-hover-transform: none;
+  --app-button-hover-filter: brightness(0.95);
+
+  --app-card-border-width: 1px;
+  --app-card-shadow: none;
+  --app-card-hover-shadow: 0 2px 8px rgb(0 0 0 / 0.08);
+  --app-card-hover-transform: none;
+
+  --app-avatar-border-width: 1px;
+  --app-avatar-shadow: none;
+
+  --app-grid-border-width: 1px;
+  --app-nav-border-width: 1px;
+  --app-footer-border-width: 1px;
+}
+
+[data-theme="minimalist"] {
+  --app-font-body: 'Inter', system-ui, sans-serif;
+  --app-font-heading: 'Inter', system-ui, sans-serif;
+  --app-body-weight: 400;
+  --app-heading-weight: 600;
+  --app-heading-transform: none;
+  --app-heading-tracking: -0.02em;
+
+  --radius: 0rem;
+
+  --app-button-border-width: 0;
+  --app-button-shadow: none;
+  --app-button-active-shadow: none;
+  --app-button-hover-shadow: none;
+  --app-button-hover-transform: none;
+  --app-button-hover-filter: brightness(0.95);
+
+  --app-card-border-width: 0;
+  --app-card-shadow: none;
+  --app-card-hover-shadow: none;
+  --app-card-hover-transform: none;
+
+  --app-avatar-border-width: 0;
+  --app-avatar-shadow: none;
+
+  --app-grid-border-width: 0;
+  --app-nav-border-width: 1px;
+  --app-footer-border-width: 1px;
+}
+
+[data-theme="academic"] {
+  --app-font-body: 'EB Garamond', Georgia, 'Times New Roman', serif;
+  --app-font-heading: 'EB Garamond', Georgia, 'Times New Roman', serif;
+  --app-body-weight: 400;
+  --app-heading-weight: 700;
+  --app-heading-transform: none;
+  --app-heading-tracking: 0;
+
+  --radius: 0.125rem;
+
+  --app-button-border-width: 1px;
+  --app-button-shadow: 0 1px 0 0 hsl(var(--border));
+  --app-button-active-shadow: none;
+  --app-button-hover-shadow: 0 2px 0 0 hsl(var(--border));
+  --app-button-hover-transform: translate(0, -1px);
+  --app-button-hover-filter: brightness(0.97);
+
+  --app-card-border-width: 1px;
+  --app-card-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+  --app-card-hover-shadow: 0 2px 6px rgb(0 0 0 / 0.12);
+  --app-card-hover-transform: none;
+
+  --app-avatar-border-width: 1px;
+  --app-avatar-shadow: none;
+
+  --app-grid-border-width: 1px;
+  --app-nav-border-width: 2px;
+  --app-footer-border-width: 2px;
+}
+
+[data-theme="airy"] {
+  --app-font-body: 'Inter', system-ui, sans-serif;
+  --app-font-heading: 'Inter', system-ui, sans-serif;
+  --app-body-weight: 300;
+  --app-heading-weight: 500;
+  --app-heading-transform: none;
+  --app-heading-tracking: -0.02em;
+
+  --radius: 0.75rem;
+
+  --app-button-border-width: 0;
+  --app-button-shadow: none;
+  --app-button-active-shadow: none;
+  --app-button-hover-shadow: 0 4px 12px rgb(0 0 0 / 0.06);
+  --app-button-hover-transform: none;
+  --app-button-hover-filter: brightness(0.97);
+
+  --app-card-border-width: 0;
+  --app-card-shadow: 0 8px 24px rgb(0 0 0 / 0.06);
+  --app-card-hover-shadow: 0 16px 32px rgb(0 0 0 / 0.08);
+  --app-card-hover-transform: none;
+
+  --app-avatar-border-width: 0;
+  --app-avatar-shadow: 0 2px 6px rgb(0 0 0 / 0.08);
+
+  --app-grid-border-width: 0;
+  --app-nav-border-width: 0;
+  --app-footer-border-width: 0;
+}
+
+[data-theme="nature"] {
+  --app-font-body: 'Nunito', system-ui, sans-serif;
+  --app-font-heading: 'Nunito', system-ui, sans-serif;
+  --app-body-weight: 400;
+  --app-heading-weight: 800;
+  --app-heading-transform: none;
+  --app-heading-tracking: -0.01em;
+
+  --radius: 0.75rem;
+
+  --app-button-border-width: 1px;
+  --app-button-shadow: 0 2px 4px rgb(0 0 0 / 0.06);
+  --app-button-active-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+  --app-button-hover-shadow: 0 4px 8px rgb(0 0 0 / 0.1);
+  --app-button-hover-transform: translate(0, -1px);
+  --app-button-hover-filter: brightness(1.02);
+
+  --app-card-border-width: 1px;
+  --app-card-shadow: 0 4px 12px rgb(0 0 0 / 0.08);
+  --app-card-hover-shadow: 0 8px 20px rgb(0 0 0 / 0.12);
+  --app-card-hover-transform: translate(0, -2px);
+
+  --app-avatar-border-width: 2px;
+  --app-avatar-shadow: 0 2px 4px rgb(0 0 0 / 0.08);
+
+  --app-grid-border-width: 1px;
+  --app-nav-border-width: 1px;
+  --app-footer-border-width: 1px;
+}
+
+[data-theme="comfort"] {
+  --app-font-body: 'Quicksand', system-ui, sans-serif;
+  --app-font-heading: 'Quicksand', system-ui, sans-serif;
+  --app-body-weight: 500;
+  --app-heading-weight: 700;
+  --app-heading-transform: none;
+  --app-heading-tracking: -0.01em;
+
+  --radius: 1rem;
+
+  --app-button-border-width: 0;
+  --app-button-shadow: 0 2px 6px rgb(0 0 0 / 0.08);
+  --app-button-active-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+  --app-button-hover-shadow: 0 6px 14px rgb(0 0 0 / 0.12);
+  --app-button-hover-transform: translate(0, -1px);
+  --app-button-hover-filter: brightness(1.04);
+
+  --app-card-border-width: 0;
+  --app-card-shadow: 0 6px 16px rgb(0 0 0 / 0.08);
+  --app-card-hover-shadow: 0 10px 24px rgb(0 0 0 / 0.12);
+  --app-card-hover-transform: translate(0, -2px);
+
+  --app-avatar-border-width: 0;
+  --app-avatar-shadow: 0 4px 10px rgb(0 0 0 / 0.08);
+
+  --app-grid-border-width: 0;
+  --app-nav-border-width: 0;
+  --app-footer-border-width: 0;
+}
+
+[data-theme="audacious"] {
+  --app-font-body: 'Space Grotesk', system-ui, sans-serif;
+  --app-font-heading: 'Bebas Neue', 'Space Grotesk', sans-serif;
+  --app-body-weight: 600;
+  /* Bebas Neue is a single-weight display face — `normal` keeps the metrics. */
+  --app-heading-weight: 400;
+  --app-heading-transform: uppercase;
+  --app-heading-tracking: 0.05em;
+
+  --radius: 0rem;
+
+  --app-button-border-width: 6px;
+  --app-button-shadow: 8px 8px 0 0 hsl(var(--border));
+  --app-button-active-shadow: 2px 2px 0 0 hsl(var(--border));
+  --app-button-hover-shadow: 12px 12px 0 0 hsl(var(--border));
+  --app-button-hover-transform: translate(-4px, -4px);
+  --app-button-hover-filter: brightness(1.15);
+
+  --app-card-border-width: 6px;
+  --app-card-shadow: 10px 10px 0 0 hsl(var(--border));
+  --app-card-hover-shadow: 14px 14px 0 0 hsl(var(--border));
+  --app-card-hover-transform: translate(-4px, -4px);
+
+  --app-avatar-border-width: 4px;
+  --app-avatar-shadow: 4px 4px 0 0 hsl(var(--border));
+
+  --app-grid-border-width: 6px;
+  --app-nav-border-width: 8px;
+  --app-footer-border-width: 6px;
+}
+
+[data-theme="artistic"] {
+  --app-font-body: 'Lora', Georgia, serif;
+  --app-font-heading: 'Caveat', 'Lora', cursive;
+  --app-body-weight: 400;
+  --app-heading-weight: 700;
+  --app-heading-transform: none;
+  --app-heading-tracking: 0;
+
+  --radius: 0.25rem;
+
+  --app-button-border-width: 2px;
+  --app-button-shadow: 3px 3px 0 0 hsl(var(--border) / 0.6);
+  --app-button-active-shadow: 1px 1px 0 0 hsl(var(--border) / 0.6);
+  --app-button-hover-shadow: 4px 4px 0 0 hsl(var(--border) / 0.6);
+  --app-button-hover-transform: rotate(-1deg);
+  --app-button-hover-filter: brightness(1.05);
+
+  --app-card-border-width: 2px;
+  --app-card-shadow: 4px 4px 0 0 hsl(var(--border) / 0.5);
+  --app-card-hover-shadow: 6px 6px 0 0 hsl(var(--border) / 0.5);
+  --app-card-hover-transform: rotate(-0.3deg);
+
+  --app-avatar-border-width: 2px;
+  --app-avatar-shadow: 2px 2px 0 0 hsl(var(--border) / 0.5);
+
+  --app-grid-border-width: 2px;
+  --app-nav-border-width: 2px;
+  --app-footer-border-width: 2px;
+}
+
+/* ===========================================================================
+   Base + component layers, all driven by the theme variables above so each
+   `[data-theme="..."]` selection above changes the look without touching
+   per-element selectors here.
+   --------------------------------------------------------------------------- */
 
 @layer base {
   * {
-    @apply !border-black dark:!border-white;
+    border-color: hsl(var(--border));
     border-width: 0;
   }
   body {
-    @apply !font-sans !antialiased !bg-background !text-foreground selection:!bg-accent/50;
-    font-weight: 700;
+    font-family: var(--app-font-body);
+    font-weight: var(--app-body-weight);
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body ::selection {
+    background-color: hsl(var(--accent) / 0.5);
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply !uppercase !tracking-tighter !font-black;
+    font-family: var(--app-font-heading);
+    font-weight: var(--app-heading-weight);
+    text-transform: var(--app-heading-transform);
+    letter-spacing: var(--app-heading-tracking);
   }
 }
 
 @layer components {
-  /* Core UI Components */
-  .button, button, [role="button"] {
-    @apply !border-[4px] !border-black dark:!border-white !border-solid !shadow-md !transition-all !duration-75;
+  /* Specificity: prefixing with `[data-theme]` makes these rules (0,0,1,1)
+     so they beat single-class Tailwind utilities like `.border`
+     (`border-width: 1px`) and `.rounded-md` defined in `@layer utilities`.
+     Every page gets `data-theme` set on <html> by ThemeInjector, so this
+     selector matches universally. */
+  [data-theme] .button,
+  [data-theme] button,
+  [data-theme] [role="button"] {
+    border-width: var(--app-button-border-width);
     border-style: solid;
-  }
-  
-  button:hover, .button:hover, [role="button"]:hover {
-    @apply !-translate-x-1 !-translate-y-1 !shadow-md;
-    filter: brightness(1.2);
-  }
-
-  button:active, .button:active, [role="button"]:active {
-    @apply !translate-x-0 !translate-y-0 !shadow-sm;
+    border-color: hsl(var(--border));
+    box-shadow: var(--app-button-shadow);
+    border-radius: var(--app-button-radius);
+    transition: transform 75ms ease, box-shadow 75ms ease, filter 75ms ease;
   }
 
-  /* Specific high-contrast overrides */
+  [data-theme] button:hover,
+  [data-theme] .button:hover,
+  [data-theme] [role="button"]:hover {
+    transform: var(--app-button-hover-transform);
+    box-shadow: var(--app-button-hover-shadow);
+    filter: var(--app-button-hover-filter);
+  }
+
+  [data-theme] button:active,
+  [data-theme] .button:active,
+  [data-theme] [role="button"]:active {
+    transform: none;
+    box-shadow: var(--app-button-active-shadow);
+  }
+
   .primary-btn {
-    @apply !bg-primary !text-primary-foreground;
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
   }
-  
+
   .secondary-btn {
-    @apply !bg-secondary !text-secondary-foreground;
+    background-color: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
   }
-  
+
   .accent-btn {
-    @apply !bg-accent !text-accent-foreground;
+    background-color: hsl(var(--accent));
+    color: hsl(var(--accent-foreground));
   }
 
-  /* Cards & Containers */
   .brutalist-card {
-    @apply !bg-card !border-[4px] !border-black dark:!border-white !shadow-md !p-6 !relative !overflow-hidden;
+    background-color: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+    border-width: var(--app-card-border-width);
+    border-style: solid;
+    border-color: hsl(var(--border));
+    box-shadow: var(--app-card-shadow);
+    border-radius: var(--app-card-radius);
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    transition: transform 150ms ease, box-shadow 150ms ease;
   }
+
   .brutalist-card:hover {
-    @apply !shadow-lg !-translate-x-1 !-translate-y-1 !transition-all;
+    box-shadow: var(--app-card-hover-shadow);
+    transform: var(--app-card-hover-transform);
   }
 
-  /* Avatars & Images */
   .brutalist-avatar {
-    @apply !border-[4px] !border-black dark:!border-white !shadow-sm !object-cover !aspect-square;
+    border-width: var(--app-avatar-border-width);
+    border-style: solid;
+    border-color: hsl(var(--border));
+    box-shadow: var(--app-avatar-shadow);
+    border-radius: var(--app-avatar-radius);
+    object-fit: cover;
+    aspect-ratio: 1 / 1;
   }
 
-  /* Layout Specifics */
   .grid-layout {
-    @apply !grid !grid-cols-1 md:!grid-cols-12 !gap-0 !border-t-4 !border-l-4 !border-black dark:!border-white;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    border-top-width: var(--app-grid-border-width);
+    border-left-width: var(--app-grid-border-width);
+    border-style: solid;
+    border-color: hsl(var(--border));
   }
+
+  @media (min-width: 768px) {
+    .grid-layout {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
+  }
+
   .interactive-grid-item {
-    @apply !border-r-4 !border-b-4 !border-black dark:!border-white !p-6;
+    border-right-width: var(--app-grid-border-width);
+    border-bottom-width: var(--app-grid-border-width);
+    border-style: solid;
+    border-color: hsl(var(--border));
+    padding: 1.5rem;
   }
-  
+
   .sticky-nav {
-    @apply !sticky !top-0 !z-50 !bg-background !border-b-8 !border-black dark:!border-white !px-4 md:!px-8 !py-4 !flex !items-center !justify-between;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background-color: hsl(var(--background));
+    border-bottom-width: var(--app-nav-border-width);
+    border-style: solid;
+    border-color: hsl(var(--border));
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  @media (min-width: 768px) {
+    .sticky-nav {
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
   }
 
   .bauhaus-footer {
-    @apply !border-t-4 !border-black dark:!border-white !bg-accent !text-accent-foreground !p-8 md:!p-12;
+    border-top-width: var(--app-footer-border-width);
+    border-style: solid;
+    border-color: hsl(var(--border));
+    background-color: hsl(var(--accent));
+    color: hsl(var(--accent-foreground));
+    padding: 2rem;
   }
 
-  /* Typography Mods */
-  .text-outline {
-    -webkit-text-stroke: 2px black;
-    color: transparent;
+  @media (min-width: 768px) {
+    .bauhaus-footer {
+      padding: 3rem;
+    }
   }
-  .dark .text-outline {
-    -webkit-text-stroke: 2px white;
+
+  .text-outline {
+    -webkit-text-stroke: 2px hsl(var(--foreground));
+    color: transparent;
   }
 }
 
@@ -233,7 +590,7 @@
   .bauhaus-red { color: #FF0000; }
   .bauhaus-blue { color: #0000FF; }
   .bauhaus-yellow { color: #FFFF00; }
-  
+
   .bg-bauhaus-red { background-color: #FF0000; }
   .bg-bauhaus-blue { background-color: #0000FF; }
   .bg-bauhaus-yellow { background-color: #FFFF00; }
@@ -242,12 +599,8 @@
   .border-b-thick { border-bottom-width: 8px; }
   .border-l-thick { border-left-width: 8px; }
 
-  /* Custom shadows for specific directions if needed */
   .shadow-neo {
-    box-shadow: 6px 6px 0px 0px rgba(0,0,0,1);
-  }
-  .dark .shadow-neo {
-    box-shadow: 6px 6px 0px 0px rgba(255,255,255,1);
+    box-shadow: 6px 6px 0px 0px hsl(var(--border));
   }
 
   .animate-brutal-pop {

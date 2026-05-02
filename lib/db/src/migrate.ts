@@ -146,6 +146,8 @@ export async function ensureTables(): Promise<void> {
   await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS site_settings (
       id INT NOT NULL PRIMARY KEY DEFAULT 1,
+      theme VARCHAR(32) NOT NULL DEFAULT 'bauhaus',
+      palette VARCHAR(32) NOT NULL DEFAULT 'bauhaus',
       site_title VARCHAR(255) NOT NULL,
       hero_heading VARCHAR(255) NOT NULL,
       hero_subheading TEXT NOT NULL,
@@ -173,10 +175,23 @@ export async function ensureTables(): Promise<void> {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  await ensureColumn(
+    "site_settings",
+    "theme",
+    "theme VARCHAR(32) NOT NULL DEFAULT 'bauhaus'",
+  );
+
+  await ensureColumn(
+    "site_settings",
+    "palette",
+    "palette VARCHAR(32) NOT NULL DEFAULT 'bauhaus'",
+  );
+
   await mysqlPool.query(
     `
     INSERT IGNORE INTO site_settings (
-      id, site_title, hero_heading, hero_subheading, about_heading, about_body,
+      id, theme, palette,
+      site_title, hero_heading, hero_subheading, about_heading, about_body,
       copyright_line, footer_credit, cta_label, cta_href,
       color_background, color_foreground, color_background_dark, color_foreground_dark,
       color_primary, color_primary_foreground,
@@ -185,12 +200,15 @@ export async function ensureTables(): Promise<void> {
       color_muted, color_muted_foreground,
       color_destructive, color_destructive_foreground
     ) VALUES (
-      1, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+      1, ?, ?,
+      ?, ?, ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     )
     `,
     [
+      "bauhaus",
+      "bauhaus",
       "Chris Fornesa",
       "Buenas at Kumusta!",
       "Welcome to my digital garden where I cultivate my thoughts, feelings, hopes, dreams, and more.",

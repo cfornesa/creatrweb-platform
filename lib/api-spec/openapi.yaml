@@ -627,6 +627,10 @@ components:
     SiteSettings:
       type: object
       properties:
+        theme:
+          type: string
+        palette:
+          type: string
         siteTitle:
           type: string
         heroHeading:
@@ -674,6 +678,8 @@ components:
         colorDestructiveForeground:
           type: string
       required:
+        - theme
+        - palette
         - siteTitle
         - heroHeading
         - heroSubheading
@@ -701,6 +707,12 @@ components:
     UpdateSiteSettingsBody:
       type: object
       properties:
+        theme:
+          type: string
+          maxLength: 32
+        palette:
+          type: string
+          maxLength: 32
         siteTitle:
           type: string
           maxLength: 255

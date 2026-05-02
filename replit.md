@@ -11,7 +11,7 @@ Full-stack microblogging platform ("Microblog") — npm workspace monorepo, Type
 - **Package manager**: npm
 - **TypeScript version**: 5.9
 - **API framework**: Express 5
-- **Database**: SQLite (libsql / @libsql/client) + Drizzle ORM (dialect: turso)
+- **Database**: MySQL (mysql2) + Drizzle ORM (dialect: mysql2)
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec → React Query hooks + Zod schemas)
 - **Build**: esbuild (ESM bundle)
@@ -24,7 +24,7 @@ Full-stack microblogging platform ("Microblog") — npm workspace monorepo, Type
 |---|---|---|
 | `@workspace/api-server` | `artifacts/api-server/` | Express API server (posts, comments, users, feed stats) |
 | `@workspace/microblog` | `artifacts/microblog/` | React + Vite frontend (home feed, post detail, user profile) |
-| `@workspace/db` | `lib/db/` | Drizzle schema + db client (SQLite file at `data/microblog.db`) |
+| `@workspace/db` | `lib/db/` | Drizzle schema + db client (MySQL via `mysql2`, configured by env) |
 | `@workspace/api-spec` | `lib/api-spec/` | OpenAPI 3.1 spec + Orval codegen config |
 | `@workspace/api-client-react` | `lib/api-client-react/` | Generated React Query hooks + custom fetch |
 | `@workspace/api-zod` | `lib/api-zod/` | Generated Zod request/response schemas |
@@ -74,13 +74,19 @@ For environments where schema is applied by hand (e.g. Hostinger via phpMyAdmin)
 
 ## Site Customization
 
-The `owner` user can customize site-wide identity and the full color palette via the **Site Customization** card on `/settings` (owner-only, not visible to members). Editable fields:
+The `owner` user can customize site-wide identity, theme, palette, and individual colors via the **Site Customization** card on `/settings` (owner-only, not visible to members). The customization has three independent dimensions:
 
-- **Identity & copy**: site title (drives navbar wordmark, browser tab title, and post share-card title), hero heading + subheading, hero CTA label + link, "About This Platform" heading + body, copyright name, footer credit
-- **Colors (light + dark)**: background and foreground for each mode, plus primary, secondary, accent, muted, and destructive (with their foreground pairs). Stored as HSL component strings (e.g. `0 100% 50%`) and injected as CSS variables at runtime by `<ThemeInjector />` in `App.tsx`.
-- A "Reset to Bauhaus defaults" button restores the original tricolor palette.
+1. **Theme** (one of 9): controls *structure* — borders, shadows, radius, fonts, font weights, heading case/tracking. Applied via a `data-theme="..."` attribute on `<html>` (set by `<ThemeInjector />`); each theme is a CSS rule in `artifacts/microblog/src/index.css` overriding `--app-*` structural variables. The 9 themes are `bauhaus` (default), `traditional`, `minimalist`, `academic`, `airy`, `nature`, `comfort`, `audacious`, `artistic`.
+2. **Palette** (one of 9): controls the *14 color values* (light + dark backgrounds, foregrounds, primary/secondary/accent/muted/destructive with their foreground pairs). Stored as HSL component strings (e.g. `0 100% 50%`) and injected as CSS custom properties by `<ThemeInjector />`. The 9 palettes are `bauhaus` (default), `monochrome`, `newsprint`, `ocean`, `forest`, `sunset`, `sepia`, `high-contrast`, `pastel`.
+3. **Per-field color overrides**: any of the 14 colors can be edited individually via color pickers. **Smart-merge**: switching the palette only replaces colors that still match the previously-active palette; any field the owner customized survives the swap (`smartMergePalette` in `artifacts/microblog/src/lib/site-themes.ts`).
 
-Backend storage: singleton row in `site_settings` (id=1). Backed by `requireOwner` middleware on `PATCH /api/site-settings`. The frontend hook is `useSiteSettings()` in `artifacts/microblog/src/hooks/use-site-settings.ts`.
+The catalog of themes and palettes lives in `artifacts/microblog/src/lib/site-themes.ts`. Adding or renaming a theme requires adding both an entry there and a matching `[data-theme="..."]` rule in `index.css`. Adding a palette only requires the catalog entry.
+
+**Identity & copy fields**: site title (drives navbar wordmark, browser tab title, and post share-card title), hero heading + subheading, hero CTA label + link, "About This Platform" heading + body, copyright name, footer credit.
+
+A "Reset to Bauhaus defaults" button restores theme=`bauhaus`, palette=`bauhaus`, and the original tricolor color values.
+
+Backend storage: singleton row in `site_settings` (id=1) with `theme` and `palette` columns (varchar(32) NOT NULL DEFAULT `'bauhaus'`). Backed by `requireOwner` middleware on `PATCH /api/site-settings`. The frontend hook is `useSiteSettings()` in `artifacts/microblog/src/hooks/use-site-settings.ts`. Google Fonts (Lora, EB Garamond, Inter, Nunito, Quicksand, Space Grotesk, Bebas Neue, Caveat) are preloaded in `index.html`.
 
 ## Important Notes
 

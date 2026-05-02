@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useUpdateSiteSettings,
@@ -12,23 +12,20 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DEFAULT_PALETTE_ID,
+  DEFAULT_THEME_ID,
+  PALETTES,
+  PALETTE_COLOR_KEYS,
+  THEMES,
+  getPalette,
+  smartMergePalette,
+  type PaletteColors,
+} from "@/lib/site-themes";
 
-const HSL_DEFAULTS = {
-  colorBackground: "0 0% 100%",
-  colorForeground: "0 0% 0%",
-  colorBackgroundDark: "0 0% 0%",
-  colorForegroundDark: "0 0% 100%",
-  colorPrimary: "0 100% 50%",
-  colorPrimaryForeground: "0 0% 100%",
-  colorSecondary: "240 100% 50%",
-  colorSecondaryForeground: "0 0% 100%",
-  colorAccent: "60 100% 50%",
-  colorAccentForeground: "0 0% 0%",
-  colorMuted: "60 100% 50%",
-  colorMutedForeground: "0 0% 0%",
-  colorDestructive: "0 100% 50%",
-  colorDestructiveForeground: "0 0% 100%",
-} as const;
+const HSL_DEFAULTS: PaletteColors = {
+  ...getPalette(DEFAULT_PALETTE_ID)!.colors,
+};
 
 const TEXT_DEFAULTS = {
   siteTitle: "Chris Fornesa",
@@ -45,7 +42,7 @@ const TEXT_DEFAULTS = {
 } as const;
 
 const COLOR_FIELDS: Array<{
-  key: keyof typeof HSL_DEFAULTS;
+  key: keyof PaletteColors;
   label: string;
   helper?: string;
 }> = [
@@ -63,6 +60,16 @@ const COLOR_FIELDS: Array<{
   { key: "colorMutedForeground", label: "Muted text" },
   { key: "colorDestructive", label: "Destructive" },
   { key: "colorDestructiveForeground", label: "Destructive text" },
+];
+
+const PREVIEW_SWATCH_KEYS: Array<keyof PaletteColors> = [
+  "colorBackground",
+  "colorForeground",
+  "colorPrimary",
+  "colorSecondary",
+  "colorAccent",
+  "colorMuted",
+  "colorDestructive",
 ];
 
 function parseHsl(input: string): { h: number; s: number; l: number } | null {
@@ -123,6 +130,8 @@ type FormState = Record<string, string>;
 
 function buildInitialState(settings: SiteSettings): FormState {
   return {
+    theme: settings.theme,
+    palette: settings.palette,
     siteTitle: settings.siteTitle,
     heroHeading: settings.heroHeading,
     heroSubheading: settings.heroSubheading,
@@ -158,6 +167,9 @@ export function SiteCustomizationCard({ settings }: SiteCustomizationCardProps) 
   const { toast } = useToast();
   const [form, setForm] = useState<FormState>(() => buildInitialState(settings));
   const [baseline, setBaseline] = useState<FormState>(() => buildInitialState(settings));
+  // Tracks the palette id we last smart-merged FROM, so palette swaps can tell
+  // which color fields are still "stock" vs custom-edited by the owner.
+  const lastPaletteRef = useRef<string>(settings.palette);
 
   const isDirty = useMemo(() => {
     return Object.keys(form).some((k) => form[k] !== baseline[k]);
@@ -170,6 +182,7 @@ export function SiteCustomizationCard({ settings }: SiteCustomizationCardProps) 
     setBaseline(next);
     if (!isDirty) {
       setForm(next);
+      lastPaletteRef.current = settings.palette;
     }
     // We intentionally exclude `isDirty` from deps: we want this to fire on
     // every new server snapshot and check dirty state at that moment.
@@ -195,8 +208,27 @@ export function SiteCustomizationCard({ settings }: SiteCustomizationCardProps) 
   const setColorFromHex = (key: string, hex: string) =>
     setField(key, hexToHsl(hex));
 
+  const handlePickTheme = (themeId: string) => {
+    setForm((prev) => ({ ...prev, theme: themeId }));
+  };
+
+  const handlePickPalette = (nextPaletteId: string) => {
+    setForm((prev) => {
+      const merged = smartMergePalette(prev, lastPaletteRef.current, nextPaletteId);
+      lastPaletteRef.current = nextPaletteId;
+      return { ...merged, palette: nextPaletteId };
+    });
+  };
+
   const handleResetDefaults = () => {
-    setForm({ ...TEXT_DEFAULTS, ...HSL_DEFAULTS });
+    const next = {
+      ...TEXT_DEFAULTS,
+      ...HSL_DEFAULTS,
+      theme: DEFAULT_THEME_ID,
+      palette: DEFAULT_PALETTE_ID,
+    };
+    setForm(next);
+    lastPaletteRef.current = DEFAULT_PALETTE_ID;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -204,17 +236,121 @@ export function SiteCustomizationCard({ settings }: SiteCustomizationCardProps) 
     update.mutate({ data: form as UpdateSiteSettingsBody });
   };
 
+  const activePalette = getPalette(form.palette);
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Site Customization</CardTitle>
         <CardDescription>
-          Owner-only. Edit the site title, sidebar copy, and full color palette. Changes apply
+          Owner-only. Pick a theme and palette, fine-tune any color or copy. Changes apply
           everywhere as soon as you save.
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-8">
+          <section className="space-y-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Theme & Palette
+            </h3>
+
+            <div className="space-y-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <Label className="text-xs font-semibold uppercase tracking-wide">Theme</Label>
+                <p className="text-xs text-muted-foreground">
+                  Borders, fonts, shadows, radius
+                </p>
+              </div>
+              <div className="grid gap-2 grid-cols-2 sm:grid-cols-3">
+                {THEMES.map((theme) => {
+                  const selected = form.theme === theme.id;
+                  return (
+                    <button
+                      key={theme.id}
+                      type="button"
+                      onClick={() => handlePickTheme(theme.id)}
+                      aria-pressed={selected}
+                      className={`text-left rounded-md border p-3 transition-colors ${
+                        selected
+                          ? "border-foreground bg-accent/40"
+                          : "border-border bg-background hover:bg-muted/40"
+                      }`}
+                    >
+                      <div className="text-sm font-semibold">{theme.label}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                        {theme.description}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <Label className="text-xs font-semibold uppercase tracking-wide">Palette</Label>
+                <p className="text-xs text-muted-foreground">
+                  14 colors — custom edits below are preserved
+                </p>
+              </div>
+              <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {PALETTES.map((palette) => {
+                  const selected = form.palette === palette.id;
+                  return (
+                    <button
+                      key={palette.id}
+                      type="button"
+                      onClick={() => handlePickPalette(palette.id)}
+                      aria-pressed={selected}
+                      className={`text-left rounded-md border p-3 transition-colors ${
+                        selected
+                          ? "border-foreground bg-accent/40"
+                          : "border-border bg-background hover:bg-muted/40"
+                      }`}
+                    >
+                      <div className="text-sm font-semibold">{palette.label}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                        {palette.description}
+                      </div>
+                      <div className="mt-2 flex gap-1">
+                        {PREVIEW_SWATCH_KEYS.map((k) => (
+                          <span
+                            key={k}
+                            className="inline-block h-4 w-4 rounded-full border border-border"
+                            style={{ backgroundColor: `hsl(${palette.colors[k]})` }}
+                            aria-hidden="true"
+                          />
+                        ))}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {activePalette && (
+                <div className="rounded-md border border-border bg-muted/30 p-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                    Live palette preview
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {PREVIEW_SWATCH_KEYS.map((k) => (
+                      <div key={k} className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-6 w-6 rounded-full border border-border"
+                          style={{ backgroundColor: `hsl(${form[k] ?? activePalette.colors[k]})` }}
+                          aria-hidden="true"
+                        />
+                        <span className="text-xs font-mono text-muted-foreground">
+                          {k.replace(/^color/, "").replace(/Foreground$/, "")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
           <section className="space-y-4">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               Identity & Copy
@@ -329,10 +465,11 @@ export function SiteCustomizationCard({ settings }: SiteCustomizationCardProps) 
             <div className="flex items-end justify-between gap-4">
               <div>
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  Color Palette
+                  Color Palette (per-field)
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Click a swatch to pick a color. Saved values apply across the site immediately.
+                  Click a swatch to override any individual color. Edits here survive when you
+                  switch palettes — only stock palette colors get replaced.
                 </p>
               </div>
               <Button type="button" variant="outline" size="sm" onClick={handleResetDefaults}>

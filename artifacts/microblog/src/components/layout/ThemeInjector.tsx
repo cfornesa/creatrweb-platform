@@ -1,5 +1,8 @@
 import { useEffect } from "react";
 import { useSiteSettings } from "@/hooks/use-site-settings";
+import { DEFAULT_THEME_ID, THEMES } from "@/lib/site-themes";
+
+const KNOWN_THEMES = new Set<string>(THEMES.map((t) => t.id));
 
 export function ThemeInjector() {
   const { data } = useSiteSettings();
@@ -59,6 +62,11 @@ export function ThemeInjector() {
     }
     el.textContent = css;
   }, [data]);
+
+  useEffect(() => {
+    const themeId = data?.theme && KNOWN_THEMES.has(data.theme) ? data.theme : DEFAULT_THEME_ID;
+    document.documentElement.setAttribute("data-theme", themeId);
+  }, [data?.theme]);
 
   useEffect(() => {
     if (data?.siteTitle) {

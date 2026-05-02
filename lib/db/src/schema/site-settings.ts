@@ -4,6 +4,9 @@ import { sql } from "drizzle-orm";
 export const siteSettingsTable = mysqlTable("site_settings", {
   id: int("id").primaryKey().default(1),
 
+  theme: varchar("theme", { length: 32 }).notNull().default("bauhaus"),
+  palette: varchar("palette", { length: 32 }).notNull().default("bauhaus"),
+
   siteTitle: varchar("site_title", { length: 255 }).notNull(),
   heroHeading: varchar("hero_heading", { length: 255 }).notNull(),
   heroSubheading: text("hero_subheading").notNull(),
@@ -38,6 +41,9 @@ export type SiteSettings = typeof siteSettingsTable.$inferSelect;
 export type InsertSiteSettings = typeof siteSettingsTable.$inferInsert;
 
 export const siteSettingsDefaults = {
+  theme: "bauhaus",
+  palette: "bauhaus",
+
   siteTitle: "Chris Fornesa",
   heroHeading: "Buenas at Kumusta!",
   heroSubheading:

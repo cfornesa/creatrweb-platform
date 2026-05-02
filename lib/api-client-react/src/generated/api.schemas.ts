@@ -125,6 +125,8 @@ export interface UploadedMedia {
 }
 
 export interface SiteSettings {
+  theme: string;
+  palette: string;
   siteTitle: string;
   heroHeading: string;
   heroSubheading: string;
@@ -151,6 +153,10 @@ export interface SiteSettings {
 }
 
 export interface UpdateSiteSettingsBody {
+  /** @maxLength 32 */
+  theme?: string;
+  /** @maxLength 32 */
+  palette?: string;
   /** @maxLength 255 */
   siteTitle?: string;
   /** @maxLength 255 */
