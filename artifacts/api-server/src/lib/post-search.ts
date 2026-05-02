@@ -14,10 +14,15 @@ const SNIPPET_MAX_LENGTH = 220;
 
 export type SearchQuery = {
   /**
-   * Raw expression for `MATCH(...) AGAINST(? IN BOOLEAN MODE)`.
-   * Empty string when every input token is shorter than the FULLTEXT
-   * minimum token length — in that case the route relies entirely on
-   * the LIKE fallback below.
+   * Raw expression for `MATCH(...) AGAINST(? IN BOOLEAN MODE)`. Each
+   * typed word becomes a required prefix-matched clause (`+word*`),
+   * and each `"..."` phrase becomes a required exact-phrase clause
+   * (`+"hello world"`). Both unquoted words and phrases must appear
+   * in the post for a row to match — phrase matching enforces the
+   * word order, prefix matching keeps singular/plural and stem
+   * variations findable. Empty string when every input token is
+   * shorter than the FULLTEXT minimum token length — in that case
+   * the route relies entirely on the LIKE fallback below.
    */
   booleanExpression: string;
   /** Lowercased, dedup'd word stems used for snippet highlighting. */
@@ -180,42 +185,89 @@ export function parseSearchQuery(raw: string): SearchQuery | null {
     raw.length > MAX_SEARCH_QUERY_LENGTH
       ? raw.slice(0, MAX_SEARCH_QUERY_LENGTH)
       : raw;
-  const trimmed = bounded.trim();
-  if (!trimmed) return null;
+  if (!bounded.trim()) return null;
 
-  // Strip MySQL boolean-mode operators that visitors might paste in
-  // (`+`, `-`, `*`, `>`, `<`, `(`, `)`, `~`, `@`, `"`). We rebuild the
-  // expression ourselves so a typed `+` or `*` doesn't silently change
-  // the semantics of the search.
-  const cleaned = trimmed
+  // Two-pass tokenization:
+  //   1. Pull out balanced `"..."` segments as phrases. These become
+  //      required exact-phrase clauses in the boolean expression
+  //      (`+"hello world"`), so the user's "these words, in this
+  //      order" intent is preserved.
+  //   2. Fall through to the existing operator-strip + word split on
+  //      whatever's left (unquoted words, plus any unbalanced `"`).
+  // We extract phrases first so a stray operator inside a phrase
+  // (e.g. `"foo+bar"`) is scrubbed inside the phrase rather than
+  // shredding the surrounding text.
+  const phraseTexts: string[] = [];
+  const remainder = bounded.replace(/"([^"]*)"/g, (_match, inner: string) => {
+    // Inside a MySQL boolean-mode phrase, `"` is the only true
+    // terminator — but we scrub the same operator set used outside
+    // for symmetry, and so an inner `*` doesn't get re-interpreted as
+    // a prefix wildcard against the phrase.
+    const cleanedPhrase = inner
+      .replace(/[+\-><()~@*]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+    if (cleanedPhrase.length > 0) {
+      phraseTexts.push(cleanedPhrase);
+    }
+    return " ";
+  });
+
+  // Strip the remaining boolean-mode operators (`+`, `-`, `*`, `>`,
+  // `<`, `(`, `)`, `~`, `@`, plus any stray unbalanced `"`) so a typed
+  // operator can't silently change the semantics of the search.
+  const cleaned = remainder
     .replace(/[+\-><()~@"*]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  if (!cleaned) return null;
 
   const seen = new Set<string>();
   const terms: string[] = [];
+  // Phrase words seed the highlight list first so a phrase like
+  // `"hello world"` highlights `hello` then `world` (input order).
+  // Words that appear both in a phrase and unquoted are deduped to
+  // the phrase entry — the phrase clause already requires them.
+  for (const phrase of phraseTexts) {
+    for (const word of phrase.split(" ")) {
+      if (!word) continue;
+      if (seen.has(word)) continue;
+      seen.add(word);
+      terms.push(word);
+    }
+  }
+  // Unquoted words: collected separately so we know which terms
+  // contribute their own boolean / LIKE branches (phrase-only words
+  // ride on the phrase clause and don't need a redundant `word*`).
+  const unquotedTerms: string[] = [];
   for (const word of cleaned.split(" ")) {
     const normalized = word.toLowerCase();
     if (normalized.length === 0) continue;
     if (seen.has(normalized)) continue;
     seen.add(normalized);
     terms.push(normalized);
+    unquotedTerms.push(normalized);
   }
   if (terms.length === 0) return null;
 
-  // OR-of-terms: each indexable token gets a trailing `*` for prefix
-  // matching but no leading `+`, so a multi-word query matches any of
-  // the words. Posts that match more terms still float to the top
-  // because the relevance score sums per-term contributions.
-  // e.g. `react hook` → `react* hook*`, `chris` → `chris*`.
+  // Build a single MySQL boolean-mode expression covering both
+  // phrases and unquoted words. Each piece is `+`-prefixed so it's
+  // required:
+  //   * Quoted phrase ⇒ `+"hello world"` (exact, in order).
+  //   * Unquoted word at/above FULLTEXT_MIN_LEN ⇒ `+word*` (required,
+  //     prefix-matched so plural/stem variants still hit).
+  // Sub-min-length tokens fall through to the LIKE fallback list.
+  // The route feeds `booleanExpression` into the existing
+  // `MATCH(...) AGAINST(? IN BOOLEAN MODE)` call — no route changes
+  // needed; phrase support is purely a boolean-mode feature.
   const fulltextParts: string[] = [];
   const likeTerms: string[] = [];
-  for (const term of terms) {
-    // Tokens long enough for the FULLTEXT index get the prefix-match
-    // branch (this is what gives us relevance scoring + index speed).
+  for (const phrase of phraseTexts) {
+    fulltextParts.push(`+"${phrase}"`);
+  }
+  for (const term of unquotedTerms) {
     if (term.length >= FULLTEXT_MIN_LEN) {
-      fulltextParts.push(`${term}*`);
+      fulltextParts.push(`+${term}*`);
     }
     // Tokens at or below the fallback ceiling also get a LIKE branch.
     // For tokens of length 1–2 this is the *only* way they match. For

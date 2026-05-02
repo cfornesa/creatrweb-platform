@@ -174,7 +174,10 @@ router.get("/posts/search", async (req: Request, res: Response) => {
       // Compose the q-predicate as an OR of the FULLTEXT branch and
       // any short-token LIKE branches. Either may be absent: a query
       // like `js` is LIKE-only, a query like `react` is FULLTEXT-only,
-      // and `js react` is both.
+      // and `js react` is both. The boolean-mode expression already
+      // carries the per-token `+` so phrases and unquoted words are
+      // required from inside MATCH; the LIKE branches stay OR'd to
+      // preserve the existing short-token findability behavior.
       const orParts: string[] = [];
       if (search.booleanExpression) {
         orParts.push("MATCH(p.content_text) AGAINST(? IN BOOLEAN MODE)");

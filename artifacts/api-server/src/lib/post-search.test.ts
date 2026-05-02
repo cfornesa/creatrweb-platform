@@ -19,22 +19,21 @@ describe("parseSearchQuery", () => {
     expect(parseSearchQuery('"*()@~')).toBeNull();
   });
 
-  it("builds a single prefix term for a single word above the FULLTEXT min", () => {
+  it("builds a single required prefix term for a single word above the FULLTEXT min", () => {
     const q = parseSearchQuery("Chris");
     expect(q).not.toBeNull();
-    expect(q!.booleanExpression).toBe("chris*");
+    expect(q!.booleanExpression).toBe("+chris*");
     expect(q!.terms).toEqual(["chris"]);
     expect(q!.likeTerms).toEqual([]);
   });
 
-  it("OR-joins multiple words with prefix wildcards (no leading +)", () => {
-    // The whole point of the new parser: multi-word queries match
-    // ANY of the words rather than ALL of them. The relevance score
-    // still floats docs that contain more terms to the top.
+  it("AND-joins multiple words with required prefix wildcards (each `+`-prefixed)", () => {
+    // Per task: unquoted words are each required, prefix-matched.
+    // `react hook` ⇒ `+react* +hook*` so a post must contain BOTH
+    // words (with prefix matching) to surface in the result set.
     const q = parseSearchQuery("react hook");
     expect(q).not.toBeNull();
-    expect(q!.booleanExpression).toBe("react* hook*");
-    expect(q!.booleanExpression).not.toContain("+");
+    expect(q!.booleanExpression).toBe("+react* +hook*");
     expect(q!.terms).toEqual(["react", "hook"]);
     expect(q!.likeTerms).toEqual([]);
   });
@@ -42,21 +41,21 @@ describe("parseSearchQuery", () => {
   it("lowercases tokens and dedupes regardless of input case", () => {
     const q = parseSearchQuery("React REACT react");
     expect(q!.terms).toEqual(["react"]);
-    expect(q!.booleanExpression).toBe("react*");
+    expect(q!.booleanExpression).toBe("+react*");
   });
 
   it("strips boolean-mode operators users may paste in", () => {
-    // `+react -hook *foo` should become `react* hook* foo*` (OR).
+    // `+react -hook *foo` should become `+react* +hook* +foo*`.
     const q = parseSearchQuery("+react -hook *foo");
     expect(q!.terms).toEqual(["react", "hook", "foo"]);
-    expect(q!.booleanExpression).toBe("react* hook* foo*");
+    expect(q!.booleanExpression).toBe("+react* +hook* +foo*");
   });
 
   it("routes tokens shorter than the FULLTEXT minimum to LIKE fallback", () => {
     // `js` is 2 chars — too short for FULLTEXT to index, so the
     // route needs a LIKE branch. `react` still goes to FULLTEXT.
     const q = parseSearchQuery("js react");
-    expect(q!.booleanExpression).toBe("react*");
+    expect(q!.booleanExpression).toBe("+react*");
     expect(q!.likeTerms).toEqual(["js"]);
     expect(q!.terms).toEqual(["js", "react"]);
   });
@@ -72,7 +71,7 @@ describe("parseSearchQuery", () => {
   it("collapses runs of internal whitespace to single tokens", () => {
     const q = parseSearchQuery("  react    hook  ");
     expect(q!.terms).toEqual(["react", "hook"]);
-    expect(q!.booleanExpression).toBe("react* hook*");
+    expect(q!.booleanExpression).toBe("+react* +hook*");
   });
 
   it("leaves a normal-length query unmodified by the length cap", () => {
@@ -91,16 +90,14 @@ describe("parseSearchQuery", () => {
       "tips",
     ]);
     expect(q!.booleanExpression).toBe(
-      "react* hooks* performance* optimization* tips*",
+      "+react* +hooks* +performance* +optimization* +tips*",
     );
   });
 
   it("silently truncates inputs longer than MAX_SEARCH_QUERY_LENGTH", () => {
     // Simulate an attacker pasting a multi-megabyte string. The parser
     // must not pass the entire payload through to a `LIKE '%…%'`
-    // predicate — it should clamp to the cap before tokenizing. We
-    // verify by constructing a payload whose tokens beyond the cap
-    // would otherwise show up in the boolean expression.
+    // predicate — it should clamp to the cap before tokenizing.
     const head = "react ";
     const giantTail = "junkjunkjunk".repeat(500_000); // ~6 MB
     const huge = head + giantTail;
@@ -111,8 +108,8 @@ describe("parseSearchQuery", () => {
     // Only the first MAX_SEARCH_QUERY_LENGTH chars are considered, so
     // "react" survives and at most one truncated `junkjunk…` fragment
     // follows. The total emitted boolean expression length is bounded
-    // by the cap (plus the `*` suffixes added per term), not by the
-    // input size.
+    // by the cap (plus the `+` prefix and `*` suffix per term), not
+    // by the input size.
     expect(q!.booleanExpression.length).toBeLessThan(
       MAX_SEARCH_QUERY_LENGTH * 2,
     );
@@ -158,6 +155,89 @@ describe("buildSearchSnippet", () => {
   });
 });
 
+describe("parseSearchQuery — quoted phrase support", () => {
+  it("treats a single quoted phrase as a required exact-phrase clause", () => {
+    // `"hello world"` should *only* match posts containing those
+    // words together in that order, so it lands as `+"hello world"`
+    // in MySQL boolean mode. The `+` makes it required, the quotes
+    // make it a phrase. No route changes needed — this is purely a
+    // boolean-mode feature.
+    const q = parseSearchQuery('"hello world"');
+    expect(q).not.toBeNull();
+    expect(q!.booleanExpression).toBe('+"hello world"');
+    expect(q!.terms).toEqual(["hello", "world"]);
+    expect(q!.likeTerms).toEqual([]);
+  });
+
+  it("lowercases phrase contents while preserving word order", () => {
+    const q = parseSearchQuery('"Hello World"');
+    expect(q!.booleanExpression).toBe('+"hello world"');
+    expect(q!.terms).toEqual(["hello", "world"]);
+  });
+
+  it("normalizes whitespace inside the phrase", () => {
+    const q = parseSearchQuery('"  hello   world  "');
+    expect(q!.booleanExpression).toBe('+"hello world"');
+    expect(q!.terms).toEqual(["hello", "world"]);
+  });
+
+  it("scrubs boolean-mode operators inside the phrase", () => {
+    // `"+foo *bar"` should not smuggle a `*` or `+` into the phrase
+    // text — those would terminate or otherwise corrupt the phrase
+    // when re-injected into the boolean expression.
+    const q = parseSearchQuery('"+foo *bar"');
+    expect(q!.booleanExpression).toBe('+"foo bar"');
+    expect(q!.terms).toEqual(["foo", "bar"]);
+  });
+
+  it("combines a required phrase with required unquoted words", () => {
+    // The phrase is required AND each unquoted word is also required
+    // (per the task). Boolean expression: `+"hello world" +react*`.
+    const q = parseSearchQuery('"hello world" react');
+    expect(q).not.toBeNull();
+    expect(q!.booleanExpression).toBe('+"hello world" +react*');
+    expect(q!.terms).toEqual(["hello", "world", "react"]);
+    expect(q!.likeTerms).toEqual([]);
+  });
+
+  it("skips an unquoted word that already appears in a phrase", () => {
+    // The phrase already pins both words; emitting a separate
+    // `+react*` branch would be redundant noise.
+    const q = parseSearchQuery('"react hook" react');
+    expect(q!.booleanExpression).toBe('+"react hook"');
+    expect(q!.terms).toEqual(["react", "hook"]);
+  });
+
+  it("supports multiple phrases — each becomes its own +clause", () => {
+    const q = parseSearchQuery('"hello world" "foo bar"');
+    expect(q!.booleanExpression).toBe('+"hello world" +"foo bar"');
+    expect(q!.terms).toEqual(["hello", "world", "foo", "bar"]);
+  });
+
+  it("ignores empty phrases and falls back to unquoted parsing", () => {
+    // `""` collapses away; `hello` is parsed as a normal unquoted
+    // word and remains required (`+hello*`).
+    const q = parseSearchQuery('"" hello');
+    expect(q).not.toBeNull();
+    expect(q!.booleanExpression).toBe("+hello*");
+    expect(q!.terms).toEqual(["hello"]);
+  });
+
+  it("returns null when only empty phrases are given", () => {
+    expect(parseSearchQuery('""')).toBeNull();
+    expect(parseSearchQuery('"" "" ""')).toBeNull();
+  });
+
+  it("treats an unbalanced trailing quote as the existing operator strip", () => {
+    // No closing `"` ⇒ no phrase extraction; the lone `"` is scrubbed
+    // by the second-pass operator strip and the word survives.
+    const q = parseSearchQuery('"hello');
+    expect(q).not.toBeNull();
+    expect(q!.booleanExpression).toBe("+hello*");
+    expect(q!.terms).toEqual(["hello"]);
+  });
+});
+
 describe("parseSearchQuery — short-token dual-branch coverage", () => {
   it("emits BOTH a FULLTEXT branch and a LIKE branch for 3-char tokens", () => {
     // 3-char tokens are right at the boundary of MySQL's FULLTEXT
@@ -166,7 +246,7 @@ describe("parseSearchQuery — short-token dual-branch coverage", () => {
     // accepts the token.
     const q = parseSearchQuery("vue");
     expect(q).not.toBeNull();
-    expect(q!.booleanExpression).toBe("vue*");
+    expect(q!.booleanExpression).toBe("+vue*");
     expect(q!.likeTerms).toEqual(["vue"]);
     expect(q!.terms).toEqual(["vue"]);
   });
@@ -176,7 +256,7 @@ describe("parseSearchQuery — short-token dual-branch coverage", () => {
     // react (5): FULLTEXT only.
     const q = parseSearchQuery("js iOS react");
     expect(q).not.toBeNull();
-    expect(q!.booleanExpression).toBe("ios* react*");
+    expect(q!.booleanExpression).toBe("+ios* +react*");
     expect(q!.likeTerms).toEqual(["js", "ios"]);
     expect(q!.terms).toEqual(["js", "ios", "react"]);
   });
