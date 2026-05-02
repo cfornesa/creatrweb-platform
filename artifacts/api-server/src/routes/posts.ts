@@ -124,24 +124,29 @@ router.get("/posts/user/:userId", async (req: Request, res: Response) => {
 // endpoint is the only place that does highlighting so the client just
 // renders the (server-sanitized) `<mark>...</mark>` snippet.
 router.get("/posts/search", async (req: Request, res: Response) => {
+  // All input parsing is intentionally permissive: garbage filter
+  // values collapse to "no filter" rather than 400. The only path
+  // that returns an error response is the catch handler, and it
+  // returns 500 because by the time we get there we have a real bug
+  // or DB outage to investigate — not user input to reject.
+  const rawQ = typeof req.query.q === "string" ? req.query.q : "";
+  const rawFrom = typeof req.query.from === "string" ? req.query.from : "";
+  const rawTo = typeof req.query.to === "string" ? req.query.to : "";
+  const rawSources = typeof req.query.sources === "string" ? req.query.sources : "";
+  const rawAuthor = typeof req.query.author === "string" ? req.query.author : "";
+  const rawFormat = typeof req.query.format === "string" ? req.query.format : "";
+  const rawPage = typeof req.query.page === "string" ? req.query.page : "1";
+  const rawLimit = typeof req.query.limit === "string" ? req.query.limit : "20";
+
+  const page = Math.max(1, Number.parseInt(rawPage, 10) || 1);
+  // Cap `limit` to keep result-set size bounded; the UI never needs
+  // more than 50 cards per page.
+  const limit = Math.min(50, Math.max(1, Number.parseInt(rawLimit, 10) || 20));
+  const offset = (page - 1) * limit;
+
+  const search: SearchQuery | null = parseSearchQuery(rawQ);
+
   try {
-    const rawQ = typeof req.query.q === "string" ? req.query.q : "";
-    const rawFrom = typeof req.query.from === "string" ? req.query.from : "";
-    const rawTo = typeof req.query.to === "string" ? req.query.to : "";
-    const rawSources = typeof req.query.sources === "string" ? req.query.sources : "";
-    const rawAuthor = typeof req.query.author === "string" ? req.query.author : "";
-    const rawFormat = typeof req.query.format === "string" ? req.query.format : "";
-    const rawPage = typeof req.query.page === "string" ? req.query.page : "1";
-    const rawLimit = typeof req.query.limit === "string" ? req.query.limit : "20";
-
-    const page = Math.max(1, Number.parseInt(rawPage, 10) || 1);
-    // Cap `limit` to keep result-set size bounded; the UI never needs
-    // more than 50 cards per page.
-    const limit = Math.min(50, Math.max(1, Number.parseInt(rawLimit, 10) || 20));
-    const offset = (page - 1) * limit;
-
-    const search: SearchQuery | null = parseSearchQuery(rawQ);
-
     // WHERE clause built up as parameterized fragments. We use raw SQL
     // because Drizzle's query builder doesn't have a `MATCH ... AGAINST`
     // primitive and we want a single round-trip with the FULLTEXT
@@ -150,8 +155,22 @@ router.get("/posts/search", async (req: Request, res: Response) => {
     const whereParams: unknown[] = ["published"];
 
     if (search) {
-      whereParts.push("MATCH(p.content_text) AGAINST(? IN BOOLEAN MODE)");
-      whereParams.push(search.booleanExpression);
+      // Compose the q-predicate as an OR of the FULLTEXT branch and
+      // any short-token LIKE branches. Either may be absent: a query
+      // like `js` is LIKE-only, a query like `react` is FULLTEXT-only,
+      // and `js react` is both.
+      const orParts: string[] = [];
+      if (search.booleanExpression) {
+        orParts.push("MATCH(p.content_text) AGAINST(? IN BOOLEAN MODE)");
+        whereParams.push(search.booleanExpression);
+      }
+      for (const term of search.likeTerms) {
+        orParts.push("LOWER(p.content_text) LIKE LOWER(?)");
+        whereParams.push(`%${term}%`);
+      }
+      // `parseSearchQuery` guarantees orParts is non-empty whenever
+      // it returns a non-null result, so the wrap is always safe.
+      whereParts.push(`(${orParts.join(" OR ")})`);
     }
 
     if (rawFrom) {
@@ -230,18 +249,19 @@ router.get("/posts/search", async (req: Request, res: Response) => {
 
     const whereSql = whereParts.join(" AND ");
 
-    // Score column only when we have a query; otherwise fall back to
-    // recency. Two SELECTs to keep the no-query path from carrying a
-    // useless 0.0 score.
-    const selectScore = search
+    // Score column only when we have a FULLTEXT branch to score
+    // against; LIKE-only searches sort by recency so the result set
+    // is at least stable.
+    const hasFulltext = !!search?.booleanExpression;
+    const selectScore = hasFulltext
       ? ", MATCH(p.content_text) AGAINST(? IN BOOLEAN MODE) AS score"
       : "";
-    const orderBy = search
+    const orderBy = hasFulltext
       ? "ORDER BY score DESC, p.created_at DESC"
       : "ORDER BY p.created_at DESC";
 
     const queryParams: unknown[] = [];
-    if (search) queryParams.push(search.booleanExpression);
+    if (hasFulltext) queryParams.push(search!.booleanExpression);
     queryParams.push(...whereParams, limit, offset);
 
     const sqlText = `
@@ -288,7 +308,7 @@ router.get("/posts/search", async (req: Request, res: Response) => {
         createdAt: row.createdAt,
         snippet,
       };
-      if (search && row.score !== undefined) {
+      if (hasFulltext && row.score !== undefined) {
         result.score = Number(row.score);
       }
       return result;
@@ -296,7 +316,17 @@ router.get("/posts/search", async (req: Request, res: Response) => {
 
     return res.json({ posts, total, page, limit, query: rawQ });
   } catch (err) {
-    return res.status(400).json({ error: "Invalid request" });
+    // We've already validated/normalized inputs above, so anything
+    // that throws here is a server-side fault (DB outage, malformed
+    // SQL after a refactor, etc.). Log with the request id so we can
+    // correlate with `pino-http` access logs, and return 5xx so the
+    // client knows it's safe to retry rather than to "fix" their
+    // query.
+    req.log?.error(
+      { err, q: rawQ, page, limit },
+      "GET /api/posts/search failed",
+    );
+    return res.status(500).json({ error: "Search failed" });
   }
 });
 

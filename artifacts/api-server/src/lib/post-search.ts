@@ -13,11 +13,28 @@ const SNIPPET_RADIUS = 80;
 const SNIPPET_MAX_LENGTH = 220;
 
 export type SearchQuery = {
-  /** Raw expression to feed `MATCH(...) AGAINST(? IN BOOLEAN MODE)`. */
+  /**
+   * Raw expression for `MATCH(...) AGAINST(? IN BOOLEAN MODE)`.
+   * Empty string when every input token is shorter than the FULLTEXT
+   * minimum token length — in that case the route relies entirely on
+   * the LIKE fallback below.
+   */
   booleanExpression: string;
   /** Lowercased, dedup'd word stems used for snippet highlighting. */
   terms: string[];
+  /**
+   * Tokens shorter than the FULLTEXT minimum token size. The FULLTEXT
+   * index silently ignores them, so the route ORs in a
+   * `LOWER(content_text) LIKE LOWER('%term%')` predicate to keep them
+   * findable. Trade speed for correctness — short queries are uncommon.
+   */
+  likeTerms: string[];
 };
+
+// MySQL InnoDB's default `innodb_ft_min_token_size` is 3, and MyISAM's
+// default `ft_min_word_len` is 4. We use 3 here, which is correct for
+// our InnoDB tables; tokens of length 1–2 fall back to LIKE.
+const FULLTEXT_MIN_LEN = 3;
 
 export function parseSearchQuery(raw: string): SearchQuery | null {
   const trimmed = raw.trim();
@@ -25,9 +42,8 @@ export function parseSearchQuery(raw: string): SearchQuery | null {
 
   // Strip MySQL boolean-mode operators that visitors might paste in
   // (`+`, `-`, `*`, `>`, `<`, `(`, `)`, `~`, `@`, `"`). We rebuild the
-  // expression ourselves with `+` prefixes for AND-of-terms semantics
-  // and a trailing `*` for prefix matching, which is the closest to
-  // "what people expect from a search box" within MySQL FULLTEXT.
+  // expression ourselves so a typed `+` or `*` doesn't silently change
+  // the semantics of the search.
   const cleaned = trimmed
     .replace(/[+\-><()~@"*]/g, " ")
     .replace(/\s+/g, " ")
@@ -45,15 +61,28 @@ export function parseSearchQuery(raw: string): SearchQuery | null {
   }
   if (terms.length === 0) return null;
 
-  // Each term gets a `+` so it's required, and a trailing `*` so it
-  // matches as a prefix. e.g. `react hook` → `+react* +hook*`.
-  // Single-character terms are below MySQL's default ft_min_word_len
-  // (4) so they would silently match nothing; we still include them in
-  // the boolean expression but the relevance score will be zero, which
-  // is fine — the server falls back to date order on a zero score.
-  const booleanExpression = terms.map((term) => `+${term}*`).join(" ");
+  // OR-of-terms: each indexable token gets a trailing `*` for prefix
+  // matching but no leading `+`, so a multi-word query matches any of
+  // the words. Posts that match more terms still float to the top
+  // because the relevance score sums per-term contributions.
+  // e.g. `react hook` → `react* hook*`, `chris` → `chris*`.
+  const fulltextParts: string[] = [];
+  const likeTerms: string[] = [];
+  for (const term of terms) {
+    if (term.length >= FULLTEXT_MIN_LEN) {
+      fulltextParts.push(`${term}*`);
+    } else {
+      likeTerms.push(term);
+    }
+  }
+  const booleanExpression = fulltextParts.join(" ");
 
-  return { booleanExpression, terms };
+  // Nothing usable in either bucket — should be impossible because
+  // `terms` is non-empty, but guard so the route never sees a search
+  // with no predicates at all.
+  if (booleanExpression.length === 0 && likeTerms.length === 0) return null;
+
+  return { booleanExpression, terms, likeTerms };
 }
 
 const HTML_ESCAPE_MAP: Record<string, string> = {

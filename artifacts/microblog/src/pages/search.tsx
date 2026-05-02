@@ -271,7 +271,9 @@ export default function SearchPage() {
       <div className="grid gap-8 md:grid-cols-[16rem_1fr]">
         <aside className="space-y-6" data-testid="search-filters">
           {/* Inline query input — mirror of the header search so the
-              page works even when the header is scrolled away on mobile. */}
+              page works even when the header is scrolled away on mobile.
+              The submit button matches the header behavior so the
+              affordance is the same wherever the user is on the page. */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -281,14 +283,24 @@ export default function SearchPage() {
             className="space-y-1.5"
           >
             <Label htmlFor="search-q">Query</Label>
-            <Input
-              id="search-q"
-              type="search"
-              value={localQ}
-              onChange={(e) => setLocalQ(e.target.value)}
-              placeholder="words to search…"
-              enterKeyHint="search"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                id="search-q"
+                type="search"
+                value={localQ}
+                onChange={(e) => setLocalQ(e.target.value)}
+                placeholder="words to search…"
+                enterKeyHint="search"
+                className="flex-1"
+              />
+              <Button
+                type="submit"
+                size="sm"
+                data-testid="search-page-submit"
+              >
+                Search
+              </Button>
+            </div>
           </form>
 
           <div className="space-y-3">

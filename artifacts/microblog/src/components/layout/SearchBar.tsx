@@ -108,31 +108,47 @@ export function SearchBar() {
 
   return (
     <>
-      {/* Desktop: inline input. Hidden below `sm`. */}
+      {/* Desktop: inline input + visible Search button. The button
+          mirrors what Enter does so the affordance is discoverable
+          (Enter alone wasn't obvious to first-time visitors). The
+          button stays enabled even with an empty input — submitting
+          empty navigates to /search, which is the filter-only entry
+          point, and is the same behavior as Enter. Hidden below `sm`. */}
       <form
         onSubmit={onInlineSubmit}
         role="search"
-        className="relative hidden sm:block"
+        className="relative hidden sm:flex items-center gap-1.5"
         data-testid="header-search"
       >
-        <Search
-          className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden="true"
-        />
-        <Input
-          ref={inlineRef}
-          type="search"
-          name="q"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={onInlineKeyDown}
-          placeholder="Search posts…"
-          aria-label="Search posts"
-          // `enterKeyHint=search` flips the mobile keyboard's return key
-          // glyph to a magnifier so the action is discoverable.
-          enterKeyHint="search"
-          className="h-9 w-44 pl-8 md:w-56"
-        />
+        <div className="relative">
+          <Search
+            className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            ref={inlineRef}
+            type="search"
+            name="q"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={onInlineKeyDown}
+            placeholder="Search posts…"
+            aria-label="Search posts"
+            // `enterKeyHint=search` flips the mobile keyboard's return key
+            // glyph to a magnifier so the action is discoverable.
+            enterKeyHint="search"
+            className="h-9 w-44 pl-8 md:w-56"
+          />
+        </div>
+        <Button
+          type="submit"
+          size="sm"
+          variant="secondary"
+          className="h-9"
+          data-testid="header-search-submit"
+        >
+          Search
+        </Button>
       </form>
 
       {/* Mobile: icon button that opens a top sheet with the same field. */}
@@ -157,22 +173,31 @@ export function SearchBar() {
           <SheetHeader className="sr-only">
             <SheetTitle>Search posts</SheetTitle>
           </SheetHeader>
-          <form onSubmit={onSheetSubmit} role="search" className="relative">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <Input
-              ref={sheetRef}
-              type="search"
-              name="q"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="Search posts…"
-              aria-label="Search posts"
-              enterKeyHint="search"
-              className="h-11 w-full pl-9"
-            />
+          <form onSubmit={onSheetSubmit} role="search" className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <Input
+                ref={sheetRef}
+                type="search"
+                name="q"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder="Search posts…"
+                aria-label="Search posts"
+                enterKeyHint="search"
+                className="h-11 w-full pl-9"
+              />
+            </div>
+            <Button
+              type="submit"
+              className="h-11"
+              data-testid="header-search-sheet-submit"
+            >
+              Search
+            </Button>
           </form>
         </SheetContent>
       </Sheet>
