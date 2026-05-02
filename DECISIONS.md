@@ -376,7 +376,7 @@ options regardless of session context. -->
 
 ### Unresolved Checkpoints Entering Next Session
 - [x] Decide whether the visual identity contract has changed — i.e. whether DESIGN.md "Declared Preferences" should now describe a Bauhaus *default* with optional alternates, rather than Bauhaus as the only acceptable look. **Confirmed 2026-05-02:** Bauhaus remains the *default* identity; the alternate themes are owner-chosen exceptions. Captured in DESIGN.md Observed Taste (2026-05-02 DIRECTION + TENSION entries).
-- [ ] Decide whether to stop the first-paint flash via server-rendered initial state (would require API server to inject a `<style>` block or `data-theme` attr into index.html before React mounts).
+- [x] Decide whether to stop the first-paint flash via server-rendered initial state (would require API server to inject a `<style>` block or `data-theme` attr into index.html before React mounts). **Done 2026-05-02:** API server now injects `data-theme` on `<html>` and a `<style id="site-settings-theme">` block into every HTML response before React mounts. `ThemeInjector` is idempotent — it only updates the style/attribute if the value has changed, so there is no re-flash on hydration.
 - [ ] Decide whether the picker tiles in `SiteCustomizationCard` should opt out of the theme button styling so they read more like a static gallery and less like 18 chunky brutal buttons.
 
 ---

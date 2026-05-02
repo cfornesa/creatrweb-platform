@@ -11,7 +11,7 @@ import { logger } from "./lib/logger";
 import { authConfig } from "./auth/config";
 import { hydrateAuth } from "./middlewares/auth";
 import { createRateLimitMiddleware } from "./lib/ratelimit";
-import { injectPostMetadata } from "./lib/meta-injection";
+import { injectPostMetadata, injectThemeData } from "./lib/meta-injection";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -86,8 +86,9 @@ if (fs.existsSync(staticPath)) {
   });
 
   app.use(express.static(staticPath));
-  app.use((_req: Request, res: Response) => {
-    res.sendFile(indexPath);
+  app.use(async (_req: Request, res: Response) => {
+    const html = await injectThemeData(indexPath);
+    res.send(html);
   });
 } else {
   logger.warn(

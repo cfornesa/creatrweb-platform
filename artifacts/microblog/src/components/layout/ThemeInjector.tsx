@@ -3,14 +3,10 @@ import { useSiteSettings } from "@/hooks/use-site-settings";
 import { DEFAULT_THEME_ID, THEMES } from "@/lib/site-themes";
 
 const KNOWN_THEMES = new Set<string>(THEMES.map((t) => t.id));
+const STYLE_ID = "site-settings-theme";
 
-export function ThemeInjector() {
-  const { data } = useSiteSettings();
-
-  useEffect(() => {
-    if (!data) return;
-
-    const css = `
+function buildCss(data: NonNullable<ReturnType<typeof useSiteSettings>["data"]>): string {
+  return `
 :root {
   --background: ${data.colorBackground};
   --foreground: ${data.colorForeground};
@@ -50,22 +46,33 @@ export function ThemeInjector() {
   --destructive-foreground: ${data.colorDestructiveForeground};
   --input: ${data.colorBackgroundDark};
   --ring: ${data.colorSecondary};
+}`.trim();
 }
-`.trim();
 
-    const STYLE_ID = "site-settings-theme";
+export function ThemeInjector() {
+  const { data } = useSiteSettings();
+
+  useEffect(() => {
+    if (!data) return;
+
+    const css = buildCss(data);
+
     let el = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
     if (!el) {
       el = document.createElement("style");
       el.id = STYLE_ID;
       document.head.appendChild(el);
     }
-    el.textContent = css;
+    if (el.textContent !== css) {
+      el.textContent = css;
+    }
   }, [data]);
 
   useEffect(() => {
     const themeId = data?.theme && KNOWN_THEMES.has(data.theme) ? data.theme : DEFAULT_THEME_ID;
-    document.documentElement.setAttribute("data-theme", themeId);
+    if (document.documentElement.getAttribute("data-theme") !== themeId) {
+      document.documentElement.setAttribute("data-theme", themeId);
+    }
   }, [data?.theme]);
 
   useEffect(() => {
