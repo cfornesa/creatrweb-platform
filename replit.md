@@ -213,7 +213,7 @@ Several top-level folders and markdown files in this repo are part of the **Crea
 | `.agents/` | Per-tool skill directory (Cline, Aider, etc. read this) |
 | `.claude/` | Claude Code's skill directory |
 | `.gemini/` | Gemini CLI's `settings.json` |
-| `.github/copilot-instructions.md` | GitHub Copilot's per-repo instructions |
+| `.github/` | GitHub-specific files — currently holds only `.github/copilot-instructions.md` (GitHub Copilot's per-repo instructions). If you want to keep GitHub Actions workflows or Dependabot config, you can keep `.github/` and delete just the `copilot-instructions.md` file inside it. |
 | `AGENTS.md` | The framework's standing rule set (cross-tool) |
 | `CLAUDE.md` | Claude Code's instruction file — primarily points at `AGENTS.md` with small Claude-specific additions |
 | `GEMINI.md` | Gemini CLI's instruction file — primarily points at `AGENTS.md` with small Gemini-specific additions |

@@ -223,7 +223,7 @@ The full step-by-step (every environment variable, the maintenance-query catalog
 
 Several top-level folders and markdown files in this repo are part of the **Creatrweb framework** (https://github.com/cfornesa/creatrweb) — a convention for working with AI coding tools (Claude Code, Gemini CLI, GitHub Copilot, Replit Agent, etc.). They are **not runtime dependencies of the application**. Forks that don't use those AI tools can safely delete:
 
-- `.agents/`, `.claude/`, `.gemini/`, `.github/copilot-instructions.md` — per-tool skill / instruction files
+- `.agents/`, `.claude/`, `.gemini/`, `.github/` — per-tool skill / instruction directories (`.github/` currently holds only `copilot-instructions.md`; keep the directory if you want to add GitHub Actions or Dependabot config later, and delete just the file inside)
 - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` — agent rule sets (`CLAUDE.md` and `GEMINI.md` primarily point at `AGENTS.md` with small tool-specific additions)
 - `MEMORY.md`, `DECISIONS.md`, `CONSTRAINTS.md`, `DESIGN.md`, `EVAL_PROMPT.md` — Creatrweb's long-term-memory and evaluation files
 
@@ -231,7 +231,7 @@ Several top-level folders and markdown files in this repo are part of the **Crea
 
 ### Related Docs
 
-- [docs/auth-setup.md](./docs/auth-setup.md)
-- [docs/dependencies.md](./docs/dependencies.md)
-- [DECISIONS.md](./DECISIONS.md) (Creatrweb framework — see "Optional Creatrweb framework files" above)
-- [MEMORY.md](./MEMORY.md) (Creatrweb framework — see "Optional Creatrweb framework files" above)
+- [docs/auth-setup.md](/Users/Fornesus/Code/personal-microblog/docs/auth-setup.md:1)
+- [docs/dependencies.md](/Users/Fornesus/Code/personal-microblog/docs/dependencies.md:1)
+- [DECISIONS.md](/Users/Fornesus/Code/personal-microblog/DECISIONS.md:1)
+- [MEMORY.md](/Users/Fornesus/Code/personal-microblog/MEMORY.md:1)
