@@ -46,6 +46,19 @@ export type SearchQuery = {
 const FULLTEXT_MIN_LEN = 3;
 const LIKE_FALLBACK_MAX_LEN = 3;
 
+// Hard upper bound on the raw `q` string accepted by `parseSearchQuery`.
+// The endpoint is intentionally permissive — garbage filter values
+// collapse to "no filter" rather than 400 — so there's nothing else
+// stopping a buggy or malicious client from pasting a multi-megabyte
+// string into `q`. Without a cap that string would flow into a
+// `LIKE '%…%'` predicate (and into the JSON response echo), forcing a
+// slow scan for no good reason. 200 characters is well above any
+// realistic human-typed query but small enough that the predicate
+// stays cheap. Inputs longer than this are silently truncated at the
+// top of `parseSearchQuery`; the route also clamps `rawQ` before
+// echoing it back so the response payload stays bounded too.
+export const MAX_SEARCH_QUERY_LENGTH = 200;
+
 /**
  * Inputs the search route validates up front. The values that come
  * back are safe to use directly in SQL — `page`/`limit` are bounded
@@ -160,7 +173,14 @@ export function validateSearchInput(query: {
 }
 
 export function parseSearchQuery(raw: string): SearchQuery | null {
-  const trimmed = raw.trim();
+  // Clamp before any further work so a multi-megabyte `q` can't drive
+  // the regex or the downstream `LIKE '%…%'` predicate. See the comment
+  // on `MAX_SEARCH_QUERY_LENGTH` above.
+  const bounded =
+    raw.length > MAX_SEARCH_QUERY_LENGTH
+      ? raw.slice(0, MAX_SEARCH_QUERY_LENGTH)
+      : raw;
+  const trimmed = bounded.trim();
   if (!trimmed) return null;
 
   // Strip MySQL boolean-mode operators that visitors might paste in

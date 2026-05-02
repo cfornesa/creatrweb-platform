@@ -18,6 +18,7 @@ import {
   buildSearchSnippet,
   parseSearchQuery,
   validateSearchInput,
+  MAX_SEARCH_QUERY_LENGTH,
   type SearchQuery,
 } from "../lib/post-search";
 import type { RowDataPacket } from "mysql2/promise";
@@ -146,7 +147,14 @@ router.get("/posts/search", async (req: Request, res: Response) => {
   const { page, limit, formats } = validated.value;
   const offset = (page - 1) * limit;
 
-  const rawQ = typeof req.query.q === "string" ? req.query.q : "";
+  // Clamp `q` up front: the parser also truncates defensively, but
+  // bounding it here keeps the JSON echo (`query: rawQ` below) and the
+  // error log payload from carrying a multi-megabyte string back out.
+  const rawQRaw = typeof req.query.q === "string" ? req.query.q : "";
+  const rawQ =
+    rawQRaw.length > MAX_SEARCH_QUERY_LENGTH
+      ? rawQRaw.slice(0, MAX_SEARCH_QUERY_LENGTH)
+      : rawQRaw;
   const rawFrom = typeof req.query.from === "string" ? req.query.from : "";
   const rawTo = typeof req.query.to === "string" ? req.query.to : "";
   const rawSources = typeof req.query.sources === "string" ? req.query.sources : "";

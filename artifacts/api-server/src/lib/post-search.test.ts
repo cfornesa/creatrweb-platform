@@ -3,6 +3,7 @@ import {
   parseSearchQuery,
   buildSearchSnippet,
   validateSearchInput,
+  MAX_SEARCH_QUERY_LENGTH,
 } from "./post-search";
 
 describe("parseSearchQuery", () => {
@@ -72,6 +73,62 @@ describe("parseSearchQuery", () => {
     const q = parseSearchQuery("  react    hook  ");
     expect(q!.terms).toEqual(["react", "hook"]);
     expect(q!.booleanExpression).toBe("react* hook*");
+  });
+
+  it("leaves a normal-length query unmodified by the length cap", () => {
+    // A realistic multi-word query well under the cap should round-trip
+    // exactly as if the cap weren't there. The cap is a backstop; it
+    // must not perturb everyday traffic.
+    const normal = "react hooks performance optimization tips";
+    expect(normal.length).toBeLessThan(MAX_SEARCH_QUERY_LENGTH);
+    const q = parseSearchQuery(normal);
+    expect(q).not.toBeNull();
+    expect(q!.terms).toEqual([
+      "react",
+      "hooks",
+      "performance",
+      "optimization",
+      "tips",
+    ]);
+    expect(q!.booleanExpression).toBe(
+      "react* hooks* performance* optimization* tips*",
+    );
+  });
+
+  it("silently truncates inputs longer than MAX_SEARCH_QUERY_LENGTH", () => {
+    // Simulate an attacker pasting a multi-megabyte string. The parser
+    // must not pass the entire payload through to a `LIKE '%…%'`
+    // predicate — it should clamp to the cap before tokenizing. We
+    // verify by constructing a payload whose tokens beyond the cap
+    // would otherwise show up in the boolean expression.
+    const head = "react ";
+    const giantTail = "junkjunkjunk".repeat(500_000); // ~6 MB
+    const huge = head + giantTail;
+    expect(huge.length).toBeGreaterThan(MAX_SEARCH_QUERY_LENGTH);
+
+    const q = parseSearchQuery(huge);
+    expect(q).not.toBeNull();
+    // Only the first MAX_SEARCH_QUERY_LENGTH chars are considered, so
+    // "react" survives and at most one truncated `junkjunk…` fragment
+    // follows. The total emitted boolean expression length is bounded
+    // by the cap (plus the `*` suffixes added per term), not by the
+    // input size.
+    expect(q!.booleanExpression.length).toBeLessThan(
+      MAX_SEARCH_QUERY_LENGTH * 2,
+    );
+    expect(q!.terms[0]).toBe("react");
+    // Sanity: nowhere near 500_000 repetitions of the junk token end
+    // up in the parsed terms list.
+    expect(q!.terms.length).toBeLessThan(10);
+  });
+
+  it("treats an input exactly at the cap as a normal query", () => {
+    // Boundary: inputs of length === MAX_SEARCH_QUERY_LENGTH must not
+    // be truncated. Only `> cap` triggers the slice.
+    const exact = "a".repeat(MAX_SEARCH_QUERY_LENGTH);
+    const q = parseSearchQuery(exact);
+    expect(q).not.toBeNull();
+    expect(q!.terms).toEqual([exact]);
   });
 });
 
