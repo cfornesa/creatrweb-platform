@@ -34,9 +34,15 @@ import { SharePostDialog } from "./SharePostDialog";
 interface PostCardProps {
   post: Post;
   isDetail?: boolean;
+  /**
+   * Optional search query carried over from `/search`. When set, the
+   * rendered post body highlights matching tokens with `<mark>`. The
+   * highlight is purely visual — the stored post HTML is never altered.
+   */
+  highlightQuery?: string | null;
 }
 
-export function PostCard({ post, isDetail = false }: PostCardProps) {
+export function PostCard({ post, isDetail = false, highlightQuery }: PostCardProps) {
   const { currentUser, isOwner } = useCurrentUser();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -343,7 +349,11 @@ export function PostCard({ post, isDetail = false }: PostCardProps) {
             />
           </div>
         ) : (
-          <PostContent content={displayPost.content} contentFormat={displayPost.contentFormat} />
+          <PostContent
+            content={displayPost.content}
+            contentFormat={displayPost.contentFormat}
+            highlightQuery={highlightQuery}
+          />
         )}
 
         <div className="flex items-center gap-2 pt-2">

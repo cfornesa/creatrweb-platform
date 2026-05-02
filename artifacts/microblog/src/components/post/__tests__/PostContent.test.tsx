@@ -30,4 +30,75 @@ describe("PostContent", () => {
     expect(container.textContent).toContain("line one");
     expect(container.textContent).toContain("line two");
   });
+
+  it("highlights matched tokens in plain content (case-insensitive)", () => {
+    const { container } = render(
+      <PostContent
+        content="Hello world, hello there"
+        contentFormat="plain"
+        highlightQuery="HELLO"
+      />,
+    );
+    const marks = container.querySelectorAll("mark");
+    expect(marks).toHaveLength(2);
+    expect(marks[0].textContent).toBe("Hello");
+    expect(marks[1].textContent).toBe("hello");
+    // Whole text is still readable.
+    expect(container.textContent).toBe("Hello world, hello there");
+  });
+
+  it("highlights matched tokens inside HTML without breaking tags", () => {
+    const { container } = render(
+      <PostContent
+        content='<p>Hello <strong>world</strong></p>'
+        contentFormat="html"
+        highlightQuery="world"
+      />,
+    );
+    const strong = container.querySelector("strong");
+    // The bold tag must survive — highlighting wraps the inner text only.
+    expect(strong).not.toBeNull();
+    const mark = strong?.querySelector("mark");
+    expect(mark?.textContent).toBe("world");
+  });
+
+  it("does not match across HTML tag boundaries", () => {
+    // "world" appears inside <strong>, but with a query of "lloworld"
+    // (which would only match if we naively scanned the raw HTML
+    // string) we must not produce any marks.
+    const { container } = render(
+      <PostContent
+        content='<p>Hello <strong>world</strong></p>'
+        contentFormat="html"
+        highlightQuery="lloworld"
+      />,
+    );
+    expect(container.querySelectorAll("mark")).toHaveLength(0);
+  });
+
+  it("renders normally when highlightQuery is empty", () => {
+    const { container } = render(
+      <PostContent
+        content="Hello world"
+        contentFormat="plain"
+        highlightQuery="   "
+      />,
+    );
+    expect(container.querySelectorAll("mark")).toHaveLength(0);
+    expect(container.textContent).toBe("Hello world");
+  });
+
+  it("highlights multiple distinct query tokens", () => {
+    const { container } = render(
+      <PostContent
+        content="The quick brown fox jumps over the lazy dog"
+        contentFormat="plain"
+        highlightQuery="quick lazy"
+      />,
+    );
+    const marks = Array.from(container.querySelectorAll("mark")).map(
+      (m) => m.textContent,
+    );
+    expect(marks).toEqual(["quick", "lazy"]);
+  });
 });

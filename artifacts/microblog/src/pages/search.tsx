@@ -484,7 +484,7 @@ export default function SearchPage() {
             <ul className="space-y-4">
               {posts.map((post) => (
                 <li key={post.id}>
-                  <SearchResultCard post={post} />
+                  <SearchResultCard post={post} query={filters.q} />
                 </li>
               ))}
             </ul>
@@ -519,8 +519,14 @@ export default function SearchPage() {
   );
 }
 
-function SearchResultCard({ post }: { post: SearchPost }) {
+function SearchResultCard({ post, query }: { post: SearchPost; query: string }) {
   const initials = (post.authorName ?? "?").charAt(0).toUpperCase();
+  // Carry the active query through to the post detail page so it can
+  // highlight the same terms in the full body.
+  const trimmedQuery = query.trim();
+  const detailHref = trimmedQuery
+    ? `/posts/${post.id}?q=${encodeURIComponent(trimmedQuery)}`
+    : `/posts/${post.id}`;
   return (
     <Card data-testid={`search-result-${post.id}`}>
       <CardContent className="py-4">
@@ -549,7 +555,7 @@ function SearchResultCard({ post }: { post: SearchPost }) {
             />
             <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
               <Link
-                href={`/posts/${post.id}`}
+                href={detailHref}
                 className="text-primary hover:underline"
               >
                 Open post

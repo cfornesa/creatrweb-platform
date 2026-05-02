@@ -12,7 +12,11 @@ export default function PostDetail() {
   const { isAuthenticated } = useCurrentUser();
   const [, params] = useRoute("/posts/:id");
   const postId = Number(params?.id);
-  const shouldFocusComment = new URLSearchParams(window.location.search).get("reply") === "1";
+  const urlParams = new URLSearchParams(window.location.search);
+  const shouldFocusComment = urlParams.get("reply") === "1";
+  // Carried over from `/search` so the result that brought the visitor
+  // here can be re-highlighted in the full post body. Purely visual.
+  const highlightQuery = urlParams.get("q");
 
   const { data: postData, isLoading, error } = useGetPost(postId, {
     query: { 
@@ -60,7 +64,7 @@ export default function PostDetail() {
           </div>
         ) : postData ? (
           <>
-            <PostCard post={postData.post} isDetail />
+            <PostCard post={postData.post} isDetail highlightQuery={highlightQuery} />
             
             <div id={`comments-${postData.post.id}`}>
             {isAuthenticated ? (
