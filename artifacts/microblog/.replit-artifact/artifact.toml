@@ -15,10 +15,10 @@ paths = [ "/" ]
 localPort = 20925
 
 [services.development]
-run = "pnpm --filter @workspace/microblog run dev"
+run = "npm run dev --workspace=@workspace/microblog"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/microblog", "run", "build" ]
+build = [ "npm", "run", "build", "--workspace=@workspace/microblog" ]
 publicDir = "artifacts/microblog/dist/public"
 serve = "static"
 
