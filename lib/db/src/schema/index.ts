@@ -9,3 +9,5 @@ export * from "./site-settings";
 export * from "./feeds";
 export * from "./categories";
 export * from "./nav-links";
+export * from "./pages";
+export * from "../lib/reserved-slugs";

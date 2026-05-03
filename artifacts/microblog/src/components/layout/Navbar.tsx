@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LogOut, User as UserIcon, Settings, Menu, ExternalLink, Search } from "lucide-react";
+import { LogOut, User as UserIcon, Settings, Menu, ExternalLink, Search, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -36,13 +36,19 @@ type FitState = {
 const EMPTY_NAV_LINKS: NavLinkRecord[] = [];
 
 export function Navbar() {
-  const { currentUser, isAuthenticated } = useCurrentUser();
+  const { currentUser, isAuthenticated, isOwner } = useCurrentUser();
   const { data: siteSettings } = useSiteSettings();
   const [, setLocation] = useLocation();
-  const navLinksQuery = useListNavLinks({
-    query: { queryKey: getListNavLinksQueryKey(), staleTime: 60_000 },
+  const navLinksQuery = useListNavLinks(
+    {},
+    { query: { queryKey: getListNavLinksQueryKey(), staleTime: 60_000 } },
+  );
+  const allLinks: NavLinkRecord[] = navLinksQuery.data?.links ?? EMPTY_NAV_LINKS;
+  const navLinks: NavLinkRecord[] = allLinks.filter((l) => {
+    if (l.visible === false) return false;
+    if (l.kind === "page" && !l.pageSlug) return false;
+    return true;
   });
-  const navLinks: NavLinkRecord[] = navLinksQuery.data?.links ?? EMPTY_NAV_LINKS;
 
   const [fit, setFit] = useState<FitState>({
     authInline: true,
@@ -91,9 +97,6 @@ export function Navbar() {
         ? 0
         : (measureAuthRef.current?.offsetWidth ?? 0) + GAP;
 
-      // Spec: if anything overflows, search and auth collapse into the
-      // hamburger together with the overflowing links. So we only keep
-      // search/auth inline when every nav link also fits inline.
       const everythingTotal = linksTotal + searchWidth + authWidth;
       let authInline = false;
       let searchInline = false;
@@ -150,15 +153,40 @@ export function Navbar() {
     link: NavLinkRecord,
     opts: { variant: "inline" | "sheet"; onClick?: () => void } = { variant: "inline" },
   ) => {
-    const safeNewTab = link.openInNewTab;
+    const href =
+      link.kind === "page" && link.pageSlug
+        ? `/p/${link.pageSlug}`
+        : link.url;
+    const isInternal = href.startsWith("/");
+    const safeNewTab = link.openInNewTab && !isInternal;
     const className =
       opts.variant === "inline"
         ? "inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         : "flex items-center justify-between rounded-md px-2 py-2 text-sm font-medium text-foreground hover:bg-muted";
+    const iconRight = link.openInNewTab && !isInternal ? (
+      <ExternalLink
+        className={opts.variant === "inline" ? "h-3 w-3 opacity-60" : "h-3.5 w-3.5 text-muted-foreground"}
+        aria-hidden="true"
+      />
+    ) : null;
+    if (isInternal) {
+      return (
+        <Link
+          key={link.id}
+          href={href}
+          onClick={opts.onClick}
+          className={className}
+          data-testid={`nav-link-${link.id}-${opts.variant}`}
+        >
+          <span>{link.label}</span>
+          {iconRight}
+        </Link>
+      );
+    }
     return (
       <a
         key={link.id}
-        href={link.url}
+        href={href}
         target={safeNewTab ? "_blank" : undefined}
         rel={safeNewTab ? "noopener noreferrer" : undefined}
         onClick={opts.onClick}
@@ -166,12 +194,7 @@ export function Navbar() {
         data-testid={`nav-link-${link.id}-${opts.variant}`}
       >
         <span>{link.label}</span>
-        {safeNewTab ? (
-          <ExternalLink
-            className={opts.variant === "inline" ? "h-3 w-3 opacity-60" : "h-3.5 w-3.5 text-muted-foreground"}
-            aria-hidden="true"
-          />
-        ) : null}
+        {iconRight}
       </a>
     );
   };
@@ -305,6 +328,16 @@ export function Navbar() {
                     <Settings className="mr-2 h-4 w-4" />
                     <span>Settings</span>
                   </DropdownMenuItem>
+                  {isOwner ? (
+                    <DropdownMenuItem
+                      onClick={() => setLocation("/admin")}
+                      className="cursor-pointer"
+                      data-testid="navbar-admin-entry"
+                    >
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      <span>Admin</span>
+                    </DropdownMenuItem>
+                  ) : null}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
@@ -386,6 +419,20 @@ export function Navbar() {
                     <Settings className="h-4 w-4" />
                     Settings
                   </button>
+                  {isOwner ? (
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 rounded-md px-2 py-2 text-sm font-medium hover:bg-muted"
+                      onClick={() => {
+                        setLocation("/admin");
+                        setSheetOpen(false);
+                      }}
+                      data-testid="navbar-sheet-admin"
+                    >
+                      <ShieldCheck className="h-4 w-4" />
+                      Admin
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="flex items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"

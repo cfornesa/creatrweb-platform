@@ -118,6 +118,21 @@
 SET NAMES utf8mb4;
 
 -- ----------------------------------------------------------------------------
+--   Task #25 additions for forkers upgrading from a Task #24 install.
+--   ----------------------------------------------------------------
+--   This file is the canonical, fresh-install script: the CREATE TABLE
+--   statements below already include the new `pages` table and the
+--   extended `nav_links` columns (kind / page_id / visible). If you are
+--   importing this file into a brand-new database you can ignore the
+--   following note. If instead you imported a previous version of this
+--   file before Task #25 landed, run the four ALTER / INSERT statements
+--   in the section labeled "[Task #25] forker upgrade path" at the
+--   bottom of this file once — those statements are idempotent and
+--   wrapped in IF-NOT-EXISTS-style probes via INFORMATION_SCHEMA so
+--   re-running them is harmless.
+-- ----------------------------------------------------------------------------
+
+-- ----------------------------------------------------------------------------
 -- 1. `users` — local accounts.
 --    Combines (a) the Auth.js-required columns (id, name, email,
 --    email_verified, image), (b) app-owned profile fields (username, bio,
@@ -549,9 +564,82 @@ INSERT IGNORE INTO `site_settings` (
 
 -- 17. List the owner-managed navbar links in render order. Lower `sort_order`
 --     values appear first; ties keep their relative insertion order.
--- SELECT id, label, url, open_in_new_tab, sort_order, updated_at
+-- SELECT id, label, url, open_in_new_tab, sort_order, kind, page_id, visible, updated_at
 --   FROM nav_links
 --   ORDER BY sort_order ASC, id ASC;
+
+-- 17b. List standalone pages (Task #25), most-recently-updated first.
+-- SELECT id, slug, title, status, show_in_nav, updated_at
+--   FROM pages ORDER BY updated_at DESC;
+
+-- 17c. Hide the system "Feeds" nav row without deleting it (toggle back
+--      on by setting `visible = 1`). Useful if you want the /feeds index
+--      to exist but not show in the navbar.
+-- UPDATE `nav_links` SET `visible` = 0 WHERE `kind` = 'system' AND `url` = '/feeds';
+
+-- ============================================================================
+--  [Task #25] forker upgrade path
+--  ------------------------------
+--  These statements are ONLY needed if you imported an older copy of
+--  install.sql before Task #25. Fresh imports of THIS file already have
+--  the `pages` table and the extended `nav_links` columns. Each block
+--  uses an INFORMATION_SCHEMA probe so re-running is harmless.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS `pages` (
+  `id`              INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `slug`            VARCHAR(96)  NOT NULL,
+  `title`           VARCHAR(255) NOT NULL,
+  `content`         TEXT         NOT NULL,
+  `content_format`  VARCHAR(16)  NOT NULL DEFAULT 'html',
+  `content_text`    TEXT         NULL,
+  `status`          VARCHAR(16)  NOT NULL DEFAULT 'draft',
+  `author_user_id`  VARCHAR(191) NULL,
+  `show_in_nav`     TINYINT(1)   NOT NULL DEFAULT 1,
+  `created_at`      DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at`      DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY `pages_slug_unique` (`slug`),
+  CONSTRAINT `pages_author_user_id_fk`
+    FOREIGN KEY (`author_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Add the three new nav_links columns if they don't exist yet. Wrapped
+-- in a stored-procedure trick because MySQL does not have a portable
+-- "ADD COLUMN IF NOT EXISTS" — we use INFORMATION_SCHEMA + a DELIMITER
+-- block to keep this script idempotent under phpMyAdmin re-imports.
+DROP PROCEDURE IF EXISTS `task25_add_nav_columns`;
+DELIMITER //
+CREATE PROCEDURE `task25_add_nav_columns`()
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nav_links' AND COLUMN_NAME = 'kind') THEN
+    ALTER TABLE `nav_links` ADD COLUMN `kind` VARCHAR(16) NOT NULL DEFAULT 'external';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nav_links' AND COLUMN_NAME = 'page_id') THEN
+    ALTER TABLE `nav_links` ADD COLUMN `page_id` INT NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nav_links' AND COLUMN_NAME = 'visible') THEN
+    ALTER TABLE `nav_links` ADD COLUMN `visible` TINYINT(1) NOT NULL DEFAULT 1;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nav_links' AND CONSTRAINT_NAME = 'nav_links_page_id_fk') THEN
+    ALTER TABLE `nav_links` ADD CONSTRAINT `nav_links_page_id_fk`
+      FOREIGN KEY (`page_id`) REFERENCES `pages` (`id`) ON DELETE CASCADE;
+  END IF;
+END//
+DELIMITER ;
+CALL `task25_add_nav_columns`();
+DROP PROCEDURE IF EXISTS `task25_add_nav_columns`;
+
+-- Seed the system "Feeds" nav row. Idempotent: keyed on (kind='system'
+-- AND url='/feeds') so re-running this script never duplicates the row.
+INSERT INTO `nav_links` (`label`, `url`, `open_in_new_tab`, `sort_order`, `kind`, `page_id`, `visible`)
+SELECT 'Feeds', '/feeds', 0, 1000, 'system', NULL, 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM `nav_links` WHERE `kind` = 'system' AND `url` = '/feeds'
+);
 
 -- 18. Hard-reset per-user theme on a single user (snaps them back to the
 --     site default everywhere). Replace `<<TARGET_EMAIL>>` first.

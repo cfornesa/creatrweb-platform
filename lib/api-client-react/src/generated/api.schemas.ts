@@ -472,9 +472,23 @@ export interface SiteSettings {
   ownerWebsite?: string | null;
 }
 
+export type NavLinkKind = typeof NavLinkKind[keyof typeof NavLinkKind];
+
+
+export const NavLinkKind = {
+  external: 'external',
+  page: 'page',
+  system: 'system',
+} as const;
+
 /**
- * Owner-configured external navigation link rendered in the navbar.
-`sortOrder` is the only ordering signal — lower numbers appear first.
+ * A single navbar entry. The `kind` discriminator drives rendering:
+
+  * `external` — `url` is an absolute external URL (Task #24).
+  * `page`     — `pageId` and `pageSlug` are set; the public href
+                 is `/p/<pageSlug>` resolved server-side via JOIN.
+  * `system`   — built-in route (e.g. `/feeds`); the owner can
+                 hide via `visible=false` but cannot delete.
 
  */
 export interface NavLink {
@@ -485,6 +499,11 @@ export interface NavLink {
   url: string;
   openInNewTab: boolean;
   sortOrder: number;
+  kind: NavLinkKind;
+  pageId?: number | null;
+  /** Resolved at read time via JOIN on pages.id when kind='page'. */
+  pageSlug?: string | null;
+  visible: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -509,6 +528,121 @@ export interface UpdateNavLinkBody {
   url?: string;
   openInNewTab?: boolean;
   sortOrder?: number;
+  visible?: boolean;
+}
+
+export type NavItemsReorderBodyItemsItem = {
+  id: number;
+  sortOrder: number;
+};
+
+/**
+ * Persist a new order for every nav item. The `items` array MUST
+include every existing nav row exactly once (the server rejects
+partial reorders with `400` and lists the missing/unknown ids).
+The server applies the updates in a single transaction and
+renumbers in increments of 10 to keep gaps tidy. Clients
+typically send `sortOrder = (i+1)*10` for each item; the server
+also accepts arbitrary positive ordinals and renumbers based on
+their relative order.
+
+ */
+export interface NavItemsReorderBody {
+  items: NavItemsReorderBodyItemsItem[];
+}
+
+export type PageContentFormat = typeof PageContentFormat[keyof typeof PageContentFormat];
+
+
+export const PageContentFormat = {
+  html: 'html',
+} as const;
+
+export type PageStatus = typeof PageStatus[keyof typeof PageStatus];
+
+
+export const PageStatus = {
+  draft: 'draft',
+  published: 'published',
+} as const;
+
+/**
+ * A standalone CMS page rendered at `/p/:slug`. Title and slug are
+independent fields; the slug is the URL key. `contentFormat` is
+always `'html'` today (the column exists for future forks that
+want plain pages). Drafts return 404 to non-owners.
+
+ */
+export interface Page {
+  id: number;
+  /** @maxLength 96 */
+  slug: string;
+  /** @maxLength 255 */
+  title: string;
+  content: string;
+  contentFormat: PageContentFormat;
+  status: PageStatus;
+  showInNav: boolean;
+  authorUserId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PagesList {
+  pages: Page[];
+}
+
+export type CreatePageBodyStatus = typeof CreatePageBodyStatus[keyof typeof CreatePageBodyStatus];
+
+
+export const CreatePageBodyStatus = {
+  draft: 'draft',
+  published: 'published',
+} as const;
+
+export interface CreatePageBody {
+  /** @maxLength 96 */
+  slug: string;
+  /** @maxLength 255 */
+  title: string;
+  content: string;
+  status?: CreatePageBodyStatus;
+  showInNav?: boolean;
+}
+
+export type UpdatePageBodyStatus = typeof UpdatePageBodyStatus[keyof typeof UpdatePageBodyStatus];
+
+
+export const UpdatePageBodyStatus = {
+  draft: 'draft',
+  published: 'published',
+} as const;
+
+export interface UpdatePageBody {
+  /** @maxLength 96 */
+  slug?: string;
+  /** @maxLength 255 */
+  title?: string;
+  content?: string;
+  status?: UpdatePageBodyStatus;
+  showInNav?: boolean;
+}
+
+/**
+ * A single subscribable feed listed in the public Feeds index.
+ */
+export interface SiteFeed {
+  /** Stable identifier for the feed within the catalog (e.g. "atom", "json", "mf2"). */
+  slug: string;
+  title: string;
+  description: string;
+  /** Absolute URL to the feed. */
+  url: string;
+  mimeType: string;
+}
+
+export interface SiteFeedsList {
+  feeds: SiteFeed[];
 }
 
 export type PendingPostContentFormat = typeof PendingPostContentFormat[keyof typeof PendingPostContentFormat];
@@ -840,5 +974,26 @@ export const RefreshAllFeedSourcesForce = {
 export type GetCategoryPostsParams = {
 page?: number;
 limit?: number;
+};
+
+export type ListNavLinksParams = {
+/**
+ * When `1` and the caller is the owner, includes hidden rows.
+ */
+includeHidden?: ListNavLinksIncludeHidden;
+};
+
+export type ListNavLinksIncludeHidden = typeof ListNavLinksIncludeHidden[keyof typeof ListNavLinksIncludeHidden];
+
+
+export const ListNavLinksIncludeHidden = {
+  NUMBER_1: '1',
+} as const;
+
+export type ListPagesParams = {
+/**
+ * When `1`, also returns drafts (owner only).
+ */
+includeDrafts?: string;
 };
 

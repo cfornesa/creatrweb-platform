@@ -22,6 +22,12 @@ tags:
     description: Inbound RSS / Atom feed sources and moderation queue
   - name: nav-links
     description: Owner-managed external navigation links rendered in the navbar
+  - name: nav-items
+    description: Unified nav-items operations (drag-and-drop reorder across external/page/system kinds)
+  - name: pages
+    description: Standalone CMS pages addressed at /p/:slug, orthogonal to posts
+  - name: feeds-catalog
+    description: Public catalog of subscribable site feeds (Atom / JSON Feed / MF2 export)
 paths:
   /healthz:
     get:
@@ -890,11 +896,20 @@ paths:
     get:
       operationId: listNavLinks
       tags: [nav-links]
-      summary: List the owner-configured external navbar links
+      summary: List the owner-configured navbar links
       description: |
-        Public read. Returns every nav link sorted ascending by `sortOrder`
-        (ties keep their relative insertion order). Used by the sitewide
-        Navbar to render the middle link row.
+        Public read. Returns every visible nav link sorted ascending by
+        `sortOrder`. Owners may pass `includeHidden=1` to also receive
+        rows with `visible=false` (used by /admin/navigation and
+        /admin/pages so the owner can manage hidden rows).
+      parameters:
+        - in: query
+          name: includeHidden
+          required: false
+          schema:
+            type: string
+            enum: ["1"]
+          description: When `1` and the caller is the owner, includes hidden rows.
       responses:
         "200":
           description: Nav-links list
@@ -977,6 +992,163 @@ paths:
           description: Forbidden
         "404":
           description: Not found
+
+  /nav-items/reorder:
+    patch:
+      operationId: reorderNavItems
+      tags: [nav-items]
+      summary: Persist a new order for nav items (owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NavItemsReorderBody"
+      responses:
+        "200":
+          description: Reordered nav items list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NavLinksList"
+        "400":
+          description: Invalid body
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /pages:
+    get:
+      operationId: listPages
+      tags: [pages]
+      summary: List standalone pages
+      parameters:
+        - in: query
+          name: includeDrafts
+          schema:
+            type: string
+          description: When `1`, also returns drafts (owner only).
+      responses:
+        "200":
+          description: Pages list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagesList"
+    post:
+      operationId: createPage
+      tags: [pages]
+      summary: Create a new page (owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePageBody"
+      responses:
+        "201":
+          description: Created page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Page"
+        "400":
+          description: Invalid body / reserved slug / slug collision
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /pages/{slug}:
+    get:
+      operationId: getPageBySlug
+      tags: [pages]
+      summary: Fetch a single page by slug (drafts 404 for non-owners)
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Page"
+        "404":
+          description: Not found
+
+  /pages/{id}:
+    patch:
+      operationId: updatePage
+      tags: [pages]
+      summary: Update a page (owner only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePageBody"
+      responses:
+        "200":
+          description: Updated page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Page"
+        "400":
+          description: Invalid body / reserved slug / slug collision
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+    delete:
+      operationId: deletePage
+      tags: [pages]
+      summary: Delete a page (owner only). Cascade-deletes its nav row.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+
+  /feeds:
+    get:
+      operationId: listSiteFeeds
+      tags: [feeds-catalog]
+      summary: Public catalog of subscribable site feeds
+      description: |
+        Hand-maintained list of the three sitewide feeds the platform
+        produces (Atom, JSON Feed, MF2 export). Used by the public
+        `/feeds` index page in the microblog UI.
+      responses:
+        "200":
+          description: Site feeds list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteFeedsList"
 
   /media/{fileName}:
     get:
@@ -1722,8 +1894,13 @@ components:
     NavLink:
       type: object
       description: |
-        Owner-configured external navigation link rendered in the navbar.
-        `sortOrder` is the only ordering signal — lower numbers appear first.
+        A single navbar entry. The `kind` discriminator drives rendering:
+
+          * `external` — `url` is an absolute external URL (Task #24).
+          * `page`     — `pageId` and `pageSlug` are set; the public href
+                         is `/p/<pageSlug>` resolved server-side via JOIN.
+          * `system`   — built-in route (e.g. `/feeds`); the owner can
+                         hide via `visible=false` but cannot delete.
       properties:
         id:
           type: integer
@@ -1737,6 +1914,18 @@ components:
           type: boolean
         sortOrder:
           type: integer
+        kind:
+          type: string
+          enum: [external, page, system]
+        pageId:
+          type: integer
+          nullable: true
+        pageSlug:
+          type: string
+          nullable: true
+          description: Resolved at read time via JOIN on pages.id when kind='page'.
+        visible:
+          type: boolean
         createdAt:
           type: string
           format: date-time
@@ -1749,6 +1938,8 @@ components:
         - url
         - openInNewTab
         - sortOrder
+        - kind
+        - visible
         - createdAt
         - updatedAt
 
@@ -1794,6 +1985,164 @@ components:
           type: boolean
         sortOrder:
           type: integer
+        visible:
+          type: boolean
+
+    NavItemsReorderBody:
+      type: object
+      description: |
+        Persist a new order for every nav item. The `items` array MUST
+        include every existing nav row exactly once (the server rejects
+        partial reorders with `400` and lists the missing/unknown ids).
+        The server applies the updates in a single transaction and
+        renumbers in increments of 10 to keep gaps tidy. Clients
+        typically send `sortOrder = (i+1)*10` for each item; the server
+        also accepts arbitrary positive ordinals and renumbers based on
+        their relative order.
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              sortOrder:
+                type: integer
+            required:
+              - id
+              - sortOrder
+      required:
+        - items
+
+    Page:
+      type: object
+      description: |
+        A standalone CMS page rendered at `/p/:slug`. Title and slug are
+        independent fields; the slug is the URL key. `contentFormat` is
+        always `'html'` today (the column exists for future forks that
+        want plain pages). Drafts return 404 to non-owners.
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+          maxLength: 96
+        title:
+          type: string
+          maxLength: 255
+        content:
+          type: string
+        contentFormat:
+          type: string
+          enum: [html]
+        status:
+          type: string
+          enum: [draft, published]
+        showInNav:
+          type: boolean
+        authorUserId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - slug
+        - title
+        - content
+        - contentFormat
+        - status
+        - showInNav
+        - createdAt
+        - updatedAt
+
+    PagesList:
+      type: object
+      properties:
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Page"
+      required:
+        - pages
+
+    CreatePageBody:
+      type: object
+      properties:
+        slug:
+          type: string
+          maxLength: 96
+        title:
+          type: string
+          maxLength: 255
+        content:
+          type: string
+        status:
+          type: string
+          enum: [draft, published]
+          default: draft
+        showInNav:
+          type: boolean
+          default: true
+      required:
+        - slug
+        - title
+        - content
+
+    UpdatePageBody:
+      type: object
+      properties:
+        slug:
+          type: string
+          maxLength: 96
+        title:
+          type: string
+          maxLength: 255
+        content:
+          type: string
+        status:
+          type: string
+          enum: [draft, published]
+        showInNav:
+          type: boolean
+
+    SiteFeed:
+      type: object
+      description: A single subscribable feed listed in the public Feeds index.
+      properties:
+        slug:
+          type: string
+          description: Stable identifier for the feed within the catalog (e.g. "atom", "json", "mf2").
+        title:
+          type: string
+        description:
+          type: string
+        url:
+          type: string
+          description: Absolute URL to the feed.
+        mimeType:
+          type: string
+      required:
+        - slug
+        - title
+        - description
+        - url
+        - mimeType
+
+    SiteFeedsList:
+      type: object
+      properties:
+        feeds:
+          type: array
+          items:
+            $ref: "#/components/schemas/SiteFeed"
+      required:
+        - feeds
 
     PendingPost:
       type: object

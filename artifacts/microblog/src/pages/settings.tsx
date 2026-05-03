@@ -5,21 +5,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useSiteSettings } from "@/hooks/use-site-settings";
-import { SiteCustomizationCard } from "@/components/layout/SiteCustomizationCard";
 import { UserPageCustomizationCard } from "@/components/layout/UserPageCustomizationCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Globe, Instagram, Youtube, Twitter, Music2, Tv, Github, Linkedin, Rss, Inbox } from "lucide-react";
-import { Link } from "wouter";
-import { useListPendingPosts, getListPendingPostsQueryKey } from "@workspace/api-client-react";
-import { CategoriesManagementCard } from "@/components/post/CategoriesManagementCard";
-import { NavLinksManagementCard } from "@/components/layout/NavLinksManagementCard";
+import { Globe, Instagram, Youtube, Twitter, Music2, Tv, Github, Linkedin } from "lucide-react";
 
 export default function SettingsPage() {
-  const { currentUser, isLoading: isUserLoading, isOwner } = useCurrentUser();
+  const { currentUser, isLoading: isUserLoading } = useCurrentUser();
   const { data: siteSettings } = useSiteSettings();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -29,13 +24,6 @@ export default function SettingsPage() {
   const [bio, setBio] = useState("");
   const [website, setWebsite] = useState("");
   const [socialLinks, setSocialLinks] = useState<Record<string, string>>({});
-
-  // Pending count for the owner's "review queue" badge — only enabled
-  // for owners so non-owners never trigger the protected endpoint.
-  const pendingQuery = useListPendingPosts(undefined, {
-    query: { enabled: isOwner, queryKey: getListPendingPostsQueryKey() },
-  });
-  const pendingCount = pendingQuery.data?.total ?? 0;
 
   useEffect(() => {
     if (currentUser) {
@@ -93,45 +81,6 @@ export default function SettingsPage() {
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">Settings</h1>
-
-      {isOwner ? (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Rss className="h-5 w-5" /> Inbound feeds</CardTitle>
-            <CardDescription>
-              Subscribe to RSS / Atom feeds and review imported items before they hit the public timeline.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-3">
-            <Button asChild variant="outline">
-              <Link href="/admin/feeds">
-                <Rss className="mr-2 h-4 w-4" /> Manage feed sources
-              </Link>
-            </Button>
-            <Button asChild>
-              <Link href="/admin/pending">
-                <Inbox className="mr-2 h-4 w-4" />
-                Review queue
-                {pendingCount > 0 ? (
-                  <span className="ml-2 rounded-full bg-primary-foreground/20 px-2 py-0.5 text-xs">
-                    {pendingCount}
-                  </span>
-                ) : null}
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {isOwner ? <CategoriesManagementCard /> : null}
-
-      {isOwner ? <NavLinksManagementCard /> : null}
-
-      {isOwner && siteSettings ? (
-        <div className="mb-6">
-          <SiteCustomizationCard settings={siteSettings} />
-        </div>
-      ) : null}
 
       {currentUser && siteSettings ? (
         <div className="mb-6">

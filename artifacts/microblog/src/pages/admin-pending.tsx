@@ -30,6 +30,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { CheckCircle2, XCircle, Inbox, ExternalLink, Rss, CheckCheck, Pencil } from "lucide-react";
+import { AdminLayout } from "@/components/admin/AdminLayout";
 import { PostContent } from "@/components/post/PostContent";
 import { RichPostEditor } from "@/components/post/RichPostEditor";
 
@@ -280,18 +281,14 @@ export default function AdminPendingPage() {
   const isMutating = approve.isPending || reject.isPending;
 
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <Inbox className="h-7 w-7" /> Pending review
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {total === 0
-            ? "Nothing waiting. New items from your feed sources will appear here."
-            : `${total} item${total === 1 ? "" : "s"} waiting on your approval.`}
-        </p>
-      </div>
-
+    <AdminLayout
+      title="Review queue"
+      description={
+        total === 0
+          ? "Nothing waiting. New items from your feed sources will appear here."
+          : `${total} item${total === 1 ? "" : "s"} waiting on your approval.`
+      }
+    >
       <div className="space-y-8">
         {posts.length === 0 && !queue.isLoading ? (
           <Card>
@@ -369,6 +366,6 @@ export default function AdminPendingPage() {
           );
         })}
       </div>
-    </div>
+    </AdminLayout>
   );
 }

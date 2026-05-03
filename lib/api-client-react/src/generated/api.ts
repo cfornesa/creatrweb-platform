@@ -30,6 +30,7 @@ import type {
   CreateCommentBody,
   CreateFeedSourceBody,
   CreateNavLinkBody,
+  CreatePageBody,
   CreatePostBody,
   FeedRefreshResult,
   FeedRefreshSummary,
@@ -39,10 +40,15 @@ import type {
   GetCategoryPostsParams,
   GetPostsByUserParams,
   HealthStatus,
+  ListNavLinksParams,
+  ListPagesParams,
   ListPendingPostsParams,
   ListPostsParams,
+  NavItemsReorderBody,
   NavLink,
   NavLinksList,
+  Page,
+  PagesList,
   PendingPostsPage,
   Post,
   PostWithComments,
@@ -51,11 +57,13 @@ import type {
   RefreshAllFeedSourcesParams,
   SearchPostsPage,
   SearchPostsParams,
+  SiteFeedsList,
   SiteSettings,
   UpdateCategoryBody,
   UpdateCommentBody,
   UpdateFeedSourceBody,
   UpdateNavLinkBody,
+  UpdatePageBody,
   UpdatePostBody,
   UpdateSiteSettingsBody,
   UpdateUserProfileBody,
@@ -2728,23 +2736,31 @@ export function useGetCategoryPosts<TData = Awaited<ReturnType<typeof getCategor
 
 
 /**
- * Public read. Returns every nav link sorted ascending by `sortOrder`
-(ties keep their relative insertion order). Used by the sitewide
-Navbar to render the middle link row.
+ * Public read. Returns every visible nav link sorted ascending by
+`sortOrder`. Owners may pass `includeHidden=1` to also receive
+rows with `visible=false` (used by /admin/navigation and
+/admin/pages so the owner can manage hidden rows).
 
- * @summary List the owner-configured external navbar links
+ * @summary List the owner-configured navbar links
  */
-export const getListNavLinksUrl = () => {
+export const getListNavLinksUrl = (params?: ListNavLinksParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/nav-links`
+  return stringifiedParams.length > 0 ? `/api/nav-links?${stringifiedParams}` : `/api/nav-links`
 }
 
-export const listNavLinks = async ( options?: RequestInit): Promise<NavLinksList> => {
+export const listNavLinks = async (params?: ListNavLinksParams, options?: RequestInit): Promise<NavLinksList> => {
 
-  return customFetch<NavLinksList>(getListNavLinksUrl(),
+  return customFetch<NavLinksList>(getListNavLinksUrl(params),
   {
     ...options,
     method: 'GET'
@@ -2757,23 +2773,23 @@ export const listNavLinks = async ( options?: RequestInit): Promise<NavLinksList
 
 
 
-export const getListNavLinksQueryKey = () => {
+export const getListNavLinksQueryKey = (params?: ListNavLinksParams,) => {
     return [
-    `/api/nav-links`
+    `/api/nav-links`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListNavLinksQueryOptions = <TData = Awaited<ReturnType<typeof listNavLinks>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNavLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListNavLinksQueryOptions = <TData = Awaited<ReturnType<typeof listNavLinks>>, TError = ErrorType<unknown>>(params?: ListNavLinksParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNavLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListNavLinksQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListNavLinksQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNavLinks>>> = ({ signal }) => listNavLinks({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNavLinks>>> = ({ signal }) => listNavLinks(params, { signal, ...requestOptions });
 
 
 
@@ -2787,15 +2803,15 @@ export type ListNavLinksQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List the owner-configured external navbar links
+ * @summary List the owner-configured navbar links
  */
 
 export function useListNavLinks<TData = Awaited<ReturnType<typeof listNavLinks>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNavLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListNavLinksParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNavLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListNavLinksQueryOptions(options)
+  const queryOptions = getListNavLinksQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -3020,6 +3036,532 @@ export const useDeleteNavLink = <TError = ErrorType<void>,
       > => {
       return useMutation(getDeleteNavLinkMutationOptions(options));
     }
+
+/**
+ * @summary Persist a new order for nav items (owner only)
+ */
+export const getReorderNavItemsUrl = () => {
+
+
+
+
+  return `/api/nav-items/reorder`
+}
+
+export const reorderNavItems = async (navItemsReorderBody: NavItemsReorderBody, options?: RequestInit): Promise<NavLinksList> => {
+
+  return customFetch<NavLinksList>(getReorderNavItemsUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      navItemsReorderBody,)
+  }
+);}
+
+
+
+
+export const getReorderNavItemsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderNavItems>>, TError,{data: BodyType<NavItemsReorderBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reorderNavItems>>, TError,{data: BodyType<NavItemsReorderBody>}, TContext> => {
+
+const mutationKey = ['reorderNavItems'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderNavItems>>, {data: BodyType<NavItemsReorderBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  reorderNavItems(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReorderNavItemsMutationResult = NonNullable<Awaited<ReturnType<typeof reorderNavItems>>>
+    export type ReorderNavItemsMutationBody = BodyType<NavItemsReorderBody>
+    export type ReorderNavItemsMutationError = ErrorType<void>
+
+    /**
+ * @summary Persist a new order for nav items (owner only)
+ */
+export const useReorderNavItems = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderNavItems>>, TError,{data: BodyType<NavItemsReorderBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reorderNavItems>>,
+        TError,
+        {data: BodyType<NavItemsReorderBody>},
+        TContext
+      > => {
+      return useMutation(getReorderNavItemsMutationOptions(options));
+    }
+
+/**
+ * @summary List standalone pages
+ */
+export const getListPagesUrl = (params?: ListPagesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/pages?${stringifiedParams}` : `/api/pages`
+}
+
+export const listPages = async (params?: ListPagesParams, options?: RequestInit): Promise<PagesList> => {
+
+  return customFetch<PagesList>(getListPagesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPagesQueryKey = (params?: ListPagesParams,) => {
+    return [
+    `/api/pages`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPagesQueryOptions = <TData = Awaited<ReturnType<typeof listPages>>, TError = ErrorType<unknown>>(params?: ListPagesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPagesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPages>>> = ({ signal }) => listPages(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPages>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPagesQueryResult = NonNullable<Awaited<ReturnType<typeof listPages>>>
+export type ListPagesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List standalone pages
+ */
+
+export function useListPages<TData = Awaited<ReturnType<typeof listPages>>, TError = ErrorType<unknown>>(
+ params?: ListPagesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPagesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * @summary Create a new page (owner only)
+ */
+export const getCreatePageUrl = () => {
+
+
+
+
+  return `/api/pages`
+}
+
+export const createPage = async (createPageBody: CreatePageBody, options?: RequestInit): Promise<Page> => {
+
+  return customFetch<Page>(getCreatePageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      createPageBody,)
+  }
+);}
+
+
+
+
+export const getCreatePageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPage>>, TError,{data: BodyType<CreatePageBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPage>>, TError,{data: BodyType<CreatePageBody>}, TContext> => {
+
+const mutationKey = ['createPage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPage>>, {data: BodyType<CreatePageBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createPage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePageMutationResult = NonNullable<Awaited<ReturnType<typeof createPage>>>
+    export type CreatePageMutationBody = BodyType<CreatePageBody>
+    export type CreatePageMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a new page (owner only)
+ */
+export const useCreatePage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPage>>, TError,{data: BodyType<CreatePageBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPage>>,
+        TError,
+        {data: BodyType<CreatePageBody>},
+        TContext
+      > => {
+      return useMutation(getCreatePageMutationOptions(options));
+    }
+
+/**
+ * @summary Fetch a single page by slug (drafts 404 for non-owners)
+ */
+export const getGetPageBySlugUrl = (slug: string,) => {
+
+
+
+
+  return `/api/pages/${slug}`
+}
+
+export const getPageBySlug = async (slug: string, options?: RequestInit): Promise<Page> => {
+
+  return customFetch<Page>(getGetPageBySlugUrl(slug),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPageBySlugQueryKey = (slug: string,) => {
+    return [
+    `/api/pages/${slug}`
+    ] as const;
+    }
+
+
+export const getGetPageBySlugQueryOptions = <TData = Awaited<ReturnType<typeof getPageBySlug>>, TError = ErrorType<void>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPageBySlug>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPageBySlugQueryKey(slug);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPageBySlug>>> = ({ signal }) => getPageBySlug(slug, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(slug), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPageBySlug>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPageBySlugQueryResult = NonNullable<Awaited<ReturnType<typeof getPageBySlug>>>
+export type GetPageBySlugQueryError = ErrorType<void>
+
+
+/**
+ * @summary Fetch a single page by slug (drafts 404 for non-owners)
+ */
+
+export function useGetPageBySlug<TData = Awaited<ReturnType<typeof getPageBySlug>>, TError = ErrorType<void>>(
+ slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPageBySlug>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPageBySlugQueryOptions(slug,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * @summary Update a page (owner only)
+ */
+export const getUpdatePageUrl = (id: number,) => {
+
+
+
+
+  return `/api/pages/${id}`
+}
+
+export const updatePage = async (id: number,
+    updatePageBody: UpdatePageBody, options?: RequestInit): Promise<Page> => {
+
+  return customFetch<Page>(getUpdatePageUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updatePageBody,)
+  }
+);}
+
+
+
+
+export const getUpdatePageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePage>>, TError,{id: number;data: BodyType<UpdatePageBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePage>>, TError,{id: number;data: BodyType<UpdatePageBody>}, TContext> => {
+
+const mutationKey = ['updatePage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePage>>, {id: number;data: BodyType<UpdatePageBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updatePage(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePageMutationResult = NonNullable<Awaited<ReturnType<typeof updatePage>>>
+    export type UpdatePageMutationBody = BodyType<UpdatePageBody>
+    export type UpdatePageMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a page (owner only)
+ */
+export const useUpdatePage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePage>>, TError,{id: number;data: BodyType<UpdatePageBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePage>>,
+        TError,
+        {id: number;data: BodyType<UpdatePageBody>},
+        TContext
+      > => {
+      return useMutation(getUpdatePageMutationOptions(options));
+    }
+
+/**
+ * @summary Delete a page (owner only). Cascade-deletes its nav row.
+ */
+export const getDeletePageUrl = (id: number,) => {
+
+
+
+
+  return `/api/pages/${id}`
+}
+
+export const deletePage = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeletePageUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeletePageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePage>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePage>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deletePage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePage>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deletePage(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePageMutationResult = NonNullable<Awaited<ReturnType<typeof deletePage>>>
+
+    export type DeletePageMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a page (owner only). Cascade-deletes its nav row.
+ */
+export const useDeletePage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePage>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deletePage>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeletePageMutationOptions(options));
+    }
+
+/**
+ * Hand-maintained list of the three sitewide feeds the platform
+produces (Atom, JSON Feed, MF2 export). Used by the public
+`/feeds` index page in the microblog UI.
+
+ * @summary Public catalog of subscribable site feeds
+ */
+export const getListSiteFeedsUrl = () => {
+
+
+
+
+  return `/api/feeds`
+}
+
+export const listSiteFeeds = async ( options?: RequestInit): Promise<SiteFeedsList> => {
+
+  return customFetch<SiteFeedsList>(getListSiteFeedsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSiteFeedsQueryKey = () => {
+    return [
+    `/api/feeds`
+    ] as const;
+    }
+
+
+export const getListSiteFeedsQueryOptions = <TData = Awaited<ReturnType<typeof listSiteFeeds>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSiteFeeds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSiteFeedsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSiteFeeds>>> = ({ signal }) => listSiteFeeds({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSiteFeeds>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSiteFeedsQueryResult = NonNullable<Awaited<ReturnType<typeof listSiteFeeds>>>
+export type ListSiteFeedsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Public catalog of subscribable site feeds
+ */
+
+export function useListSiteFeeds<TData = Awaited<ReturnType<typeof listSiteFeeds>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSiteFeeds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSiteFeedsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 /**
  * @summary Fetch an uploaded media asset

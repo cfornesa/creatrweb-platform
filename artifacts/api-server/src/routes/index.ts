@@ -9,6 +9,8 @@ import feedSourcesRouter from "./feed-sources";
 import pendingPostsRouter from "./pending-posts";
 import categoriesRouter from "./categories";
 import navLinksRouter from "./nav-links";
+import pagesRouter from "./pages";
+import feedsCatalogRouter from "./feeds-catalog";
 
 const router: IRouter = Router();
 
@@ -29,5 +31,13 @@ router.use(usersRouter);
 router.use(siteSettingsRouter);
 router.use(feedSourcesRouter);
 router.use(navLinksRouter);
+// Pages router registers `/pages` and `/pages/:slug | :id`. Mounted
+// after categories so neither route can swallow `/categories/...`.
+router.use(pagesRouter);
+// Public feeds catalog (`/api/feeds`) — separate from the inbound
+// feed-sources router which lives under `/feeds/...` paths inside
+// `feedSourcesRouter`. The top-level `/feeds` GET registered here
+// does not collide because feed-sources mounts only nested paths.
+router.use(feedsCatalogRouter);
 
 export default router;

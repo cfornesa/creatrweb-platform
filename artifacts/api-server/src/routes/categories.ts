@@ -20,6 +20,7 @@ import {
   findAvailableSlug,
   attachCategoriesToPosts,
 } from "../lib/post-categories";
+import { isReservedSlug } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -89,7 +90,22 @@ router.post(
       const desiredSlug = body.slug
         ? slugifyCategoryName(body.slug)
         : slugifyCategoryName(trimmedName);
-      const finalSlug = await findAvailableSlug(desiredSlug);
+      // Reserved slugs are off-limits to both categories and pages — a
+      // shared check keeps the two route families aligned. We reject
+      // explicit user input outright; auto-derived slugs from a category
+      // *name* fall back to a deterministic suffixed candidate via
+      // findAvailableSlug, so a name like "Feeds" still gets a category
+      // (slug "feeds-2") without clobbering the system /feeds route.
+      if (body.slug && isReservedSlug(desiredSlug)) {
+        return res
+          .status(400)
+          .json({ error: `\`${desiredSlug}\` is a reserved route on this site`, slug: desiredSlug });
+      }
+      let baseSlug = desiredSlug;
+      if (!body.slug && isReservedSlug(baseSlug)) {
+        baseSlug = `${baseSlug}-category`;
+      }
+      const finalSlug = await findAvailableSlug(baseSlug);
 
       const insertResult = await db
         .insert(categoriesTable)
@@ -188,6 +204,11 @@ router.patch(
       if (typeof body.slug === "string") {
         const desired = slugifyCategoryName(body.slug);
         if (desired !== cat.slug) {
+          if (isReservedSlug(desired)) {
+            return res
+              .status(400)
+              .json({ error: `\`${desired}\` is a reserved route on this site`, slug: desired });
+          }
           // Reject explicit slug clashes with 409 rather than auto-suffixing
           // — the caller asked for that exact slug.
           const clash = await db

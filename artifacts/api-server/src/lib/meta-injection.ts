@@ -124,14 +124,21 @@ async function loadSettings(): Promise<PartialSettings> {
   }
 }
 
+const FEED_ALTERNATE_LINKS =
+  '<link rel="alternate" type="application/atom+xml" title="Atom feed" href="/feed.xml">\n' +
+  '  <link rel="alternate" type="application/feed+json" title="JSON Feed" href="/feed.json">';
+
 function applyThemeToHtml(html: string, themeId: string, css: string): string {
   html = html.replace(
     /(<html\b[^>]*?)(?:\s+data-theme="[^"]*")?(\s*>)/,
     `$1 data-theme="${themeId}"$2`,
   );
+  const linkBlock = html.includes('rel="alternate" type="application/atom+xml"')
+    ? ""
+    : `  ${FEED_ALTERNATE_LINKS}\n`;
   html = html.replace(
     "</head>",
-    `  <style id="site-settings-theme">${css}</style>\n  </head>`,
+    `${linkBlock}  <style id="site-settings-theme">${css}</style>\n  </head>`,
   );
   return html;
 }

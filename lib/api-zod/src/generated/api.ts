@@ -1019,12 +1019,17 @@ export const GetCategoryPostsResponse = zod.object({
 
 
 /**
- * Public read. Returns every nav link sorted ascending by `sortOrder`
-(ties keep their relative insertion order). Used by the sitewide
-Navbar to render the middle link row.
+ * Public read. Returns every visible nav link sorted ascending by
+`sortOrder`. Owners may pass `includeHidden=1` to also receive
+rows with `visible=false` (used by /admin/navigation and
+/admin/pages so the owner can manage hidden rows).
 
- * @summary List the owner-configured external navbar links
+ * @summary List the owner-configured navbar links
  */
+export const ListNavLinksQueryParams = zod.object({
+  "includeHidden": zod.enum(['1']).optional().describe('When `1` and the caller is the owner, includes hidden rows.')
+})
+
 export const listNavLinksResponseLinksItemLabelMax = 64;
 
 export const listNavLinksResponseLinksItemUrlMax = 2048;
@@ -1038,9 +1043,13 @@ export const ListNavLinksResponse = zod.object({
   "url": zod.string().max(listNavLinksResponseLinksItemUrlMax),
   "openInNewTab": zod.boolean(),
   "sortOrder": zod.number(),
+  "kind": zod.enum(['external', 'page', 'system']),
+  "pageId": zod.number().nullish(),
+  "pageSlug": zod.string().nullish().describe('Resolved at read time via JOIN on pages.id when kind=\'page\'.'),
+  "visible": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('Owner-configured external navigation link rendered in the navbar.\n`sortOrder` is the only ordering signal — lower numbers appear first.\n'))
+}).describe('A single navbar entry. The `kind` discriminator drives rendering:\n\n  \* `external` — `url` is an absolute external URL (Task #24).\n  \* `page`     — `pageId` and `pageSlug` are set; the public href\n                 is `\/p\/<pageSlug>` resolved server-side via JOIN.\n  \* `system`   — built-in route (e.g. `\/feeds`); the owner can\n                 hide via `visible=false` but cannot delete.\n'))
 })
 
 
@@ -1079,7 +1088,8 @@ export const UpdateNavLinkBody = zod.object({
   "label": zod.string().max(updateNavLinkBodyLabelMax).optional(),
   "url": zod.string().max(updateNavLinkBodyUrlMax).optional(),
   "openInNewTab": zod.boolean().optional(),
-  "sortOrder": zod.number().optional()
+  "sortOrder": zod.number().optional(),
+  "visible": zod.boolean().optional()
 })
 
 export const updateNavLinkResponseLabelMax = 64;
@@ -1094,9 +1104,13 @@ export const UpdateNavLinkResponse = zod.object({
   "url": zod.string().max(updateNavLinkResponseUrlMax),
   "openInNewTab": zod.boolean(),
   "sortOrder": zod.number(),
+  "kind": zod.enum(['external', 'page', 'system']),
+  "pageId": zod.number().nullish(),
+  "pageSlug": zod.string().nullish().describe('Resolved at read time via JOIN on pages.id when kind=\'page\'.'),
+  "visible": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('Owner-configured external navigation link rendered in the navbar.\n`sortOrder` is the only ordering signal — lower numbers appear first.\n')
+}).describe('A single navbar entry. The `kind` discriminator drives rendering:\n\n  \* `external` — `url` is an absolute external URL (Task #24).\n  \* `page`     — `pageId` and `pageSlug` are set; the public href\n                 is `\/p\/<pageSlug>` resolved server-side via JOIN.\n  \* `system`   — built-in route (e.g. `\/feeds`); the owner can\n                 hide via `visible=false` but cannot delete.\n')
 
 
 /**
@@ -1104,6 +1118,181 @@ export const UpdateNavLinkResponse = zod.object({
  */
 export const DeleteNavLinkParams = zod.object({
   "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Persist a new order for nav items (owner only)
+ */
+export const ReorderNavItemsBody = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "sortOrder": zod.number()
+}))
+}).describe('Persist a new order for every nav item. The `items` array MUST\ninclude every existing nav row exactly once (the server rejects\npartial reorders with `400` and lists the missing\/unknown ids).\nThe server applies the updates in a single transaction and\nrenumbers in increments of 10 to keep gaps tidy. Clients\ntypically send `sortOrder = (i+1)\*10` for each item; the server\nalso accepts arbitrary positive ordinals and renumbers based on\ntheir relative order.\n')
+
+export const reorderNavItemsResponseLinksItemLabelMax = 64;
+
+export const reorderNavItemsResponseLinksItemUrlMax = 2048;
+
+
+
+export const ReorderNavItemsResponse = zod.object({
+  "links": zod.array(zod.object({
+  "id": zod.number(),
+  "label": zod.string().max(reorderNavItemsResponseLinksItemLabelMax),
+  "url": zod.string().max(reorderNavItemsResponseLinksItemUrlMax),
+  "openInNewTab": zod.boolean(),
+  "sortOrder": zod.number(),
+  "kind": zod.enum(['external', 'page', 'system']),
+  "pageId": zod.number().nullish(),
+  "pageSlug": zod.string().nullish().describe('Resolved at read time via JOIN on pages.id when kind=\'page\'.'),
+  "visible": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A single navbar entry. The `kind` discriminator drives rendering:\n\n  \* `external` — `url` is an absolute external URL (Task #24).\n  \* `page`     — `pageId` and `pageSlug` are set; the public href\n                 is `\/p\/<pageSlug>` resolved server-side via JOIN.\n  \* `system`   — built-in route (e.g. `\/feeds`); the owner can\n                 hide via `visible=false` but cannot delete.\n'))
+})
+
+
+/**
+ * @summary List standalone pages
+ */
+export const ListPagesQueryParams = zod.object({
+  "includeDrafts": zod.coerce.string().optional().describe('When `1`, also returns drafts (owner only).')
+})
+
+export const listPagesResponsePagesItemSlugMax = 96;
+
+export const listPagesResponsePagesItemTitleMax = 255;
+
+
+
+export const ListPagesResponse = zod.object({
+  "pages": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string().max(listPagesResponsePagesItemSlugMax),
+  "title": zod.string().max(listPagesResponsePagesItemTitleMax),
+  "content": zod.string(),
+  "contentFormat": zod.enum(['html']),
+  "status": zod.enum(['draft', 'published']),
+  "showInNav": zod.boolean(),
+  "authorUserId": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A standalone CMS page rendered at `\/p\/:slug`. Title and slug are\nindependent fields; the slug is the URL key. `contentFormat` is\nalways `\'html\'` today (the column exists for future forks that\nwant plain pages). Drafts return 404 to non-owners.\n'))
+})
+
+
+/**
+ * @summary Create a new page (owner only)
+ */
+export const createPageBodySlugMax = 96;
+
+export const createPageBodyTitleMax = 255;
+
+export const createPageBodyStatusDefault = `draft`;
+export const createPageBodyShowInNavDefault = true;
+
+export const CreatePageBody = zod.object({
+  "slug": zod.string().max(createPageBodySlugMax),
+  "title": zod.string().max(createPageBodyTitleMax),
+  "content": zod.string(),
+  "status": zod.enum(['draft', 'published']).default(createPageBodyStatusDefault),
+  "showInNav": zod.boolean().default(createPageBodyShowInNavDefault)
+})
+
+
+/**
+ * @summary Fetch a single page by slug (drafts 404 for non-owners)
+ */
+export const GetPageBySlugParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const getPageBySlugResponseSlugMax = 96;
+
+export const getPageBySlugResponseTitleMax = 255;
+
+
+
+export const GetPageBySlugResponse = zod.object({
+  "id": zod.number(),
+  "slug": zod.string().max(getPageBySlugResponseSlugMax),
+  "title": zod.string().max(getPageBySlugResponseTitleMax),
+  "content": zod.string(),
+  "contentFormat": zod.enum(['html']),
+  "status": zod.enum(['draft', 'published']),
+  "showInNav": zod.boolean(),
+  "authorUserId": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A standalone CMS page rendered at `\/p\/:slug`. Title and slug are\nindependent fields; the slug is the URL key. `contentFormat` is\nalways `\'html\'` today (the column exists for future forks that\nwant plain pages). Drafts return 404 to non-owners.\n')
+
+
+/**
+ * @summary Update a page (owner only)
+ */
+export const UpdatePageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updatePageBodySlugMax = 96;
+
+export const updatePageBodyTitleMax = 255;
+
+
+
+export const UpdatePageBody = zod.object({
+  "slug": zod.string().max(updatePageBodySlugMax).optional(),
+  "title": zod.string().max(updatePageBodyTitleMax).optional(),
+  "content": zod.string().optional(),
+  "status": zod.enum(['draft', 'published']).optional(),
+  "showInNav": zod.boolean().optional()
+})
+
+export const updatePageResponseSlugMax = 96;
+
+export const updatePageResponseTitleMax = 255;
+
+
+
+export const UpdatePageResponse = zod.object({
+  "id": zod.number(),
+  "slug": zod.string().max(updatePageResponseSlugMax),
+  "title": zod.string().max(updatePageResponseTitleMax),
+  "content": zod.string(),
+  "contentFormat": zod.enum(['html']),
+  "status": zod.enum(['draft', 'published']),
+  "showInNav": zod.boolean(),
+  "authorUserId": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A standalone CMS page rendered at `\/p\/:slug`. Title and slug are\nindependent fields; the slug is the URL key. `contentFormat` is\nalways `\'html\'` today (the column exists for future forks that\nwant plain pages). Drafts return 404 to non-owners.\n')
+
+
+/**
+ * @summary Delete a page (owner only). Cascade-deletes its nav row.
+ */
+export const DeletePageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * Hand-maintained list of the three sitewide feeds the platform
+produces (Atom, JSON Feed, MF2 export). Used by the public
+`/feeds` index page in the microblog UI.
+
+ * @summary Public catalog of subscribable site feeds
+ */
+export const ListSiteFeedsResponse = zod.object({
+  "feeds": zod.array(zod.object({
+  "slug": zod.string().describe('Stable identifier for the feed within the catalog (e.g. \"atom\", \"json\", \"mf2\").'),
+  "title": zod.string(),
+  "description": zod.string(),
+  "url": zod.string().describe('Absolute URL to the feed.'),
+  "mimeType": zod.string()
+}).describe('A single subscribable feed listed in the public Feeds index.'))
 })
 
 

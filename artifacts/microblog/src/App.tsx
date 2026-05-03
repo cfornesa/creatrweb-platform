@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter, useRoute } from "wouter";
+import { Switch, Route, Router as WouterRouter, useRoute, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,12 +15,23 @@ import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import AdminFeedsPage from "@/pages/admin-feeds";
 import AdminPendingPage from "@/pages/admin-pending";
+import AdminIndexPage from "@/pages/admin/admin-index";
+import AdminCategoriesPage from "@/pages/admin/admin-categories";
+import AdminNavigationPage from "@/pages/admin/admin-navigation";
+import AdminPagesPage from "@/pages/admin/admin-pages";
+import AdminPageEditor from "@/pages/admin/admin-page-editor";
 import SearchPage from "@/pages/search";
 import CategoryDetailPage from "@/pages/category-detail";
+import FeedsIndexPage from "@/pages/feeds";
+import PageDetailPage from "@/pages/page-detail";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function AdminRedirect() {
+  return <Redirect to="/admin/site" />;
+}
 
 function AppShell() {
   const [isEmbed] = useRoute("/embed/posts/:id");
@@ -46,10 +57,20 @@ function AppShell() {
           <Switch>
             <Route path="/" component={Home} />
             <Route path="/settings" component={SettingsPage} />
+            <Route path="/admin" component={AdminRedirect} />
+            <Route path="/admin/site" component={AdminIndexPage} />
+            <Route path="/admin/categories" component={AdminCategoriesPage} />
+            <Route path="/admin/navigation" component={AdminNavigationPage} />
+            <Route path="/admin/pages" component={AdminPagesPage} />
+            <Route path="/admin/pages/new" component={AdminPageEditor} />
+            <Route path="/admin/pages/:id" component={AdminPageEditor} />
+            <Route path="/admin/pages/:id/edit" component={AdminPageEditor} />
             <Route path="/admin/feeds" component={AdminFeedsPage} />
             <Route path="/admin/pending" component={AdminPendingPage} />
             <Route path="/search" component={SearchPage} />
+            <Route path="/feeds" component={FeedsIndexPage} />
             <Route path="/categories/:slug" component={CategoryDetailPage} />
+            <Route path="/p/:slug" component={PageDetailPage} />
             <Route path="/posts/:id" component={PostDetail} />
             <Route path="/users/:userId" component={UserProfile} />
             <Route path="/sign-in" component={SignInPage} />

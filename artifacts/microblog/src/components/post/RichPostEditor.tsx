@@ -28,6 +28,13 @@ type RichPostEditorProps = {
     contentFormat: "html";
     categoryIds: number[];
   }) => void;
+  /**
+   * Optional live-content listener. Fires on every editor update so a
+   * parent can mirror the current HTML and persist it via its own save
+   * button (used by the page editor — its Save/Publish buttons aren't
+   * the editor's onSubmit).
+   */
+  onContentChange?: (html: string) => void;
   onUpload: (file: File) => Promise<string>;
 };
 
@@ -80,6 +87,7 @@ export function RichPostEditor({
   showCategories = true,
   onCancel,
   onSubmit,
+  onContentChange,
   onUpload,
 }: RichPostEditorProps) {
   const fileInputId = useId();
@@ -112,6 +120,7 @@ export function RichPostEditor({
     },
     onUpdate({ editor: nextEditor }) {
       setTextLength(nextEditor.getText().trim().length);
+      onContentChange?.(nextEditor.getHTML());
     },
   });
 

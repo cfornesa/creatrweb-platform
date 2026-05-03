@@ -33,6 +33,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Trash2, RefreshCw, Plus, Rss, ExternalLink, CheckCircle2 } from "lucide-react";
+import { AdminLayout } from "@/components/admin/AdminLayout";
 
 const CADENCE_OPTIONS: CreateFeedSourceBodyCadence[] = ["daily", "weekly", "monthly"];
 
@@ -238,16 +239,11 @@ export default function AdminFeedsPage() {
   const sources = sourcesQuery.data?.sources ?? [];
 
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-8">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Rss className="h-7 w-7" /> Feed sources
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Subscribe to other sites' RSS / Atom feeds. New items land in the pending review queue.
-          </p>
-        </div>
+    <AdminLayout
+      title="Feed sources"
+      description="Subscribe to other sites' RSS / Atom feeds. New items land in the pending review queue."
+    >
+      <div className="mb-4 flex justify-end">
         <Button
           variant="outline"
           onClick={handleRefreshAll}
@@ -487,6 +483,6 @@ export default function AdminFeedsPage() {
           ))}
         </CardContent>
       </Card>
-    </div>
+    </AdminLayout>
   );
 }

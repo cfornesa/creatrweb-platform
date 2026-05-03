@@ -547,6 +547,73 @@ export async function ensureTables(): Promise<void> {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  // Standalone CMS pages (Task #25). Addressed at `/p/:slug`,
+  // orthogonal to `posts` (no FK reuse, never in feeds/search).
+  // `slug` is the URL key; `title` is the display label that also
+  // populates the auto-generated nav row when `show_in_nav=true`.
+  // `author_user_id` ON DELETE SET NULL — deleting the author leaves
+  // the page in place so existing URLs survive a user deletion.
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS pages (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      slug VARCHAR(96) NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      content TEXT NOT NULL,
+      content_format VARCHAR(16) NOT NULL DEFAULT 'html',
+      content_text TEXT NULL,
+      status VARCHAR(16) NOT NULL DEFAULT 'draft',
+      author_user_id VARCHAR(191) NULL,
+      show_in_nav TINYINT(1) NOT NULL DEFAULT 1,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+      UNIQUE KEY pages_slug_unique (slug),
+      CONSTRAINT pages_author_user_id_fk
+        FOREIGN KEY (author_user_id) REFERENCES users(id)
+        ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // Task #25 additive nav_links extension. Existing rows from #24
+  // backfill to kind='external'. `page_id` is the optional FK to
+  // pages — only set when kind='page'. `visible=false` hides the row
+  // from the public navbar without deleting it (preserves sort_order
+  // if toggled back on).
+  await ensureColumn(
+    "nav_links",
+    "kind",
+    "kind VARCHAR(16) NOT NULL DEFAULT 'external'",
+  );
+  await ensureColumn("nav_links", "page_id", "page_id INT NULL");
+  await ensureColumn(
+    "nav_links",
+    "visible",
+    "visible TINYINT(1) NOT NULL DEFAULT 1",
+  );
+  // `url` was NOT NULL in #24. For kind='page' we may want it empty;
+  // we keep it NOT NULL but allow empty string — application code
+  // resolves the real href via the page join. (Avoiding a
+  // schema-breaking ALTER COLUMN.)
+  await ensureForeignKey(
+    "nav_links",
+    "nav_links_page_id_fk",
+    "FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE",
+  );
+
+  // Seed the system "Feeds" nav row. Idempotent: keyed on (kind,url)
+  // tuple — re-running the migration won't insert duplicates because
+  // we skip when a kind='system' row pointing at /feeds already
+  // exists.
+  await mysqlPool.query(
+    `
+      INSERT INTO nav_links (label, url, open_in_new_tab, sort_order, kind, visible)
+      SELECT 'Feeds', '/feeds', 0, 1000, 'system', 1
+      FROM DUAL
+      WHERE NOT EXISTS (
+        SELECT 1 FROM nav_links WHERE kind = 'system' AND url = '/feeds'
+      )
+    `,
+  );
+
   await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS reactions (
       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
