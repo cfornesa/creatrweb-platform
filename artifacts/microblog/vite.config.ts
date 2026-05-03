@@ -1,10 +1,68 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import http from "http";
+import https from "https";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import viteThemeInject from "./vite.theme-inject";
 import { injectThemeData } from "../api-server/src/lib/meta-injection";
+
+// Vite's built-in `server.proxy` regex keys (e.g. `^/categories/[^/]+/feed\.xml$`)
+// are not reliably picked up against arbitrary URL shapes in this Vite version,
+// causing per-category and per-page feed URLs to fall through to the SPA's
+// htmlFallbackMiddleware (which serves index.html and renders NotFound).
+// This plugin explicitly intercepts those URLs and forwards them to the API
+// server. Production (api-server) already serves these routes directly via
+// feedsRouter mounted before the SPA fallback in app.ts, so this plugin is
+// dev-only.
+function feedSubPathProxyPlugin(target: string): Plugin {
+  const FEED_PATTERN =
+    /^\/(?:categories|p)\/[^/]+\/feed\.(?:xml|json)(?:\?.*)?$/;
+  return {
+    name: "feed-subpath-proxy",
+    apply: "serve",
+    configureServer(server) {
+      const targetUrl = new URL(target);
+      const transport = targetUrl.protocol === "https:" ? https : http;
+      server.middlewares.use((req, res, next) => {
+        const url = req.url ?? "";
+        if (!FEED_PATTERN.test(url)) return next();
+        const method = req.method ?? "GET";
+        const headers: Record<string, string | string[] | undefined> = {
+          ...req.headers,
+        };
+        const upstream = transport.request(
+          {
+            protocol: targetUrl.protocol,
+            hostname: targetUrl.hostname,
+            port: targetUrl.port,
+            method,
+            path: url,
+            headers,
+          },
+          (upRes) => {
+            res.writeHead(upRes.statusCode ?? 502, upRes.headers);
+            upRes.pipe(res);
+          },
+        );
+        upstream.on("error", (err) => {
+          if (!res.headersSent) {
+            res.statusCode = 502;
+            res.end(`feed proxy error: ${err.message}`);
+          } else {
+            res.end();
+          }
+        });
+        if (method === "GET" || method === "HEAD") {
+          upstream.end();
+        } else {
+          req.pipe(upstream);
+        }
+      });
+    },
+  };
+}
 
 const rawPort = process.env.FRONTEND_PORT ?? "20925";
 
@@ -15,7 +73,8 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 const basePath = process.env.BASE_PATH ?? "/";
-const apiOrigin = process.env.API_ORIGIN ?? `http://localhost:${process.env.PORT ?? "8080"}`;
+const apiOrigin =
+  process.env.API_ORIGIN ?? `http://localhost:${process.env.API_PORT ?? "8080"}`;
 
 export default defineConfig({
   base: basePath,
@@ -28,6 +87,7 @@ export default defineConfig({
       indexPath: path.resolve(import.meta.dirname, "index.html"),
       injectThemeData,
     }),
+    feedSubPathProxyPlugin(apiOrigin),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [
@@ -80,20 +140,11 @@ export default defineConfig({
         target: apiOrigin,
         changeOrigin: false,
       },
-      // Per-category and per-page feed URLs live under the SPA's
-      // path namespace (`/categories/:slug/feed.xml`,
-      // `/p/:slug/feed.json`, etc). Without these regex proxy
-      // entries the dev server hands the request to the SPA, which
-      // renders NotFound. The matching API server routes live in
-      // `feeds.ts` and produce real Atom/JSON Feed bytes.
-      "^/categories/[^/]+/feed\\.(xml|json)$": {
-        target: apiOrigin,
-        changeOrigin: false,
-      },
-      "^/p/[^/]+/feed\\.(xml|json)$": {
-        target: apiOrigin,
-        changeOrigin: false,
-      },
+      // Per-category and per-page feed URLs (e.g.
+      // `/categories/:slug/feed.xml`, `/p/:slug/feed.json`) are
+      // handled by `feedSubPathProxyPlugin` above instead of a
+      // regex proxy entry — Vite's regex proxy keys did not match
+      // those URLs reliably and let them fall through to the SPA.
     },
     fs: {
       strict: true,
