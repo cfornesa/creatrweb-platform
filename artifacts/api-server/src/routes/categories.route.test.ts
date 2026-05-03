@@ -37,6 +37,7 @@ vi.mock("../lib/current-user", () => ({
 const { mysqlPool } = await import("@workspace/db");
 const { default: categoriesRouter } = await import("./categories");
 const { default: postsRouter } = await import("./posts");
+const { default: pendingPostsRouter } = await import("./pending-posts");
 
 const RUN_ID = randomUUID();
 const SENTINEL_AUTHOR = `e2e-cat-${RUN_ID}`;
@@ -85,6 +86,10 @@ async function linkPostCategory(postId: number, categoryId: number) {
 beforeAll(async () => {
   const app: Express = express();
   app.use(express.json());
+  // Mount pending-posts BEFORE the generic posts router so the
+  // `/posts/pending` literal isn't swallowed by `/posts/:id` — same
+  // ordering the production composition in routes/index.ts uses.
+  app.use("/api", pendingPostsRouter);
   app.use("/api", categoriesRouter);
   app.use("/api", postsRouter);
   await new Promise<void>((resolve) => {
@@ -366,6 +371,87 @@ describe("PATCH /posts/:id transactional category validation", () => {
       Array<{ content: string }> & import("mysql2").RowDataPacket[]
     >(`SELECT content FROM posts WHERE id = ?`, [postId]);
     expect(rows[0]?.content).toBe(`original ${RUN_ID}`);
+  });
+});
+
+describe("categories[] hydration on list / detail / pending endpoints", () => {
+  it("GET /posts hydrates categories[] for the listed post", async () => {
+    userHolder.current = OWNER;
+    const slug = `hydrate-list-${RUN_ID}`;
+    const catId = await insertCategory(`HList ${RUN_ID}`, slug);
+    const postId = await insertPost(`hydratelist ${RUN_ID}`, "published");
+    await linkPostCategory(postId, catId);
+
+    userHolder.current = null;
+    // Page through until we find our seeded post — production rows
+    // can push it past page 1, so we walk pages instead of asserting
+    // an exact total.
+    let found:
+      | { id: number; categories: Array<{ id: number; slug: string }> }
+      | undefined;
+    for (let page = 1; page <= 20 && !found; page += 1) {
+      const res = await fetch(`${baseUrl}/api/posts?page=${page}&limit=100`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        posts: Array<{ id: number; categories: Array<{ id: number; slug: string }> }>;
+      };
+      found = body.posts.find((p) => p.id === postId);
+      if (body.posts.length < 100) break;
+    }
+    expect(found).toBeDefined();
+    expect(found!.categories.map((c) => c.slug)).toEqual([slug]);
+    expect(found!.categories[0]!.id).toBe(catId);
+  });
+
+  it("GET /posts/:id hydrates categories[] for the single post", async () => {
+    userHolder.current = OWNER;
+    const slug = `hydrate-detail-${RUN_ID}`;
+    const catId = await insertCategory(`HDetail ${RUN_ID}`, slug);
+    const postId = await insertPost(`hydratedetail ${RUN_ID}`, "published");
+    await linkPostCategory(postId, catId);
+
+    userHolder.current = null;
+    const res = await fetch(`${baseUrl}/api/posts/${postId}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      post: { id: number; categories: Array<{ id: number; slug: string }> };
+    };
+    expect(body.post.id).toBe(postId);
+    expect(body.post.categories.map((c) => c.slug)).toEqual([slug]);
+    expect(body.post.categories[0]!.id).toBe(catId);
+  });
+
+  it("GET /posts/pending hydrates categories[] for owner-only moderation queue", async () => {
+    userHolder.current = OWNER;
+    const slug = `hydrate-pending-${RUN_ID}`;
+    const catId = await insertCategory(`HPending ${RUN_ID}`, slug);
+    const postId = await insertPost(`hydratepending ${RUN_ID}`, "pending");
+    await linkPostCategory(postId, catId);
+
+    // Anonymous callers cannot reach the queue at all.
+    userHolder.current = null;
+    const denied = await fetch(`${baseUrl}/api/posts/pending`);
+    expect(denied.status).toBe(401);
+
+    // Owner: walk pages until our seeded pending row appears.
+    userHolder.current = OWNER;
+    let found:
+      | { id: number; categories: Array<{ id: number; slug: string }> }
+      | undefined;
+    for (let page = 1; page <= 20 && !found; page += 1) {
+      const res = await fetch(
+        `${baseUrl}/api/posts/pending?page=${page}&limit=200`,
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        posts: Array<{ id: number; categories: Array<{ id: number; slug: string }> }>;
+      };
+      found = body.posts.find((p) => p.id === postId);
+      if (body.posts.length < 200) break;
+    }
+    expect(found).toBeDefined();
+    expect(found!.categories.map((c) => c.slug)).toEqual([slug]);
+    expect(found!.categories[0]!.id).toBe(catId);
   });
 });
 
