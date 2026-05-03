@@ -232,7 +232,7 @@ If someone clones this repo to run their own microblog, the path is:
    | `NODE_ENV` | optional | Standard `production` / `development` toggle (affects logging + cache headers). |
    | `AUTH_URL` | yes in prod | Read by Auth.js itself (not directly by app code) to compute OAuth callback URLs. Set to your public origin (e.g. `https://yourdomain.com`). |
    | `PORT` | optional | API server listen port (defaults to `8080`). |
-   | `FRONTEND_PORT`, `API_ORIGIN` | local dev only | Vite dev port and the dev-proxy target — only consumed by the frontend dev server in `artifacts/microblog`. |
+   | `FRONTEND_PORT`, `API_ORIGIN`, `API_PORT` | local dev only | `FRONTEND_PORT` is the Vite dev server's port (default `20925`). `API_ORIGIN` is the explicit dev-proxy target; if unset, the proxy falls back to `http://localhost:${API_PORT}` (default `8080`). All three are only consumed by the frontend dev server in `artifacts/microblog/vite.config.ts`. **Don't use the bare `PORT` env var to mean "the API port" in dev** — Replit's dev runner sets `PORT` to the *frontend* port, which is why the proxy uses `API_PORT` instead. |
 
 3. **Pick a username**: choose the handle your profile page will live at — the URL is `/users/@<your-username>` (e.g. picking `chris` yields `/users/@chris`). Pick something short, lowercase, ASCII-only — it shows up in URLs, bylines, and the hero CTA.
 
@@ -277,6 +277,24 @@ Several top-level folders and markdown files in this repo are part of the **Crea
 | `EVAL_PROMPT.md` | Framework's session-compliance evaluator |
 
 **`README.md` and `replit.md` are NOT in the safe-to-delete list.** `README.md` is the standard repo front page and is required by every git host; `replit.md` is the Replit-specific working memory the Replit Agent reads on every session and is required if you continue developing on Replit. Keep both. The `docs/` directory and everything under `artifacts/`, `lib/`, `scripts/`, and `data/` are all app-essential — the framework callout above is the entire optional surface.
+
+## Deployment
+
+The app deploys as a Replit **autoscale** deployment in **single-runnable** mode (`.replit` `[deployment]`):
+
+```toml
+[deployment]
+router = "application"
+deploymentTarget = "autoscale"
+build = ["npm", "run", "build"]
+run   = ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
+```
+
+The explicit `run`/`build` is **load-bearing, not cosmetic**. Without them, Replit's autoscale auto-detects the npm-workspace monorepo, sees `artifacts/microblog/dist/public`, and registers it as an *edge* static handler at `/` in front of the api-server runnable (the deployment startup logs print `registered static handler for artifact publicDir=artifacts/microblog/dist/public path=/` and `artifact mode enabled runnable=1 static=1`). That edge handler then SPA-fallbacks every non-`/api/*` path to `index.html`, which silently breaks every public feed URL — `/feed.xml`, `/feed.json`, `/export.json`, `/export/json`, `/categories/:slug/feed.{xml,json}`, `/p/:slug/feed.{xml,json}` — because the requests never reach Express's `feedsRouter`. The single-runnable config sends all traffic straight to the api-server, which serves the SPA itself via `express.static(microblog/dist/public)` + `injectThemeData` SPA fallback in `artifacts/api-server/src/app.ts`, with `feedsRouter` mounted *before* the SPA fallback (line ~68). All routes work because the order on a single Express instance is correct; splitting into an edge static + runnable inverts that order.
+
+The build step (`npm run build`) runs the root build script, which begins with `tsc --build` across the project references in the root `tsconfig.json` (`lib/db`, `lib/api-client-react`, `lib/api-zod`). `lib/db/src/**/*.ts` uses explicit `.ts` extensions on relative imports (e.g. `import { usersTable } from "./users.ts"`) — that requires `"allowImportingTsExtensions": true` in `lib/db/tsconfig.json`, which is paired with the package's existing `"emitDeclarationOnly": true` (TypeScript's only constraint on the option). If you ever drop `emitDeclarationOnly`, you must also strip the `.ts` extensions from those imports or the build will fail with TS5097.
+
+Updates to `[deployment]` made via `deployConfig`/the Publishing UI **only update the configuration; they do not redeploy**. After changing `run`, `build`, or any other deployment field, click Publish again to roll the change out.
 
 ## Important Notes
 
