@@ -26,7 +26,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
  * Submit on Enter navigates to `/search?q=…`; the search page is the
  * single source of truth for filter state going forward.
  */
-export function SearchBar() {
+export function SearchBar({ embed = false }: { embed?: boolean } = {}) {
   const [, setLocation] = useLocation();
   // Subscribe to the URL's query string so the input mirrors the
   // active query (e.g. landing on `/search?q=hello` shows "hello",
@@ -165,14 +165,42 @@ export function SearchBar() {
     }
   }
 
+  if (embed) {
+    return (
+      <form
+        onSubmit={onInlineSubmit}
+        role="search"
+        className="relative flex items-center gap-1.5"
+        data-testid="header-search-embed"
+      >
+        <div className="relative flex-1">
+          <Search
+            className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            ref={inlineRef}
+            type="search"
+            name="q"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={onInlineKeyDown}
+            onBlur={applyPendingUrlSync}
+            placeholder="Search posts…"
+            aria-label="Search posts"
+            enterKeyHint="search"
+            className="h-9 w-full pl-8"
+          />
+        </div>
+        <Button type="submit" size="sm" variant="secondary" className="h-9">
+          Search
+        </Button>
+      </form>
+    );
+  }
+
   return (
     <>
-      {/* Desktop: inline input + visible Search button. The button
-          mirrors what Enter does so the affordance is discoverable
-          (Enter alone wasn't obvious to first-time visitors). The
-          button stays enabled even with an empty input — submitting
-          empty navigates to /search, which is the filter-only entry
-          point, and is the same behavior as Enter. Hidden below `sm`. */}
       <form
         onSubmit={onInlineSubmit}
         role="search"

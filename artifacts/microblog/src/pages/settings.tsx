@@ -16,6 +16,7 @@ import { Globe, Instagram, Youtube, Twitter, Music2, Tv, Github, Linkedin, Rss, 
 import { Link } from "wouter";
 import { useListPendingPosts, getListPendingPostsQueryKey } from "@workspace/api-client-react";
 import { CategoriesManagementCard } from "@/components/post/CategoriesManagementCard";
+import { NavLinksManagementCard } from "@/components/layout/NavLinksManagementCard";
 
 export default function SettingsPage() {
   const { currentUser, isLoading: isUserLoading, isOwner } = useCurrentUser();
@@ -123,6 +124,8 @@ export default function SettingsPage() {
       ) : null}
 
       {isOwner ? <CategoriesManagementCard /> : null}
+
+      {isOwner ? <NavLinksManagementCard /> : null}
 
       {isOwner && siteSettings ? (
         <div className="mb-6">

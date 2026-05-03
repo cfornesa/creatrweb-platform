@@ -530,6 +530,23 @@ export async function ensureTables(): Promise<void> {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  // Owner-managed external navigation links rendered in the sitewide navbar.
+  // Flat list (no nesting); ordered by `sort_order` ascending. Index on
+  // `sort_order` so the public list query never table-scans as the list
+  // grows. `open_in_new_tab` defaults to true since these are external.
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS nav_links (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      label VARCHAR(64) NOT NULL,
+      url VARCHAR(2048) NOT NULL,
+      open_in_new_tab TINYINT(1) NOT NULL DEFAULT 1,
+      sort_order INT NOT NULL DEFAULT 0,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+      KEY nav_links_sort_order_idx (sort_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
   await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS reactions (
       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,

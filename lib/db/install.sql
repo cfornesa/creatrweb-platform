@@ -25,10 +25,10 @@
 --  4. Leave the format set to "SQL" and the character set to "utf-8".
 --  5. Scroll to the bottom and click "Go". You should see a green
 --     "Import has been successfully finished" banner.
---  6. Click the database name again — you should now see all 12 tables
+--  6. Click the database name again — you should now see all 13 tables
 --     listed: `users`, `accounts`, `sessions`, `verification_tokens`,
 --     `feed_sources`, `feed_items_seen`, `posts`, `comments`, `reactions`,
---     `categories`, `post_categories`, `site_settings`. The `site_settings`
+--     `categories`, `post_categories`, `nav_links`, `site_settings`. The `site_settings`
 --     table will already contain one row (id = 1) with the placeholder copy
 --     seeded below.
 --
@@ -277,6 +277,23 @@ CREATE TABLE IF NOT EXISTS `comments` (
     FOREIGN KEY (`post_id`) REFERENCES `posts` (`id`) ON DELETE CASCADE,        -- delete post = delete its comments
   CONSTRAINT `comments_author_user_id_fk`
     FOREIGN KEY (`author_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL -- delete user = orphan their comments
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------------
+-- 5b. `nav_links` — owner-managed external navigation links rendered in the
+--     sitewide navbar. Flat list (no nesting), ordered ascending by
+--     `sort_order`. The owner adds entries from /settings; fresh installs
+--     start with zero rows so the navbar shows just the logo + auth control.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `nav_links` (
+  `id`               INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `label`            VARCHAR(64)   NOT NULL,                              -- short navbar label
+  `url`              VARCHAR(2048) NOT NULL,                              -- absolute external URL
+  `open_in_new_tab`  TINYINT(1)    NOT NULL DEFAULT 1,                    -- defaults to true for external links
+  `sort_order`       INT           NOT NULL DEFAULT 0,                    -- lower numbers appear first
+  `created_at`       DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at`       DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  KEY `nav_links_sort_order_idx` (`sort_order`)                           -- powers the public list query
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `reactions` (
@@ -530,7 +547,13 @@ INSERT IGNORE INTO `site_settings` (
 --   GROUP BY c.id
 --   ORDER BY published_post_count DESC, c.name ASC;
 
--- 17. Hard-reset per-user theme on a single user (snaps them back to the
+-- 17. List the owner-managed navbar links in render order. Lower `sort_order`
+--     values appear first; ties keep their relative insertion order.
+-- SELECT id, label, url, open_in_new_tab, sort_order, updated_at
+--   FROM nav_links
+--   ORDER BY sort_order ASC, id ASC;
+
+-- 18. Hard-reset per-user theme on a single user (snaps them back to the
 --     site default everywhere). Replace `<<TARGET_EMAIL>>` first.
 -- UPDATE `users` SET
 --     theme = NULL, palette = NULL,

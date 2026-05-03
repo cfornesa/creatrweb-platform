@@ -1,7 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, siteSettingsTable, siteSettingsDefaults, eq } from "@workspace/db";
+import { db, siteSettingsTable, siteSettingsDefaults, usersTable, eq } from "@workspace/db";
 import { requireAuth, requireOwner } from "../middlewares/auth";
 import { UpdateSiteSettingsBody } from "@workspace/api-zod";
+import { parseSocialLinks } from "./users";
 
 const router: IRouter = Router();
 
@@ -26,10 +27,49 @@ function serialize(row: Awaited<ReturnType<typeof loadOrSeedSettings>>) {
   return rest;
 }
 
+/**
+ * Looks up the single owner user (`role = 'owner'`) and pulls out the two
+ * fields the sitewide footer needs: `social_links` (JSON map) and
+ * `website` (string). Returns sensible defaults when no owner exists yet
+ * — e.g. on a brand-new install where the first sign-up hasn't been
+ * promoted yet — so the response stays well-typed and the footer
+ * silently renders without a social row.
+ */
+async function loadOwnerPublicProfile(): Promise<{
+  ownerSocialLinks: Record<string, string>;
+  ownerWebsite: string | null;
+}> {
+  const rows = await db
+    .select({
+      socialLinks: usersTable.socialLinks,
+      website: usersTable.website,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.role, "owner"))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return { ownerSocialLinks: {}, ownerWebsite: null };
+
+  const parsed = parseSocialLinks(row.socialLinks) ?? {};
+  // Only forward string-valued entries; defensive against legacy bad data.
+  const cleaned: Record<string, string> = {};
+  for (const [k, v] of Object.entries(parsed)) {
+    if (typeof v === "string" && v.trim().length > 0) cleaned[k] = v;
+  }
+  const website =
+    typeof row.website === "string" && row.website.trim().length > 0
+      ? row.website
+      : null;
+  return { ownerSocialLinks: cleaned, ownerWebsite: website };
+}
+
 router.get("/site-settings", async (_req: Request, res: Response) => {
   try {
-    const row = await loadOrSeedSettings();
-    return res.json(serialize(row));
+    const [row, owner] = await Promise.all([
+      loadOrSeedSettings(),
+      loadOwnerPublicProfile(),
+    ]);
+    return res.json({ ...serialize(row), ...owner });
   } catch (err) {
     console.error("Failed to fetch site settings:", err);
     return res.status(500).json({ error: "Server error" });
@@ -62,8 +102,11 @@ router.patch(
           .where(eq(siteSettingsTable.id, 1));
       }
 
-      const row = await loadOrSeedSettings();
-      return res.json(serialize(row));
+      const [row, owner] = await Promise.all([
+        loadOrSeedSettings(),
+        loadOwnerPublicProfile(),
+      ]);
+      return res.json({ ...serialize(row), ...owner });
     } catch (err) {
       console.error("Failed to update site settings:", err);
       return res.status(500).json({ error: "Server error" });

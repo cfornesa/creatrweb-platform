@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { Navbar } from "@/components/layout/Navbar";
+import { Footer } from "@/components/layout/Footer";
 import { ThemeInjector } from "@/components/layout/ThemeInjector";
 import Home from "@/pages/home";
 import SettingsPage from "@/pages/settings";
@@ -56,6 +57,7 @@ function AppShell() {
             <Route component={NotFound} />
           </Switch>
         </main>
+        <Footer />
       </div>
 
       <Toaster />

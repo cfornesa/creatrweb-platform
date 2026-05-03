@@ -8,6 +8,7 @@ import siteSettingsRouter from "./site-settings";
 import feedSourcesRouter from "./feed-sources";
 import pendingPostsRouter from "./pending-posts";
 import categoriesRouter from "./categories";
+import navLinksRouter from "./nav-links";
 
 const router: IRouter = Router();
 
@@ -27,5 +28,6 @@ router.use(mediaRouter);
 router.use(usersRouter);
 router.use(siteSettingsRouter);
 router.use(feedSourcesRouter);
+router.use(navLinksRouter);
 
 export default router;

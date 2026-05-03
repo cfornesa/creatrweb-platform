@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useListPosts, getListPostsQueryKey, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
+import { useListPosts, getListPostsQueryKey } from "@workspace/api-client-react";
 import { PostCard } from "@/components/post/PostCard";
 import { ComposePost } from "@/components/post/ComposePost";
 import { FeedStatsWidget } from "@/components/layout/FeedStatsWidget";
@@ -30,12 +30,6 @@ export default function Home() {
     { page: 1, limit: 50 },
     { query: { queryKey: getListPostsQueryKey({ page: 1, limit: 50 }) } }
   );
-  
-  const { data: health } = useHealthCheck({
-    query: {
-      queryKey: getHealthCheckQueryKey()
-    }
-  });
 
   const visiblePosts = useMemo(() => {
     const basePosts = [...(postsPage?.posts ?? [])];
@@ -186,13 +180,6 @@ export default function Home() {
           <div className="rounded-2xl bg-muted/50 p-6 text-sm text-muted-foreground">
             <h3 className="font-semibold text-foreground mb-2">{siteSettings?.aboutHeading ?? ""}</h3>
             <p className="whitespace-pre-line">{siteSettings?.aboutBody ?? ""}</p>
-            <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-between text-xs">
-              <span>Copyright &copy; {new Date().getFullYear()} {siteSettings?.copyrightLine ?? ""}.</span>
-              <div className="flex items-center gap-1.5">
-                <span className={`h-2 w-2 rounded-full ${health?.status === 'ok' ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                <span>{health?.status === 'ok' ? 'API Online' : 'API Offline'}</span>
-              </div>
-            </div>
           </div>
         </aside>
       </div>

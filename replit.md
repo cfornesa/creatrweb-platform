@@ -42,13 +42,13 @@ Full-stack microblogging platform ("Microblog") — npm workspace monorepo, Type
 
 ## Database
 
-MySQL (Hostinger-hosted in production, also MySQL locally). Drizzle schema in `lib/db/src/schema/`. Core tables: `users`, `accounts`, `sessions`, `verification_tokens`, `posts`, `comments`, `reactions`, `categories`, `post_categories` (many-to-many join), `site_settings` (singleton row, id=1), `feed_sources` (owner-subscribed RSS/Atom feeds), and `feed_items_seen` (per-source dedup ledger). Legacy SQLite material under `data/` is retained only as historical import material from the migration; nothing reads or writes it at runtime.
+MySQL (Hostinger-hosted in production, also MySQL locally). Drizzle schema in `lib/db/src/schema/`. Core tables: `users`, `accounts`, `sessions`, `verification_tokens`, `posts`, `comments`, `reactions`, `categories`, `post_categories` (many-to-many join), `nav_links` (owner-managed external navbar links, ordered by `sort_order`), `site_settings` (singleton row, id=1), `feed_sources` (owner-subscribed RSS/Atom feeds), and `feed_items_seen` (per-source dedup ledger). Legacy SQLite material under `data/` is retained only as historical import material from the migration; nothing reads or writes it at runtime.
 
 Schema reconciliation is performed by the API server at startup via `ensureTables()` + `ensureColumn()` + `ensureForeignKey()` + `ensureIndex()` in `lib/db/src/migrate.ts`. This is the single source of truth — the post-merge script (`scripts/post-merge.sh`) runs only `npm ci`. For one-shot pushes outside the normal merge flow, `npm run push-force --workspace=@workspace/db` is documented in the script's comment block.
 
 For environments where schema is applied by hand (e.g. Hostinger via phpMyAdmin), two copy-pasteable SQL scripts ship alongside the schema:
 
-- `lib/db/install.sql` — **full database install** for forkers. Creates every table (`users`, `accounts`, `sessions`, `verification_tokens`, `feed_sources`, `feed_items_seen`, `posts`, `comments`, `reactions`, `categories`, `post_categories`, `site_settings`), all indexes including the `posts_content_text_fulltext` FULLTEXT index, every foreign key, and seeds the `site_settings` singleton row with neutral placeholder copy. Idempotent (uses `CREATE TABLE IF NOT EXISTS` + `INSERT IGNORE`). The bottom of the file also lists 15 commented-out maintenance queries (promote/demote owner, list users, approve/reject pending posts, vacuum stale dedup rows, run the same FULLTEXT query the app uses, etc.).
+- `lib/db/install.sql` — **full database install** for forkers. Creates every table (`users`, `accounts`, `sessions`, `verification_tokens`, `feed_sources`, `feed_items_seen`, `posts`, `comments`, `reactions`, `categories`, `post_categories`, `nav_links`, `site_settings`), all indexes including the `posts_content_text_fulltext` FULLTEXT index, every foreign key, and seeds the `site_settings` singleton row with neutral placeholder copy. Idempotent (uses `CREATE TABLE IF NOT EXISTS` + `INSERT IGNORE`). The bottom of the file also lists 15 commented-out maintenance queries (promote/demote owner, list users, approve/reject pending posts, vacuum stale dedup rows, run the same FULLTEXT query the app uses, etc.).
 - `lib/db/site_settings_install.sql` — narrower script for the `site_settings` table only, kept around for upgrades from earlier deploys that pre-date the rest of the schema being applied by hand.
 
 ## API Routes
@@ -63,8 +63,12 @@ For environments where schema is applied by hand (e.g. Hostinger via phpMyAdmin)
 - `DELETE /api/comments/:id` — delete own comment (auth required)
 - `GET /api/users/me` — current user profile (auth required)
 - `GET /api/feed/stats` — total posts + comments count
-- `GET /api/site-settings` — public site identity + color palette (singleton)
+- `GET /api/site-settings` — public site identity + color palette (singleton); response also includes the owner user's `ownerSocialLinks` map (instagram/twitter/youtube/tiktok/twitch/github/linkedin) and `ownerWebsite` so the sitewide footer can render social icons without a second round-trip
 - `PATCH /api/site-settings` — update site identity + color palette (owner only)
+- `GET /api/nav-links` — list owner-managed external navbar links sorted by `sortOrder` ascending (public)
+- `POST /api/nav-links` — create a nav link (owner only)
+- `PATCH /api/nav-links/:id` — rename, change URL, toggle `openInNewTab`, or re-order (owner only)
+- `DELETE /api/nav-links/:id` — delete a nav link (owner only)
 - `GET /api/feed-sources` — list subscribed RSS/Atom sources (owner only)
 - `POST /api/feed-sources` — subscribe to a new feed (owner only)
 - `PATCH /api/feed-sources/:id` — update name/url/cadence/enabled (owner only)

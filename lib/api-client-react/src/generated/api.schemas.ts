@@ -422,6 +422,16 @@ export const SiteSettingsPalette = {
   pastel: 'pastel',
 } as const;
 
+/**
+ * Map of social-platform key (instagram, twitter, youtube, tiktok,
+twitch, github, linkedin) to absolute URL, taken from the owner
+user's `social_links`. Used by the sitewide footer so it does
+not need a second round-trip or an "owner lookup" of its own.
+Empty object when no owner is set or none are populated.
+
+ */
+export type SiteSettingsOwnerSocialLinks = {[key: string]: string};
+
 export interface SiteSettings {
   theme: SiteSettingsTheme;
   palette: SiteSettingsPalette;
@@ -448,6 +458,57 @@ export interface SiteSettings {
   colorMutedForeground: string;
   colorDestructive: string;
   colorDestructiveForeground: string;
+  /** Map of social-platform key (instagram, twitter, youtube, tiktok,
+  twitch, github, linkedin) to absolute URL, taken from the owner
+  user's `social_links`. Used by the sitewide footer so it does
+  not need a second round-trip or an "owner lookup" of its own.
+  Empty object when no owner is set or none are populated.
+   */
+  ownerSocialLinks: SiteSettingsOwnerSocialLinks;
+  /** The owner user's `website` URL, surfaced here so the sitewide
+  footer can render a globe icon next to the social row without
+  an extra round-trip.
+   */
+  ownerWebsite?: string | null;
+}
+
+/**
+ * Owner-configured external navigation link rendered in the navbar.
+`sortOrder` is the only ordering signal — lower numbers appear first.
+
+ */
+export interface NavLink {
+  id: number;
+  /** @maxLength 64 */
+  label: string;
+  /** @maxLength 2048 */
+  url: string;
+  openInNewTab: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NavLinksList {
+  links: NavLink[];
+}
+
+export interface CreateNavLinkBody {
+  /** @maxLength 64 */
+  label: string;
+  /** @maxLength 2048 */
+  url: string;
+  openInNewTab?: boolean;
+  sortOrder?: number;
+}
+
+export interface UpdateNavLinkBody {
+  /** @maxLength 64 */
+  label?: string;
+  /** @maxLength 2048 */
+  url?: string;
+  openInNewTab?: boolean;
+  sortOrder?: number;
 }
 
 export type PendingPostContentFormat = typeof PendingPostContentFormat[keyof typeof PendingPostContentFormat];

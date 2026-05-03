@@ -20,6 +20,8 @@ tags:
     description: Site-wide settings
   - name: feeds
     description: Inbound RSS / Atom feed sources and moderation queue
+  - name: nav-links
+    description: Owner-managed external navigation links rendered in the navbar
 paths:
   /healthz:
     get:
@@ -884,6 +886,98 @@ paths:
         "404":
           description: Not found
 
+  /nav-links:
+    get:
+      operationId: listNavLinks
+      tags: [nav-links]
+      summary: List the owner-configured external navbar links
+      description: |
+        Public read. Returns every nav link sorted ascending by `sortOrder`
+        (ties keep their relative insertion order). Used by the sitewide
+        Navbar to render the middle link row.
+      responses:
+        "200":
+          description: Nav-links list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NavLinksList"
+    post:
+      operationId: createNavLink
+      tags: [nav-links]
+      summary: Create a new nav link (owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNavLinkBody"
+      responses:
+        "201":
+          description: Created nav link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NavLink"
+        "400":
+          description: Invalid body
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /nav-links/{id}:
+    patch:
+      operationId: updateNavLink
+      tags: [nav-links]
+      summary: Update a nav link (owner only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateNavLinkBody"
+      responses:
+        "200":
+          description: Updated nav link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NavLink"
+        "400":
+          description: Invalid body
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteNavLink
+      tags: [nav-links]
+      summary: Delete a nav link (owner only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+
   /media/{fileName}:
     get:
       operationId: getMedia
@@ -1580,6 +1674,23 @@ components:
           type: string
         colorDestructiveForeground:
           type: string
+        ownerSocialLinks:
+          type: object
+          additionalProperties:
+            type: string
+          description: |
+            Map of social-platform key (instagram, twitter, youtube, tiktok,
+            twitch, github, linkedin) to absolute URL, taken from the owner
+            user's `social_links`. Used by the sitewide footer so it does
+            not need a second round-trip or an "owner lookup" of its own.
+            Empty object when no owner is set or none are populated.
+        ownerWebsite:
+          type: string
+          nullable: true
+          description: |
+            The owner user's `website` URL, surfaced here so the sitewide
+            footer can render a globe icon next to the social row without
+            an extra round-trip.
       required:
         - theme
         - palette
@@ -1606,6 +1717,83 @@ components:
         - colorMutedForeground
         - colorDestructive
         - colorDestructiveForeground
+        - ownerSocialLinks
+
+    NavLink:
+      type: object
+      description: |
+        Owner-configured external navigation link rendered in the navbar.
+        `sortOrder` is the only ordering signal — lower numbers appear first.
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+          maxLength: 64
+        url:
+          type: string
+          maxLength: 2048
+        openInNewTab:
+          type: boolean
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - label
+        - url
+        - openInNewTab
+        - sortOrder
+        - createdAt
+        - updatedAt
+
+    NavLinksList:
+      type: object
+      properties:
+        links:
+          type: array
+          items:
+            $ref: "#/components/schemas/NavLink"
+      required:
+        - links
+
+    CreateNavLinkBody:
+      type: object
+      properties:
+        label:
+          type: string
+          maxLength: 64
+        url:
+          type: string
+          maxLength: 2048
+        openInNewTab:
+          type: boolean
+          default: true
+        sortOrder:
+          type: integer
+          default: 0
+      required:
+        - label
+        - url
+
+    UpdateNavLinkBody:
+      type: object
+      properties:
+        label:
+          type: string
+          maxLength: 64
+        url:
+          type: string
+          maxLength: 2048
+        openInNewTab:
+          type: boolean
+        sortOrder:
+          type: integer
 
     PendingPost:
       type: object

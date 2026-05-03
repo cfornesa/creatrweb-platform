@@ -29,6 +29,7 @@ import type {
   CreateCategoryBody,
   CreateCommentBody,
   CreateFeedSourceBody,
+  CreateNavLinkBody,
   CreatePostBody,
   FeedRefreshResult,
   FeedRefreshSummary,
@@ -40,6 +41,8 @@ import type {
   HealthStatus,
   ListPendingPostsParams,
   ListPostsParams,
+  NavLink,
+  NavLinksList,
   PendingPostsPage,
   Post,
   PostWithComments,
@@ -52,6 +55,7 @@ import type {
   UpdateCategoryBody,
   UpdateCommentBody,
   UpdateFeedSourceBody,
+  UpdateNavLinkBody,
   UpdatePostBody,
   UpdateSiteSettingsBody,
   UpdateUserProfileBody,
@@ -2722,6 +2726,300 @@ export function useGetCategoryPosts<TData = Awaited<ReturnType<typeof getCategor
 
 
 
+
+/**
+ * Public read. Returns every nav link sorted ascending by `sortOrder`
+(ties keep their relative insertion order). Used by the sitewide
+Navbar to render the middle link row.
+
+ * @summary List the owner-configured external navbar links
+ */
+export const getListNavLinksUrl = () => {
+
+
+
+
+  return `/api/nav-links`
+}
+
+export const listNavLinks = async ( options?: RequestInit): Promise<NavLinksList> => {
+
+  return customFetch<NavLinksList>(getListNavLinksUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListNavLinksQueryKey = () => {
+    return [
+    `/api/nav-links`
+    ] as const;
+    }
+
+
+export const getListNavLinksQueryOptions = <TData = Awaited<ReturnType<typeof listNavLinks>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNavLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListNavLinksQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNavLinks>>> = ({ signal }) => listNavLinks({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listNavLinks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListNavLinksQueryResult = NonNullable<Awaited<ReturnType<typeof listNavLinks>>>
+export type ListNavLinksQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the owner-configured external navbar links
+ */
+
+export function useListNavLinks<TData = Awaited<ReturnType<typeof listNavLinks>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNavLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListNavLinksQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * @summary Create a new nav link (owner only)
+ */
+export const getCreateNavLinkUrl = () => {
+
+
+
+
+  return `/api/nav-links`
+}
+
+export const createNavLink = async (createNavLinkBody: CreateNavLinkBody, options?: RequestInit): Promise<NavLink> => {
+
+  return customFetch<NavLink>(getCreateNavLinkUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      createNavLinkBody,)
+  }
+);}
+
+
+
+
+export const getCreateNavLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNavLink>>, TError,{data: BodyType<CreateNavLinkBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createNavLink>>, TError,{data: BodyType<CreateNavLinkBody>}, TContext> => {
+
+const mutationKey = ['createNavLink'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createNavLink>>, {data: BodyType<CreateNavLinkBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createNavLink(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateNavLinkMutationResult = NonNullable<Awaited<ReturnType<typeof createNavLink>>>
+    export type CreateNavLinkMutationBody = BodyType<CreateNavLinkBody>
+    export type CreateNavLinkMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a new nav link (owner only)
+ */
+export const useCreateNavLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNavLink>>, TError,{data: BodyType<CreateNavLinkBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createNavLink>>,
+        TError,
+        {data: BodyType<CreateNavLinkBody>},
+        TContext
+      > => {
+      return useMutation(getCreateNavLinkMutationOptions(options));
+    }
+
+/**
+ * @summary Update a nav link (owner only)
+ */
+export const getUpdateNavLinkUrl = (id: number,) => {
+
+
+
+
+  return `/api/nav-links/${id}`
+}
+
+export const updateNavLink = async (id: number,
+    updateNavLinkBody: UpdateNavLinkBody, options?: RequestInit): Promise<NavLink> => {
+
+  return customFetch<NavLink>(getUpdateNavLinkUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateNavLinkBody,)
+  }
+);}
+
+
+
+
+export const getUpdateNavLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNavLink>>, TError,{id: number;data: BodyType<UpdateNavLinkBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateNavLink>>, TError,{id: number;data: BodyType<UpdateNavLinkBody>}, TContext> => {
+
+const mutationKey = ['updateNavLink'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateNavLink>>, {id: number;data: BodyType<UpdateNavLinkBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateNavLink(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateNavLinkMutationResult = NonNullable<Awaited<ReturnType<typeof updateNavLink>>>
+    export type UpdateNavLinkMutationBody = BodyType<UpdateNavLinkBody>
+    export type UpdateNavLinkMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a nav link (owner only)
+ */
+export const useUpdateNavLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNavLink>>, TError,{id: number;data: BodyType<UpdateNavLinkBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateNavLink>>,
+        TError,
+        {id: number;data: BodyType<UpdateNavLinkBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateNavLinkMutationOptions(options));
+    }
+
+/**
+ * @summary Delete a nav link (owner only)
+ */
+export const getDeleteNavLinkUrl = (id: number,) => {
+
+
+
+
+  return `/api/nav-links/${id}`
+}
+
+export const deleteNavLink = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteNavLinkUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteNavLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteNavLink>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteNavLink>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteNavLink'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteNavLink>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteNavLink(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteNavLinkMutationResult = NonNullable<Awaited<ReturnType<typeof deleteNavLink>>>
+
+    export type DeleteNavLinkMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a nav link (owner only)
+ */
+export const useDeleteNavLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteNavLink>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteNavLink>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteNavLinkMutationOptions(options));
+    }
 
 /**
  * @summary Fetch an uploaded media asset

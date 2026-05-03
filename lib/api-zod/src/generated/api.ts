@@ -535,7 +535,9 @@ export const GetSiteSettingsResponse = zod.object({
   "colorMuted": zod.string(),
   "colorMutedForeground": zod.string(),
   "colorDestructive": zod.string(),
-  "colorDestructiveForeground": zod.string()
+  "colorDestructiveForeground": zod.string(),
+  "ownerSocialLinks": zod.record(zod.string(), zod.string()).describe('Map of social-platform key (instagram, twitter, youtube, tiktok,\ntwitch, github, linkedin) to absolute URL, taken from the owner\nuser\'s `social_links`. Used by the sitewide footer so it does\nnot need a second round-trip or an \"owner lookup\" of its own.\nEmpty object when no owner is set or none are populated.\n'),
+  "ownerWebsite": zod.string().nullish().describe('The owner user\'s `website` URL, surfaced here so the sitewide\nfooter can render a globe icon next to the social row without\nan extra round-trip.\n')
 })
 
 
@@ -643,7 +645,9 @@ export const UpdateSiteSettingsResponse = zod.object({
   "colorMuted": zod.string(),
   "colorMutedForeground": zod.string(),
   "colorDestructive": zod.string(),
-  "colorDestructiveForeground": zod.string()
+  "colorDestructiveForeground": zod.string(),
+  "ownerSocialLinks": zod.record(zod.string(), zod.string()).describe('Map of social-platform key (instagram, twitter, youtube, tiktok,\ntwitch, github, linkedin) to absolute URL, taken from the owner\nuser\'s `social_links`. Used by the sitewide footer so it does\nnot need a second round-trip or an \"owner lookup\" of its own.\nEmpty object when no owner is set or none are populated.\n'),
+  "ownerWebsite": zod.string().nullish().describe('The owner user\'s `website` URL, surfaced here so the sitewide\nfooter can render a globe icon next to the social row without\nan extra round-trip.\n')
 })
 
 
@@ -1011,6 +1015,95 @@ export const GetCategoryPostsResponse = zod.object({
   "total": zod.number(),
   "page": zod.number(),
   "limit": zod.number()
+})
+
+
+/**
+ * Public read. Returns every nav link sorted ascending by `sortOrder`
+(ties keep their relative insertion order). Used by the sitewide
+Navbar to render the middle link row.
+
+ * @summary List the owner-configured external navbar links
+ */
+export const listNavLinksResponseLinksItemLabelMax = 64;
+
+export const listNavLinksResponseLinksItemUrlMax = 2048;
+
+
+
+export const ListNavLinksResponse = zod.object({
+  "links": zod.array(zod.object({
+  "id": zod.number(),
+  "label": zod.string().max(listNavLinksResponseLinksItemLabelMax),
+  "url": zod.string().max(listNavLinksResponseLinksItemUrlMax),
+  "openInNewTab": zod.boolean(),
+  "sortOrder": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-configured external navigation link rendered in the navbar.\n`sortOrder` is the only ordering signal — lower numbers appear first.\n'))
+})
+
+
+/**
+ * @summary Create a new nav link (owner only)
+ */
+export const createNavLinkBodyLabelMax = 64;
+
+export const createNavLinkBodyUrlMax = 2048;
+
+export const createNavLinkBodyOpenInNewTabDefault = true;
+export const createNavLinkBodySortOrderDefault = 0;
+
+export const CreateNavLinkBody = zod.object({
+  "label": zod.string().max(createNavLinkBodyLabelMax),
+  "url": zod.string().max(createNavLinkBodyUrlMax),
+  "openInNewTab": zod.boolean().default(createNavLinkBodyOpenInNewTabDefault),
+  "sortOrder": zod.number().default(createNavLinkBodySortOrderDefault)
+})
+
+
+/**
+ * @summary Update a nav link (owner only)
+ */
+export const UpdateNavLinkParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateNavLinkBodyLabelMax = 64;
+
+export const updateNavLinkBodyUrlMax = 2048;
+
+
+
+export const UpdateNavLinkBody = zod.object({
+  "label": zod.string().max(updateNavLinkBodyLabelMax).optional(),
+  "url": zod.string().max(updateNavLinkBodyUrlMax).optional(),
+  "openInNewTab": zod.boolean().optional(),
+  "sortOrder": zod.number().optional()
+})
+
+export const updateNavLinkResponseLabelMax = 64;
+
+export const updateNavLinkResponseUrlMax = 2048;
+
+
+
+export const UpdateNavLinkResponse = zod.object({
+  "id": zod.number(),
+  "label": zod.string().max(updateNavLinkResponseLabelMax),
+  "url": zod.string().max(updateNavLinkResponseUrlMax),
+  "openInNewTab": zod.boolean(),
+  "sortOrder": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-configured external navigation link rendered in the navbar.\n`sortOrder` is the only ordering signal — lower numbers appear first.\n')
+
+
+/**
+ * @summary Delete a nav link (owner only)
+ */
+export const DeleteNavLinkParams = zod.object({
+  "id": zod.coerce.number()
 })
 
 
