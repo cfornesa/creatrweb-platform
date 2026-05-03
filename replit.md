@@ -284,5 +284,6 @@ Several top-level folders and markdown files in this repo are part of the **Crea
 - `libsql`, `@libsql/linux-x64-gnu`, and friends are in the esbuild external list in `build.mjs`
 - Route order in `posts.ts`: `/feed/stats`, `/posts/user/:userId`, and `/posts/pending` come BEFORE `/posts/:id`. The pending router is mounted before the posts router for the same reason.
 - Drizzle operators (`eq`, `desc`, `count`, etc.) are re-exported from `@workspace/db` to avoid version conflicts
+- **Codegen drift**: any change to `lib/api-spec/openapi.yaml` (new operation, new response field, new query param, etc.) must be followed by `npm run codegen --workspace=@workspace/api-spec` to regenerate `@workspace/api-client-react` and `@workspace/api-zod`. Skipping this leaves pages that import the new exports failing `tsc` even though the spec is correct. `lib/api-zod/src/index.ts` re-exports only from `./generated/api` (orval's `zod` client emits a single `api.ts`, no `api.schemas.ts`) — match this if you ever rewrite that index.
 
 Use the root `package.json` workspace configuration for workspace structure, TypeScript setup, and package details.
