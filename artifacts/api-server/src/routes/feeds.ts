@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, postsTable, desc, eq } from "@workspace/db";
 import { stripHtmlToText } from "../lib/html";
+import { attachCategoriesToPosts, type HydratedCategory } from "../lib/post-categories";
 
 type FeedPost = {
   id: number;
@@ -8,6 +9,7 @@ type FeedPost = {
   content: string;
   contentFormat: "plain" | "html";
   createdAt: string;
+  categories: HydratedCategory[];
 };
 
 const router: IRouter = Router();
@@ -84,7 +86,8 @@ async function loadPosts(): Promise<FeedPost[]> {
     .where(eq(postsTable.status, "published"))
     .orderBy(desc(postsTable.createdAt));
 
-  return posts as FeedPost[];
+  const hydrated = await attachCategoriesToPosts(posts);
+  return hydrated as FeedPost[];
 }
 
 router.get("/feed.xml", async (req: Request, res: Response) => {
@@ -103,6 +106,12 @@ router.get("/feed.xml", async (req: Request, res: Response) => {
         const summary = summarize(visibleText);
         const contentHtml =
           post.contentFormat === "html" ? post.content : `<p>${xmlEscape(post.content)}</p>`;
+        const categoryTags = post.categories
+          .map(
+            (c) =>
+              `    <category term="${xmlEscape(c.slug)}" label="${xmlEscape(c.name)}" />`,
+          )
+          .join("\n");
 
         return `
   <entry>
@@ -113,7 +122,7 @@ router.get("/feed.xml", async (req: Request, res: Response) => {
     <published>${xmlEscape(post.createdAt)}</published>
     <summary>${xmlEscape(summary)}</summary>
     <author><name>${xmlEscape(post.authorName || authorName)}</name></author>
-    <content type="html"><![CDATA[${cdata(contentHtml)}]]></content>
+${categoryTags ? `${categoryTags}\n` : ""}    <content type="html"><![CDATA[${cdata(contentHtml)}]]></content>
   </entry>`;
       })
       .join("\n");
@@ -161,6 +170,7 @@ router.get("/feed.json", async (req: Request, res: Response) => {
         const visibleText = toVisibleText(post);
         const summary = summarize(visibleText);
 
+        const tags = post.categories.map((c) => c.name);
         return {
           id: canonicalUrl,
           url: canonicalUrl,
@@ -170,6 +180,7 @@ router.get("/feed.json", async (req: Request, res: Response) => {
             post.contentFormat === "html" ? post.content : `<p>${xmlEscape(post.content)}</p>`,
           content_text: visibleText,
           date_published: post.createdAt,
+          ...(tags.length > 0 ? { tags } : {}),
         };
       }),
     };
@@ -192,6 +203,7 @@ function buildMf2Export(origin: string, posts: FeedPost[]) {
       const contentHtml =
         post.contentFormat === "html" ? post.content : `<p>${xmlEscape(post.content)}</p>`;
 
+      const categoryNames = post.categories.map((c) => c.name);
       return {
         type: ["h-entry"],
         properties: {
@@ -213,6 +225,7 @@ function buildMf2Export(origin: string, posts: FeedPost[]) {
               },
             },
           ],
+          ...(categoryNames.length > 0 ? { category: categoryNames } : {}),
         },
       };
     }),

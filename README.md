@@ -75,7 +75,7 @@ The site publishes public machine-readable outputs so content remains accessible
 - `GET /export/json`: mf2-JSON export
 - `GET /export.json`: compatibility alias retained for stability
 
-These endpoints are part of the app’s long-term public surface and are intended to remain stable.
+Each post in every feed surface carries its categories: Atom emits one `<category term="<slug>" label="<name>"/>` per category, JSON Feed sets `tags: [<name>, ...]`, and the mf2-JSON export sets `properties.category: [<name>, ...]` on each `h-entry`. Posts with no categories simply omit the field. These endpoints are part of the app’s long-term public surface and are intended to remain stable.
 
 ### Authentication Model
 

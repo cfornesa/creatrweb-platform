@@ -124,6 +124,8 @@ Posts can be grouped into owner-managed categories (a many-to-many join via `pos
 
 Category chips render under the byline on every post card and on each search result; clicking a chip routes to `/categories/:slug`. The search sidebar exposes a Categories checkbox group whose selected slugs are URL-state via the `categories=` query param (OR semantics).
 
+Categories also travel with every public feed export so external aggregators can filter by them: `GET /feed.xml` emits one `<category term="<slug>" label="<name>"/>` per post category (Atom RFC 4287), `GET /feed.json` sets `tags: ["<name>", ...]` on each item (JSON Feed 1.1), and `GET /export.json` / `GET /export/json` set `properties.category: ["<name>", ...]` on each `h-entry` (Microformats2). Posts without any categories simply omit the field. The shared hydration helper is `attachCategoriesToPosts` in `artifacts/api-server/src/lib/post-categories.ts` — every post-returning endpoint (timeline, search, single post, feeds, exports) goes through it.
+
 Backend storage: singleton row in `site_settings` (id=1) with `theme` and `palette` columns (varchar(32) NOT NULL DEFAULT `'bauhaus'`). Backed by `requireOwner` middleware on `PATCH /api/site-settings`. The frontend hook is `useSiteSettings()` in `artifacts/microblog/src/hooks/use-site-settings.ts`. Google Fonts (Lora, EB Garamond, Inter, Nunito, Quicksand, Space Grotesk, Bebas Neue, Caveat) are preloaded in `index.html`.
 
 ## Per-User Profile Theming
