@@ -20,6 +20,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatPostDate } from "@/lib/format-date";
+import { getRecentSearches, recordRecentSearch } from "@/lib/recent-searches";
 
 const PAGE_SIZE = 20;
 
@@ -174,6 +175,64 @@ export default function SearchPage() {
   const posts: SearchPost[] = results.data?.posts ?? [];
   const total = results.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // Per-browser recent search history, kept in component state so the
+  // empty-state panel re-renders the moment a new entry is recorded.
+  // Initialised lazily so SSR/test environments without `localStorage`
+  // don't crash on first render.
+  const [recentSearches, setRecentSearches] = useState<string[]>(() =>
+    getRecentSearches(),
+  );
+
+  // Remember successful searches so we can suggest them back when a
+  // future search comes up empty. We only record once results land
+  // (and only when the query was non-empty) so empty submits and
+  // in-flight keystrokes don't pollute the history.
+  useEffect(() => {
+    if (!filters.q.trim()) return;
+    if (results.isLoading || results.isError) return;
+    recordRecentSearch(filters.q);
+    setRecentSearches(getRecentSearches());
+  }, [filters.q, results.isLoading, results.isError, results.data]);
+
+  // Build the empty-state suggestion list: recent searches first
+  // (most relevant for recovery), then a few of the most-used
+  // categories on the site as "popular tags." Cap at 5 so the panel
+  // stays compact. Skip whatever the visitor already typed.
+  //
+  // Recent suggestions re-run as free-text queries, but tag
+  // suggestions apply the category slug filter — that way a tag whose
+  // name doesn't appear in any post body still surfaces its posts
+  // (the empty-state's whole reason to exist).
+  type Suggestion =
+    | { kind: "recent"; label: string; query: string }
+    | { kind: "tag"; label: string; slug: string };
+  const suggestions = useMemo<Suggestion[]>(() => {
+    const seen = new Set<string>();
+    const currentQ = filters.q.trim().toLowerCase();
+    if (currentQ) seen.add(`q:${currentQ}`);
+    const out: Suggestion[] = [];
+    for (const q of recentSearches) {
+      const key = `q:${q.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ kind: "recent", label: q, query: q });
+      if (out.length >= 5) return out;
+    }
+    const popular = [...allCategories]
+      .filter((c) => (c.postCount ?? 0) > 0)
+      .sort((a, b) => (b.postCount ?? 0) - (a.postCount ?? 0));
+    for (const c of popular) {
+      const key = `tag:${c.slug}`;
+      if (seen.has(key)) continue;
+      // Don't re-suggest a category the visitor has already filtered by.
+      if (filters.categories.includes(c.slug)) continue;
+      seen.add(key);
+      out.push({ kind: "tag", label: c.name, slug: c.slug });
+      if (out.length >= 5) return out;
+    }
+    return out;
+  }, [recentSearches, allCategories, filters.q, filters.categories]);
 
   const formatChecked = (kind: "html" | "plain"): boolean => {
     // Empty == "both" by default, which we render as both checked.
@@ -528,6 +587,43 @@ export default function SearchPage() {
                   <p className="text-xs mt-2">
                     Try removing one of the chips above.
                   </p>
+                ) : null}
+                {suggestions.length > 0 ? (
+                  <div className="mt-6" data-testid="search-suggestions">
+                    <p className="text-xs font-medium uppercase tracking-wide mb-2">
+                      Try one of these
+                    </p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {suggestions.map((s) => (
+                        <Badge
+                          key={s.kind === "recent" ? `q:${s.query}` : `tag:${s.slug}`}
+                          variant={s.kind === "recent" ? "secondary" : "outline"}
+                          className="cursor-pointer hover:bg-secondary/80"
+                          data-testid={`search-suggestion-${s.kind}`}
+                          onClick={() => {
+                            if (s.kind === "recent") {
+                              setLocalQ(s.query);
+                              pushFilters({ q: s.query });
+                            } else {
+                              // Apply the category slug filter directly so
+                              // the tag's posts surface even when the
+                              // category name isn't in any post body.
+                              pushFilters({
+                                categories: Array.from(
+                                  new Set([...filters.categories, s.slug]),
+                                ),
+                              });
+                            }
+                          }}
+                        >
+                          {s.kind === "tag" ? (
+                            <span className="mr-1 opacity-60">#</span>
+                          ) : null}
+                          {s.label}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
                 ) : null}
               </CardContent>
             </Card>
