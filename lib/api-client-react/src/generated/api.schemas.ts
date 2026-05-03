@@ -997,3 +997,14 @@ export type ListPagesParams = {
 includeDrafts?: string;
 };
 
+export type ListSiteFeedsParams = {
+/**
+ * Optional category slug; appends per-category feeds when set.
+ */
+category?: string;
+/**
+ * Optional CMS page slug; appends per-page feeds when set.
+ */
+page?: string;
+};
+

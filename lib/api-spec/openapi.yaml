@@ -1142,6 +1142,24 @@ paths:
         Hand-maintained list of the three sitewide feeds the platform
         produces (Atom, JSON Feed, MF2 export). Used by the public
         `/feeds` index page in the microblog UI.
+
+        When called with `?category=<slug>` the response also includes
+        the per-category Atom and JSON feeds; with `?page=<slug>` it
+        includes the per-page Atom and JSON feeds for the matching
+        published CMS page. Unknown slugs are silently ignored.
+      parameters:
+        - in: query
+          name: category
+          required: false
+          schema:
+            type: string
+          description: Optional category slug; appends per-category feeds when set.
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: string
+          description: Optional CMS page slug; appends per-page feeds when set.
       responses:
         "200":
           description: Site feeds list

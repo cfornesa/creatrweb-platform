@@ -1,5 +1,5 @@
 import fs from "fs";
-import { db, postsTable, siteSettingsTable, usersTable, eq, siteSettingsDefaults } from "@workspace/db";
+import { db, postsTable, categoriesTable, pagesTable, siteSettingsTable, usersTable, eq, and, siteSettingsDefaults } from "@workspace/db";
 
 const KNOWN_THEMES = new Set([
   "bauhaus",
@@ -375,6 +375,93 @@ export async function injectUserTheme(
     return html;
   } catch (err) {
     console.error("User theme injection failed:", err);
+    return null;
+  }
+}
+
+/**
+ * For `/categories/:slug` pages, expose the category-scoped Atom and
+ * JSON feeds via `<link rel="alternate">` so feed readers and IndieWeb
+ * tools can auto-discover them. Returns null when the slug doesn't
+ * resolve, letting the caller fall back to the site-wide alternate
+ * links injected by `injectThemeData`.
+ */
+export async function injectCategoryFeedLinks(
+  htmlPath: string,
+  rawSlug: string,
+): Promise<string | null> {
+  try {
+    const slug = String(rawSlug ?? "").toLowerCase();
+    if (!slug) return null;
+    const rows = await db
+      .select({ slug: categoriesTable.slug, name: categoriesTable.name })
+      .from(categoriesTable)
+      .where(eq(categoriesTable.slug, slug))
+      .limit(1);
+    const cat = rows[0];
+    if (!cat) return null;
+
+    const settings = await loadSettings();
+    const { themeId, css } = buildThemeInjection(settings);
+    let html = fs.readFileSync(htmlPath, "utf-8");
+    html = applyThemeToHtml(html, themeId, css);
+
+    const safeName = cat.name
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+    const base = `/categories/${cat.slug}`;
+    const categoryAlternates =
+      `  <link rel="alternate" type="application/atom+xml" data-scope="category" title="Atom feed — ${safeName}" href="${base}/feed.xml">\n` +
+      `  <link rel="alternate" type="application/feed+json" data-scope="category" title="JSON Feed — ${safeName}" href="${base}/feed.json">\n`;
+    html = html.replace("</head>", `${categoryAlternates}  </head>`);
+    return html;
+  } catch (err) {
+    console.error("Category feed-link injection failed:", err);
+    return null;
+  }
+}
+
+/**
+ * For published `/p/:slug` CMS pages, expose the page-scoped Atom and
+ * JSON feeds via `<link rel="alternate">` so feed readers can pick up
+ * a subscription target for the single page. Returns null when the
+ * slug doesn't resolve to a published page.
+ */
+export async function injectPageFeedLinks(
+  htmlPath: string,
+  rawSlug: string,
+): Promise<string | null> {
+  try {
+    const slug = String(rawSlug ?? "").toLowerCase();
+    if (!slug) return null;
+    const rows = await db
+      .select({ slug: pagesTable.slug, title: pagesTable.title })
+      .from(pagesTable)
+      .where(and(eq(pagesTable.slug, slug), eq(pagesTable.status, "published")))
+      .limit(1);
+    const page = rows[0];
+    if (!page) return null;
+
+    const settings = await loadSettings();
+    const { themeId, css } = buildThemeInjection(settings);
+    let html = fs.readFileSync(htmlPath, "utf-8");
+    html = applyThemeToHtml(html, themeId, css);
+
+    const safeTitle = page.title
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+    const base = `/p/${page.slug}`;
+    const pageAlternates =
+      `  <link rel="alternate" type="application/atom+xml" data-scope="page" title="Atom feed — ${safeTitle}" href="${base}/feed.xml">\n` +
+      `  <link rel="alternate" type="application/feed+json" data-scope="page" title="JSON Feed — ${safeTitle}" href="${base}/feed.json">\n`;
+    html = html.replace("</head>", `${pageAlternates}  </head>`);
+    return html;
+  } catch (err) {
+    console.error("Page feed-link injection failed:", err);
     return null;
   }
 }

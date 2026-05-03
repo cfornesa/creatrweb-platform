@@ -1,6 +1,6 @@
 import { useRoute, Link } from "wouter";
-import { Tag, ChevronLeft, ChevronRight, Settings } from "lucide-react";
-import { useState } from "react";
+import { Tag, ChevronLeft, ChevronRight, Settings, Rss } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PostCard } from "@/components/post/PostCard";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -33,6 +33,42 @@ export default function CategoryDetailPage() {
       },
     },
   );
+
+  // Keep <link rel="alternate"> in sync with the active category for
+  // SPA navigation. The server already injects these on the initial
+  // /categories/:slug HTML response, so feed-reader auto-discovery
+  // works for direct hits; this keeps them correct as the user
+  // navigates between categories without a full page load.
+  useEffect(() => {
+    if (!slug) return;
+    const head = document.head;
+    const previous = Array.from(
+      head.querySelectorAll<HTMLLinkElement>(
+        'link[rel="alternate"][data-scope="category"]',
+      ),
+    );
+    previous.forEach((el) => el.remove());
+
+    const cat = catQuery.data;
+    if (!cat) return;
+    const base = `/categories/${slug}`;
+    const make = (type: string, title: string, href: string) => {
+      const link = document.createElement("link");
+      link.setAttribute("rel", "alternate");
+      link.setAttribute("type", type);
+      link.setAttribute("title", title);
+      link.setAttribute("href", href);
+      link.setAttribute("data-scope", "category");
+      head.appendChild(link);
+      return link;
+    };
+    const a = make("application/atom+xml", `Atom feed — ${cat.name}`, `${base}/feed.xml`);
+    const j = make("application/feed+json", `JSON Feed — ${cat.name}`, `${base}/feed.json`);
+    return () => {
+      a.remove();
+      j.remove();
+    };
+  }, [slug, catQuery.data]);
 
   if (!match) return null;
 
@@ -68,15 +104,31 @@ export default function CategoryDetailPage() {
         <p className="text-xs text-muted-foreground mt-2">
           {cat.postCount} {cat.postCount === 1 ? "post" : "posts"}
         </p>
-        {isOwner ? (
-          <Link
-            href="/settings#categories"
-            className="mt-3 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-            data-testid="manage-categories-link"
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <a
+            href={`/categories/${slug}/feed.xml`}
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            data-testid="category-feed-atom-link"
           >
-            <Settings className="h-3 w-3" /> Manage categories
-          </Link>
-        ) : null}
+            <Rss className="h-3 w-3" /> Subscribe (Atom)
+          </a>
+          <a
+            href={`/categories/${slug}/feed.json`}
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            data-testid="category-feed-json-link"
+          >
+            <Rss className="h-3 w-3" /> JSON Feed
+          </a>
+          {isOwner ? (
+            <Link
+              href="/settings#categories"
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+              data-testid="manage-categories-link"
+            >
+              <Settings className="h-3 w-3" /> Manage categories
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       {posts.length === 0 && !postsQuery.isLoading ? (

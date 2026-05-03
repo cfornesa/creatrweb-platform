@@ -11,7 +11,13 @@ import { logger } from "./lib/logger";
 import { authConfig } from "./auth/config";
 import { hydrateAuth } from "./middlewares/auth";
 import { createRateLimitMiddleware } from "./lib/ratelimit";
-import { injectPostMetadata, injectThemeData, injectUserTheme } from "./lib/meta-injection";
+import {
+  injectCategoryFeedLinks,
+  injectPageFeedLinks,
+  injectPostMetadata,
+  injectThemeData,
+  injectUserTheme,
+} from "./lib/meta-injection";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -77,6 +83,36 @@ if (fs.existsSync(staticPath)) {
     const id = req.params.id as string;
     if (id && id !== "index.html") {
       const html = await injectPostMetadata(indexPath, id);
+      if (html) {
+        res.send(html);
+        return;
+      }
+    }
+    next();
+  });
+
+  // CMS pages: expose the per-page Atom + JSON feeds via
+  // `<link rel="alternate">`. Falls through to the site theme when the
+  // slug doesn't resolve to a published page (so drafts and 404s keep
+  // their normal behavior).
+  app.get("/p/:slug", async (req, res, next) => {
+    const slug = req.params.slug as string;
+    if (slug && slug !== "index.html") {
+      const html = await injectPageFeedLinks(indexPath, slug);
+      if (html) {
+        res.send(html);
+        return;
+      }
+    }
+    next();
+  });
+
+  // Category pages: expose the per-category Atom + JSON feeds via
+  // `<link rel="alternate">` so feed readers can auto-discover them.
+  app.get("/categories/:slug", async (req, res, next) => {
+    const slug = req.params.slug as string;
+    if (slug && slug !== "index.html") {
+      const html = await injectCategoryFeedLinks(indexPath, slug);
       if (html) {
         res.send(html);
         return;

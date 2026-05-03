@@ -14,10 +14,14 @@ const RUN_ID = randomUUID();
 const SENTINEL_AUTHOR = `e2e-feeds-${RUN_ID}`;
 const SLUG_A = `e2e-feeds-a-${RUN_ID.slice(0, 8)}`;
 const SLUG_B = `e2e-feeds-b-${RUN_ID.slice(0, 8)}`;
+const PAGE_PUB_SLUG = `e2e-feeds-page-pub-${RUN_ID.slice(0, 8)}`;
+const PAGE_DRAFT_SLUG = `e2e-feeds-page-draft-${RUN_ID.slice(0, 8)}`;
 let postWithCatsId = 0;
 let postNoCatsId = 0;
 let categoryIdA = 0;
 let categoryIdB = 0;
+let pagePubId = 0;
+let pageDraftId = 0;
 
 async function insertPost(content: string): Promise<number> {
   const [r] = await mysqlPool.query<ResultSetHeader>(
@@ -56,6 +60,19 @@ beforeAll(async () => {
     `INSERT INTO post_categories (post_id, category_id) VALUES (?, ?), (?, ?)`,
     [postWithCatsId, categoryIdA, postWithCatsId, categoryIdB],
   );
+
+  const [pp] = await mysqlPool.query<ResultSetHeader>(
+    `INSERT INTO pages (slug, title, content, content_text, content_format, status, show_in_nav)
+     VALUES (?, ?, '<p>hello pub</p>', 'hello pub', 'html', 'published', 0)`,
+    [PAGE_PUB_SLUG, "Feeds Page Published"],
+  );
+  pagePubId = pp.insertId;
+  const [pd] = await mysqlPool.query<ResultSetHeader>(
+    `INSERT INTO pages (slug, title, content, content_text, content_format, status, show_in_nav)
+     VALUES (?, ?, '<p>hello draft</p>', 'hello draft', 'html', 'draft', 0)`,
+    [PAGE_DRAFT_SLUG, "Feeds Page Draft"],
+  );
+  pageDraftId = pd.insertId;
 }, 30_000);
 
 afterAll(async () => {
@@ -72,6 +89,12 @@ afterAll(async () => {
     categoryIdA,
     categoryIdB,
   ]);
+  if (pagePubId || pageDraftId) {
+    await mysqlPool.query(`DELETE FROM pages WHERE id IN (?, ?)`, [
+      pagePubId,
+      pageDraftId,
+    ]);
+  }
   if (server) {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve())),
@@ -134,6 +157,80 @@ describe("public feeds — categories", () => {
     expect(new Set(ours!.properties.category)).toEqual(
       new Set(["Feeds Alpha", "Feeds Beta"]),
     );
+  });
+
+  it("/categories/:slug/feed.xml returns Atom scoped to that category", async () => {
+    const res = await fetch(`${baseUrl}/categories/${SLUG_A}/feed.xml`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/atom\+xml/);
+    const xml = await res.text();
+    expect(xml).toContain(`/categories/${SLUG_A}/feed.xml`);
+    expect(xml).toContain(`/posts/${postWithCatsId}`);
+    // The post that has no categories must NOT appear in a per-
+    // category feed.
+    expect(xml).not.toContain(`/posts/${postNoCatsId}`);
+  });
+
+  it("/categories/:slug/feed.json returns JSON Feed scoped to that category", async () => {
+    const res = await fetch(`${baseUrl}/categories/${SLUG_A}/feed.json`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/feed\+json/);
+    const body = (await res.json()) as {
+      feed_url: string;
+      home_page_url: string;
+      items: Array<{ id: string }>;
+    };
+    expect(body.feed_url).toContain(`/categories/${SLUG_A}/feed.json`);
+    expect(body.home_page_url).toContain(`/categories/${SLUG_A}`);
+    const ids = body.items.map((i) => i.id);
+    expect(ids.some((id) => id.endsWith(`/posts/${postWithCatsId}`))).toBe(true);
+    expect(ids.some((id) => id.endsWith(`/posts/${postNoCatsId}`))).toBe(false);
+  });
+
+  it("/categories/:slug/feed.{xml,json} return 404 for unknown slugs", async () => {
+    const xmlRes = await fetch(`${baseUrl}/categories/does-not-exist-${RUN_ID}/feed.xml`);
+    expect(xmlRes.status).toBe(404);
+    const jsonRes = await fetch(`${baseUrl}/categories/does-not-exist-${RUN_ID}/feed.json`);
+    expect(jsonRes.status).toBe(404);
+  });
+
+  it("/p/:slug/feed.xml returns a single-entry Atom feed for a published page", async () => {
+    const res = await fetch(`${baseUrl}/p/${PAGE_PUB_SLUG}/feed.xml`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/atom\+xml/);
+    const xml = await res.text();
+    expect(xml).toContain(`/p/${PAGE_PUB_SLUG}/feed.xml`);
+    expect(xml).toContain(`/p/${PAGE_PUB_SLUG}`);
+    expect(xml).toContain("Feeds Page Published");
+    // Single-entry feed: exactly one <entry> element.
+    const entryCount = (xml.match(/<entry>/g) ?? []).length;
+    expect(entryCount).toBe(1);
+  });
+
+  it("/p/:slug/feed.json returns a single-entry JSON Feed for a published page", async () => {
+    const res = await fetch(`${baseUrl}/p/${PAGE_PUB_SLUG}/feed.json`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/feed\+json/);
+    const body = (await res.json()) as {
+      feed_url: string;
+      home_page_url: string;
+      items: Array<{ id: string; title?: string }>;
+    };
+    expect(body.feed_url).toContain(`/p/${PAGE_PUB_SLUG}/feed.json`);
+    expect(body.home_page_url).toContain(`/p/${PAGE_PUB_SLUG}`);
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]!.title).toBe("Feeds Page Published");
+  });
+
+  it("/p/:slug/feed.{xml,json} return 404 for draft and unknown pages", async () => {
+    const draftXml = await fetch(`${baseUrl}/p/${PAGE_DRAFT_SLUG}/feed.xml`);
+    expect(draftXml.status).toBe(404);
+    const draftJson = await fetch(`${baseUrl}/p/${PAGE_DRAFT_SLUG}/feed.json`);
+    expect(draftJson.status).toBe(404);
+    const unknownXml = await fetch(`${baseUrl}/p/missing-${RUN_ID.slice(0, 8)}/feed.xml`);
+    expect(unknownXml.status).toBe(404);
+    const unknownJson = await fetch(`${baseUrl}/p/missing-${RUN_ID.slice(0, 8)}/feed.json`);
+    expect(unknownJson.status).toBe(404);
   });
 
   it("posts with no categories omit the field in every feed surface", async () => {

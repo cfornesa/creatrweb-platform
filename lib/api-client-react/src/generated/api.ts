@@ -44,6 +44,7 @@ import type {
   ListPagesParams,
   ListPendingPostsParams,
   ListPostsParams,
+  ListSiteFeedsParams,
   NavItemsReorderBody,
   NavLink,
   NavLinksList,
@@ -3487,19 +3488,31 @@ export const useDeletePage = <TError = ErrorType<void>,
 produces (Atom, JSON Feed, MF2 export). Used by the public
 `/feeds` index page in the microblog UI.
 
+When called with `?category=<slug>` the response also includes
+the per-category Atom and JSON feeds; with `?page=<slug>` it
+includes the per-page Atom and JSON feeds for the matching
+published CMS page. Unknown slugs are silently ignored.
+
  * @summary Public catalog of subscribable site feeds
  */
-export const getListSiteFeedsUrl = () => {
+export const getListSiteFeedsUrl = (params?: ListSiteFeedsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/feeds`
+  return stringifiedParams.length > 0 ? `/api/feeds?${stringifiedParams}` : `/api/feeds`
 }
 
-export const listSiteFeeds = async ( options?: RequestInit): Promise<SiteFeedsList> => {
+export const listSiteFeeds = async (params?: ListSiteFeedsParams, options?: RequestInit): Promise<SiteFeedsList> => {
 
-  return customFetch<SiteFeedsList>(getListSiteFeedsUrl(),
+  return customFetch<SiteFeedsList>(getListSiteFeedsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -3512,23 +3525,23 @@ export const listSiteFeeds = async ( options?: RequestInit): Promise<SiteFeedsLi
 
 
 
-export const getListSiteFeedsQueryKey = () => {
+export const getListSiteFeedsQueryKey = (params?: ListSiteFeedsParams,) => {
     return [
-    `/api/feeds`
+    `/api/feeds`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListSiteFeedsQueryOptions = <TData = Awaited<ReturnType<typeof listSiteFeeds>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSiteFeeds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListSiteFeedsQueryOptions = <TData = Awaited<ReturnType<typeof listSiteFeeds>>, TError = ErrorType<unknown>>(params?: ListSiteFeedsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSiteFeeds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListSiteFeedsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListSiteFeedsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSiteFeeds>>> = ({ signal }) => listSiteFeeds({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSiteFeeds>>> = ({ signal }) => listSiteFeeds(params, { signal, ...requestOptions });
 
 
 
@@ -3546,11 +3559,11 @@ export type ListSiteFeedsQueryError = ErrorType<unknown>
  */
 
 export function useListSiteFeeds<TData = Awaited<ReturnType<typeof listSiteFeeds>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSiteFeeds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListSiteFeedsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSiteFeeds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListSiteFeedsQueryOptions(options)
+  const queryOptions = getListSiteFeedsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

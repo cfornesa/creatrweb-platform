@@ -1283,8 +1283,18 @@ export const DeletePageParams = zod.object({
 produces (Atom, JSON Feed, MF2 export). Used by the public
 `/feeds` index page in the microblog UI.
 
+When called with `?category=<slug>` the response also includes
+the per-category Atom and JSON feeds; with `?page=<slug>` it
+includes the per-page Atom and JSON feeds for the matching
+published CMS page. Unknown slugs are silently ignored.
+
  * @summary Public catalog of subscribable site feeds
  */
+export const ListSiteFeedsQueryParams = zod.object({
+  "category": zod.coerce.string().optional().describe('Optional category slug; appends per-category feeds when set.'),
+  "page": zod.coerce.string().optional().describe('Optional CMS page slug; appends per-page feeds when set.')
+})
+
 export const ListSiteFeedsResponse = zod.object({
   "feeds": zod.array(zod.object({
   "slug": zod.string().describe('Stable identifier for the feed within the catalog (e.g. \"atom\", \"json\", \"mf2\").'),

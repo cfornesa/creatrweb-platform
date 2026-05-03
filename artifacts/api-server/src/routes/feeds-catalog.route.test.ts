@@ -2,12 +2,20 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import express, { type Express } from "express";
 import http, { type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { randomUUID } from "node:crypto";
+import type { ResultSetHeader } from "mysql2/promise";
 
 const { mysqlPool } = await import("@workspace/db");
 const { default: feedsCatalogRouter } = await import("./feeds-catalog");
 
 let server: Server;
 let baseUrl: string;
+
+const RUN_ID = randomUUID().slice(0, 8);
+const CATEGORY_SLUG = `e2e-cat-cat-${RUN_ID}`;
+const PAGE_SLUG = `e2e-cat-page-${RUN_ID}`;
+let categoryId = 0;
+let pageId = 0;
 
 beforeAll(async () => {
   const app: Express = express();
@@ -17,9 +25,27 @@ beforeAll(async () => {
   });
   const { address, port } = server.address() as AddressInfo;
   baseUrl = `http://${address}:${port}`;
+
+  const [resCat] = await mysqlPool.query<ResultSetHeader>(
+    `INSERT INTO categories (slug, name) VALUES (?, ?)`,
+    [CATEGORY_SLUG, "Catalog Cat"],
+  );
+  categoryId = resCat.insertId;
+  const [resPage] = await mysqlPool.query<ResultSetHeader>(
+    `INSERT INTO pages (slug, title, content, content_text, content_format, status, show_in_nav)
+     VALUES (?, ?, '<p>x</p>', 'x', 'html', 'published', 0)`,
+    [PAGE_SLUG, "Catalog Page"],
+  );
+  pageId = resPage.insertId;
 }, 15_000);
 
 afterAll(async () => {
+  if (categoryId) {
+    await mysqlPool.query(`DELETE FROM categories WHERE id = ?`, [categoryId]);
+  }
+  if (pageId) {
+    await mysqlPool.query(`DELETE FROM pages WHERE id = ?`, [pageId]);
+  }
   if (server) {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => (err ? reject(err) : resolve())),
@@ -51,5 +77,38 @@ describe("feeds catalog", () => {
     }
     expect(body.feeds.find((f) => f.slug === "atom")!.mimeType).toMatch(/atom\+xml/);
     expect(body.feeds.find((f) => f.slug === "json")!.mimeType).toMatch(/feed\+json/);
+  });
+
+  it("appends per-category Atom + JSON entries when ?category=<slug> resolves", async () => {
+    const res = await fetch(`${baseUrl}/api/feeds?category=${CATEGORY_SLUG}`);
+    const body = (await res.json()) as {
+      feeds: Array<{ slug: string; url: string; mimeType: string }>;
+    };
+    const slugs = body.feeds.map((f) => f.slug);
+    expect(slugs).toContain(`category-${CATEGORY_SLUG}-atom`);
+    expect(slugs).toContain(`category-${CATEGORY_SLUG}-json`);
+    const atom = body.feeds.find((f) => f.slug === `category-${CATEGORY_SLUG}-atom`)!;
+    expect(atom.url).toContain(`/categories/${CATEGORY_SLUG}/feed.xml`);
+    expect(atom.mimeType).toMatch(/atom\+xml/);
+  });
+
+  it("appends per-page Atom + JSON entries when ?page=<slug> resolves a published page", async () => {
+    const res = await fetch(`${baseUrl}/api/feeds?page=${PAGE_SLUG}`);
+    const body = (await res.json()) as {
+      feeds: Array<{ slug: string; url: string; mimeType: string }>;
+    };
+    const slugs = body.feeds.map((f) => f.slug);
+    expect(slugs).toContain(`page-${PAGE_SLUG}-atom`);
+    expect(slugs).toContain(`page-${PAGE_SLUG}-json`);
+    const json = body.feeds.find((f) => f.slug === `page-${PAGE_SLUG}-json`)!;
+    expect(json.url).toContain(`/p/${PAGE_SLUG}/feed.json`);
+    expect(json.mimeType).toMatch(/feed\+json/);
+  });
+
+  it("ignores unknown ?category / ?page slugs and returns just the site-wide list", async () => {
+    const res = await fetch(`${baseUrl}/api/feeds?category=does-not-exist&page=does-not-exist`);
+    const body = (await res.json()) as { feeds: Array<{ slug: string }> };
+    const slugs = body.feeds.map((f) => f.slug).sort();
+    expect(slugs).toEqual(["atom", "json", "mf2"]);
   });
 });

@@ -1,4 +1,4 @@
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { useListSiteFeeds, getListSiteFeedsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,11 +11,30 @@ const ICONS: Record<string, typeof Rss> = {
   mf2: Database,
 };
 
+function pickIcon(slug: string): typeof Rss {
+  if (slug.endsWith("-atom")) return Rss;
+  if (slug.endsWith("-json")) return FileJson;
+  return ICONS[slug] ?? Rss;
+}
+
 export default function FeedsIndexPage() {
   const { toast } = useToast();
-  const list = useListSiteFeeds({
-    query: { queryKey: getListSiteFeedsQueryKey(), staleTime: 60_000 },
-  });
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const categorySlug = params.get("category") ?? undefined;
+  const pageSlug = params.get("page") ?? undefined;
+  const list = useListSiteFeeds(
+    { ...(categorySlug ? { category: categorySlug } : {}), ...(pageSlug ? { page: pageSlug } : {}) },
+    {
+      query: {
+        queryKey: getListSiteFeedsQueryKey({
+          ...(categorySlug ? { category: categorySlug } : {}),
+          ...(pageSlug ? { page: pageSlug } : {}),
+        }),
+        staleTime: 60_000,
+      },
+    },
+  );
   const feeds = list.data?.feeds ?? [];
 
   return (
@@ -36,7 +55,7 @@ export default function FeedsIndexPage() {
       ) : (
         <ul className="space-y-4" data-testid="feeds-index-list">
           {feeds.map((feed) => {
-            const Icon = ICONS[feed.slug] ?? Rss;
+            const Icon = pickIcon(feed.slug);
             return (
               <li key={feed.slug}>
                 <Card>
