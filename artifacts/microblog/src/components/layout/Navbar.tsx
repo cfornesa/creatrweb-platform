@@ -86,12 +86,19 @@ export function Navbar() {
       if (containerWidth === 0) return;
       const logoWidth = logoRef.current?.offsetWidth ?? 0;
       const avatarWidth = avatarRef.current?.offsetWidth ?? 0;
-      const HAMBURGER_RESERVE = 44;
       const GAP = 8;
-      // Always reserve space for the hamburger and (when signed in)
-      // the avatar — the avatar is the user's session anchor and
-      // must stay inline regardless of how many nav links overflow.
-      const reserved = logoWidth + avatarWidth + HAMBURGER_RESERVE + GAP * 3;
+      // Reserve only what we know will always render: the logo on
+      // the left, and (when signed in) the avatar on the right.
+      // We deliberately do NOT reserve the hamburger here — the
+      // hamburger is conditional on overflow, and reserving it
+      // unconditionally caused the fitter to permanently steal
+      // ~44px from the inline auth button at desktop widths,
+      // surfacing a hamburger menu that wasn't actually needed.
+      // If overflow ends up triggering the hamburger, it occupies
+      // the right zone in place of (or alongside) the auth button,
+      // and the inline nav strip's `overflow-hidden` keeps any
+      // sub-pixel overhang invisible.
+      const reserved = logoWidth + avatarWidth + GAP * 3;
       const budget = Math.max(0, containerWidth - reserved);
 
       const linkEls = Array.from(measureLinkRef.current?.children ?? []) as HTMLElement[];
@@ -219,13 +226,15 @@ export function Navbar() {
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
       <div
         ref={containerRef}
-        className="container mx-auto flex h-16 max-w-2xl items-center gap-2 px-4"
+        className="mx-auto flex h-16 w-full max-w-screen-2xl items-center gap-4 px-4 sm:px-6 lg:px-8"
         data-testid="navbar-container"
       >
+        {/* LEFT ZONE — pinned to the left edge: logo + site title. */}
         <Link
           ref={logoRef}
           href="/"
           className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-80"
+          data-testid="navbar-left"
         >
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
@@ -239,29 +248,36 @@ export function Navbar() {
           </span>
         </Link>
 
+        {/* CENTER ZONE — flex-grows between left and right edges. */}
         {isMobile ? (
           // Mobile: search bar centered between logo and hamburger.
-          <div className="flex min-w-0 flex-1 justify-center">
+          <div
+            className="flex min-w-0 flex-1 justify-center"
+            data-testid="navbar-center"
+          >
             <div className="w-full max-w-xs">
               <SearchBar compact />
             </div>
           </div>
         ) : (
-          // Desktop: search sits between the logo and the inline
-          // nav links. It is always rendered inline regardless of
-          // whether the hamburger overflow is also needed.
-          <SearchBar />
-        )}
-
-        {!isMobile ? (
-          <nav
-            className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
-            aria-label="Primary"
-            data-testid="navbar-inline-links"
+          // Desktop: search sits at the left of the center zone,
+          // followed by the inline nav links with a comfortable gap
+          // between the two groups. Search is always rendered inline
+          // regardless of whether the hamburger overflow is needed.
+          <div
+            className="flex min-w-0 flex-1 items-center gap-6"
+            data-testid="navbar-center"
           >
-            {inlineLinks.map((l) => renderLink(l, { variant: "inline" }))}
-          </nav>
-        ) : null}
+            <SearchBar />
+            <nav
+              className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
+              aria-label="Primary"
+              data-testid="navbar-inline-links"
+            >
+              {inlineLinks.map((l) => renderLink(l, { variant: "inline" }))}
+            </nav>
+          </div>
+        )}
 
         <div
           aria-hidden="true"
@@ -298,7 +314,14 @@ export function Navbar() {
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        {/* RIGHT ZONE — pinned to the right edge: auth control
+            (inline button or avatar dropdown) plus the optional
+            hamburger. The hamburger is rendered only when the fit
+            measurement determined real overflow exists. */}
+        <div
+          className="flex shrink-0 items-center gap-2"
+          data-testid="navbar-right"
+        >
           {!isAuthenticated && !isMobile && effectiveFit.authInline ? (
             <Button asChild className="rounded-full font-medium" data-testid="navbar-auth-inline">
               <Link href="/sign-in">Log in / Register</Link>

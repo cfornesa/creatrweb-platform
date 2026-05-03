@@ -209,6 +209,67 @@ describe("Navbar", () => {
     ow.mockRestore();
   });
 
+  it("hides the hamburger on a roomy desktop and pins the auth button to the right edge", () => {
+    userHolder.current = { isAuthenticated: false, currentUser: null };
+    navHolder.current = [
+      { id: 60, label: "Docs", url: "/docs", openInNewTab: false, sortOrder: 0, createdAt: "", updatedAt: "" },
+      { id: 61, label: "About", url: "/about", openInNewTab: false, sortOrder: 1, createdAt: "", updatedAt: "" },
+    ];
+    setMatchMedia(false);
+
+    // Roomy desktop: 1400px container, modest 80px reserved widgets.
+    // With ~140px logo + ~0px avatar (signed out) + ~250px search +
+    // 2 small links + ~150px auth, everything should fit inline.
+    const cw = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(1400);
+    const ow = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(80);
+
+    renderNavbar();
+
+    // No hamburger should render — there's enough room for everything.
+    expect(screen.queryByTestId("navbar-hamburger")).toBeNull();
+    // The inline auth button takes the right-edge slot.
+    const right = screen.getByTestId("navbar-right");
+    const authInline = screen.getByTestId("navbar-auth-inline");
+    expect(right.contains(authInline)).toBe(true);
+    // Three zones are present.
+    expect(screen.getByTestId("navbar-left")).toBeTruthy();
+    expect(screen.getByTestId("navbar-center")).toBeTruthy();
+
+    cw.mockRestore();
+    ow.mockRestore();
+  });
+
+  it("hides the hamburger on a roomy desktop when signed in and pins the avatar to the right edge", () => {
+    userHolder.current = {
+      isAuthenticated: true,
+      currentUser: {
+        id: "u9",
+        name: "User",
+        email: "u@example.com",
+        username: "user",
+        imageUrl: null,
+      },
+      isOwner: false,
+    };
+    navHolder.current = [
+      { id: 70, label: "Docs", url: "/docs", openInNewTab: false, sortOrder: 0, createdAt: "", updatedAt: "" },
+    ];
+    setMatchMedia(false);
+
+    const cw = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(1400);
+    const ow = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(80);
+
+    renderNavbar();
+
+    expect(screen.queryByTestId("navbar-hamburger")).toBeNull();
+    const right = screen.getByTestId("navbar-right");
+    const avatar = screen.getByTestId("navbar-avatar");
+    expect(right.contains(avatar)).toBe(true);
+
+    cw.mockRestore();
+    ow.mockRestore();
+  });
+
   it("renders inline nav links and a hamburger when nav links exist on mobile", () => {
     userHolder.current = { isAuthenticated: false, currentUser: null };
     navHolder.current = [
