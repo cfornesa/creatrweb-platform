@@ -1,5 +1,5 @@
 import { mysqlTable, varchar, timestamp } from "drizzle-orm/mysql-core";
-import { usersTable } from "./users";
+import { usersTable } from "./users.ts";
 
 export const sessionsTable = mysqlTable(
   "sessions",

@@ -2,8 +2,8 @@ import { mysqlTable, varchar, text, int, datetime, index } from "drizzle-orm/mys
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { usersTable } from "./users";
-import { feedSourcesTable } from "./feeds";
+import { usersTable } from "./users.ts";
+import { feedSourcesTable } from "./feeds.ts";
 
 export const postContentFormatSchema = z.enum(["plain", "html"]);
 

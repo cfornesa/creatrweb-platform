@@ -3,6 +3,8 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import viteThemeInject from "./vite.theme-inject";
+import { injectThemeData } from "../api-server/src/lib/meta-injection";
 
 const rawPort = process.env.FRONTEND_PORT ?? "20925";
 
@@ -22,6 +24,10 @@ export default defineConfig({
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
+    viteThemeInject({
+      indexPath: path.resolve(import.meta.dirname, "index.html"),
+      injectThemeData,
+    }),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [

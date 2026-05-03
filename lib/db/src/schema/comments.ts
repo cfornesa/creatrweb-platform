@@ -2,8 +2,8 @@ import { mysqlTable, varchar, text, int, datetime } from "drizzle-orm/mysql-core
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { postsTable } from "./posts";
-import { usersTable } from "./users";
+import { postsTable } from "./posts.ts";
+import { usersTable } from "./users.ts";
 
 export const commentsTable = mysqlTable("comments", {
   id: int("id").autoincrement().primaryKey(),

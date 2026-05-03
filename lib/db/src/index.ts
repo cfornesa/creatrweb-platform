@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql, { type PoolOptions } from "mysql2/promise";
-import * as schema from "./schema";
+import * as schema from "./schema/index.ts";
 
 function getRequiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -42,6 +42,6 @@ export function getMysqlConnectionOptions(): PoolOptions {
 export const mysqlPool = mysql.createPool(getMysqlConnectionOptions());
 export const db = drizzle(mysqlPool, { schema, mode: "default" });
 
-export * from "./schema";
+export * from "./schema/index.ts";
 export { eq, desc, asc, and, or, count, sql, like, ne, gt, lt, gte, lte, isNull, isNotNull, inArray, notInArray } from "drizzle-orm";
-export { ensureTables } from "./migrate";
+export { ensureTables } from "./migrate.ts";

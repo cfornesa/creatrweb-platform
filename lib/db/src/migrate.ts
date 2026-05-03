@@ -1,5 +1,5 @@
 import type { RowDataPacket } from "mysql2/promise";
-import { mysqlPool } from "./index";
+import { mysqlPool } from "./index.ts";
 
 type ColumnRow = RowDataPacket & {
   COLUMN_NAME: string;

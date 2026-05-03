@@ -77,7 +77,21 @@ const staticPath = process.env.STATIC_FILES_PATH
 
 if (fs.existsSync(staticPath)) {
   const indexPath = path.join(staticPath, "index.html");
-  
+
+  // Site root: register an explicit handler before `express.static` so
+  // `GET /` and `GET /index.html` always run through `injectThemeData`
+  // and arrive at the browser with `<style id="site-settings-theme">`
+  // and `<html data-theme="...">` already in place. Without this,
+  // `express.static` would serve the raw `index.html` from disk for
+  // these routes (its default `index: "index.html"` for `/`, plus any
+  // direct `/index.html` request as a regular static file), and the
+  // browser would briefly paint the bauhaus-white defaults baked into
+  // the bundle's CSS before React's `ThemeInjector` runs.
+  app.get(["/", "/index.html"], async (_req, res) => {
+    const html = await injectThemeData(indexPath);
+    res.send(html);
+  });
+
   // Specific handler for posts to inject social metadata
   app.get(["/posts/:id", "/embed/posts/:id"], async (req, res, next) => {
     const id = req.params.id as string;

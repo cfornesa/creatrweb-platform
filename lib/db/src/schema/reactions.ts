@@ -1,7 +1,7 @@
 import { mysqlTable, varchar, int, datetime, uniqueIndex } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
-import { postsTable } from "./posts";
-import { usersTable } from "./users";
+import { postsTable } from "./posts.ts";
+import { usersTable } from "./users.ts";
 
 export const reactionTypes = ["like"] as const;
 

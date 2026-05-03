@@ -1,5 +1,5 @@
 import { mysqlTable, varchar, text, int, primaryKey } from "drizzle-orm/mysql-core";
-import { usersTable } from "./users";
+import { usersTable } from "./users.ts";
 
 export const accountsTable = mysqlTable(
   "accounts",
