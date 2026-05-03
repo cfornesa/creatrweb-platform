@@ -179,6 +179,59 @@ describe("Navbar", () => {
     ow.mockRestore();
   });
 
+  it("moves overflow links into the Sheet (not just clipped) when signed in", async () => {
+    // Regression: signed-in + overflow used to clip the trailing
+    // links because the budget didn't reserve hamburger width.
+    // Every nav link must end up rendered EXACTLY ONCE — either
+    // inline or in the Sheet, never dropped on the floor.
+    const user = userEvent.setup();
+    userHolder.current = {
+      isAuthenticated: true,
+      currentUser: {
+        id: "u-overflow",
+        name: "User",
+        email: "u@example.com",
+        username: "user",
+        imageUrl: null,
+      },
+      isOwner: false,
+    };
+    navHolder.current = [
+      { id: 80, label: "Docs", url: "/docs", openInNewTab: false, sortOrder: 0, createdAt: "", updatedAt: "" },
+      { id: 81, label: "Community", url: "/community", openInNewTab: false, sortOrder: 1, createdAt: "", updatedAt: "" },
+      { id: 82, label: "Showcase", url: "/showcase", openInNewTab: false, sortOrder: 2, createdAt: "", updatedAt: "" },
+      { id: 83, label: "Pricing", url: "/pricing", openInNewTab: false, sortOrder: 3, createdAt: "", updatedAt: "" },
+    ];
+    setMatchMedia(false);
+
+    // Tight container forces overflow.
+    const cw = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(420);
+    const ow = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(80);
+
+    renderNavbar();
+
+    // Hamburger and avatar both render.
+    expect(screen.getByTestId("navbar-hamburger")).toBeTruthy();
+    expect(screen.getByTestId("navbar-avatar")).toBeTruthy();
+
+    await user.click(screen.getByTestId("navbar-hamburger"));
+
+    const inlineNav = screen.getByTestId("navbar-inline-links");
+    for (const link of navHolder.current) {
+      const inline = inlineNav.querySelector(
+        `[data-testid="nav-link-${link.id}-inline"]`,
+      );
+      const sheet = document.querySelector(
+        `[data-testid="nav-link-${link.id}-sheet"]`,
+      );
+      // Each link is rendered in exactly one place.
+      expect(Boolean(inline) !== Boolean(sheet)).toBe(true);
+    }
+
+    cw.mockRestore();
+    ow.mockRestore();
+  });
+
   it("keeps the avatar inline on desktop even when overflow forces a hamburger", () => {
     userHolder.current = {
       isAuthenticated: true,

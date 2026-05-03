@@ -97,56 +97,77 @@ export function Navbar() {
       const GAP_CENTER = 24; // center zone `gap-6`: SearchBar↔inline nav strip
       const GAP_RIGHT = 8; // right zone `gap-2`: auth↔hamburger (only matters when both render)
       const GAP_LINK = 8; // inline nav `gap-1` (4px) — overestimated to 8 to match the measurer's `gap-2` and stay conservative on width
-      // Reserve only what we know will always render in the right
-      // zone. Signed in: avatar (always shown). Signed out: the
-      // auth button when it fits (and the hamburger replaces it
-      // otherwise — auth and hamburger are roughly the same width
-      // OR the hamburger is smaller, so reserving auth-width is a
-      // safe upper bound for the right zone in both cases).
-      // We deliberately do NOT add a separate hamburger reserve on
-      // top of the auth reserve — doing so caused the fitter to
-      // permanently steal ~44px from the inline auth button at
-      // desktop widths, surfacing a hamburger that wasn't needed.
+      // The fit is computed in two passes (see below). The first
+      // pass assumes the hamburger does NOT render — its width is
+      // not reserved — so we don't permanently steal ~44px from the
+      // inline auth button at desktop widths and surface a
+      // hamburger that wasn't needed. Only when the first pass
+      // detects overflow do we redo the fit with the right-zone
+      // reservation that actually matches the overflow layout.
+      const HAMBURGER_WIDTH = 44; // matches the icon-only Button (h/w-9 + padding)
       const linkEls = Array.from(measureLinkRef.current?.children ?? []) as HTMLElement[];
       const linkWidths = linkEls.map((el) => el.offsetWidth + GAP_LINK);
       const searchWidth = measureSearchRef.current?.offsetWidth ?? 0;
       const rawAuthWidth = measureAuthRef.current?.offsetWidth ?? 0;
       const authWidth = isAuthenticated ? 0 : rawAuthWidth;
 
-      // Right-zone reserve: avatar (signed in) or auth button (signed
-      // out). When both might render together (signed in + overflow
-      // → avatar + hamburger), the avatar already dominates the
-      // width; when signed out + overflow → hamburger replaces auth
-      // entirely so authWidth is still a safe upper bound.
-      const rightZoneReserve = isAuthenticated
-        ? avatarWidth
-        : Math.max(authWidth, /* hamburger fallback */ 44);
-
-      // Between left/center and center/right is one GAP_ZONE each.
-      const reserved = logoWidth + rightZoneReserve + GAP_ZONE * 2;
-      const centerBudget = Math.max(0, containerWidth - reserved);
-
-      // Inside the center zone: search sits left, then GAP_CENTER,
-      // then nav links share the remaining width.
-      const linksAvailable = Math.max(0, centerBudget - searchWidth - GAP_CENTER);
-
-      let visibleLinkCount = 0;
-      let used = 0;
-      for (const w of linkWidths) {
-        if (used + w > linksAvailable) break;
-        used += w;
-        visibleLinkCount += 1;
+      // Greedy fit: given a fixed right-zone reservation, how many
+      // nav links from the start fit in the remaining center budget?
+      function fitLinks(rightZoneReserve: number): number {
+        const reserved = logoWidth + rightZoneReserve + GAP_ZONE * 2;
+        const centerBudget = Math.max(0, containerWidth - reserved);
+        // Inside the center zone: search sits left, then GAP_CENTER,
+        // then nav links share whatever remains.
+        const linksAvailable = Math.max(0, centerBudget - searchWidth - GAP_CENTER);
+        let count = 0;
+        let used = 0;
+        for (const w of linkWidths) {
+          if (used + w > linksAvailable) break;
+          used += w;
+          count += 1;
+        }
+        return count;
       }
-      // If signed out and all links fit, the auth button is what
-      // we already reserved in the right zone — so it's inline.
-      // If links overflow, we'll surface a hamburger instead and
-      // the auth button moves into the Sheet.
-      // We touch GAP_RIGHT here to acknowledge it factors into the
-      // right-zone layout when both auth and hamburger render; for
-      // current cases the rightZoneReserve already absorbs it.
-      void GAP_RIGHT;
+
+      // Two-pass fit. First pass assumes no hamburger renders — the
+      // right zone holds either the avatar (signed in) or the auth
+      // button (signed out), nothing else. If that fits every link,
+      // we're done and the hamburger stays hidden. Otherwise we
+      // redo the fit with the right-zone reservation that actually
+      // matches the overflow layout: signed-in adds a hamburger
+      // alongside the avatar (so the reserve grows); signed-out
+      // replaces the auth button with a hamburger (so the reserve
+      // shrinks, and possibly more links fit). Without this second
+      // pass, signed-in overflow would clip nav links visually
+      // because the inline strip's `overflow-hidden` masks them
+      // even though they were never moved into the Sheet.
+      let visibleLinkCount: number;
+      let authInline = false;
+
+      if (isAuthenticated) {
+        const noHamburger = fitLinks(avatarWidth);
+        if (noHamburger === navLinks.length) {
+          visibleLinkCount = noHamburger;
+        } else {
+          // Avatar + hamburger both render in the right zone.
+          visibleLinkCount = fitLinks(avatarWidth + GAP_RIGHT + HAMBURGER_WIDTH);
+        }
+      } else {
+        const withAuth = fitLinks(authWidth);
+        if (withAuth === navLinks.length) {
+          // Every link fits AND there's room for the auth button —
+          // it stays inline as the right-edge widget.
+          visibleLinkCount = withAuth;
+          authInline = true;
+        } else {
+          // Auth couldn't fit alongside all the links, so the
+          // hamburger replaces it (auth moves into the Sheet).
+          visibleLinkCount = fitLinks(HAMBURGER_WIDTH);
+          authInline = false;
+        }
+      }
+
       const allLinksFit = visibleLinkCount === navLinks.length;
-      const authInline = !isAuthenticated && allLinksFit;
       const hamburgerNeeded =
         !allLinksFit || (!isAuthenticated && !authInline);
 
