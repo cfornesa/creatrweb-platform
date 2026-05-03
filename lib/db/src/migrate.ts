@@ -614,6 +614,20 @@ export async function ensureTables(): Promise<void> {
     `,
   );
 
+  // Seed the system "Categories" nav row alongside the "Feeds" row.
+  // Same idempotency rule: keyed on (kind='system' AND url) tuple so
+  // re-running this migration never duplicates the row.
+  await mysqlPool.query(
+    `
+      INSERT INTO nav_links (label, url, open_in_new_tab, sort_order, kind, visible)
+      SELECT 'Categories', '/categories', 0, 1010, 'system', 1
+      FROM DUAL
+      WHERE NOT EXISTS (
+        SELECT 1 FROM nav_links WHERE kind = 'system' AND url = '/categories'
+      )
+    `,
+  );
+
   await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS reactions (
       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,

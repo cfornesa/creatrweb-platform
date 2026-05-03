@@ -295,15 +295,14 @@ export function Navbar() {
 
         {/* CENTER ZONE — flex-grows between left and right edges. */}
         {isMobile ? (
-          // Mobile: search bar centered between logo and hamburger.
+          // Mobile: center zone is empty. Search lives inside the
+          // hamburger Sheet (further down) so the navbar doesn't
+          // double-render a second search input that collides with
+          // the hamburger button at narrow widths.
           <div
-            className="flex min-w-0 flex-1 justify-center"
+            className="flex min-w-0 flex-1"
             data-testid="navbar-center"
-          >
-            <div className="w-full max-w-xs">
-              <SearchBar compact />
-            </div>
-          </div>
+          />
         ) : (
           // Desktop: search sits at the left of the center zone,
           // followed by the inline nav links with a comfortable gap

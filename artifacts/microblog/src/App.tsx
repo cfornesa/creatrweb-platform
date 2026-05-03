@@ -23,6 +23,7 @@ import AdminPageEditor from "@/pages/admin/admin-page-editor";
 import SearchPage from "@/pages/search";
 import CategoryDetailPage from "@/pages/category-detail";
 import FeedsIndexPage from "@/pages/feeds";
+import CategoriesIndexPage from "@/pages/categories";
 import PageDetailPage from "@/pages/page-detail";
 import NotFound from "@/pages/not-found";
 
@@ -69,6 +70,7 @@ function AppShell() {
             <Route path="/admin/pending" component={AdminPendingPage} />
             <Route path="/search" component={SearchPage} />
             <Route path="/feeds" component={FeedsIndexPage} />
+            <Route path="/categories" component={CategoriesIndexPage} />
             <Route path="/categories/:slug" component={CategoryDetailPage} />
             <Route path="/p/:slug" component={PageDetailPage} />
             <Route path="/posts/:id" component={PostDetail} />

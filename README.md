@@ -19,7 +19,7 @@ At a high level, the app provides:
 - owner-managed post categories with public `/categories/:slug` archive pages and search filter
 - owner-managed external navigation links and a sitewide footer that surfaces the owner's social profiles
 - rich post authoring with sanitized HTML storage
-- standardized public feeds and export endpoints
+- standardized public feeds and export endpoints, plus public `/feeds` and `/categories` index pages auto-linked from the navbar
 - shared publishing through a single canonical MySQL database
 - local and deployed app instances operating on the same authoritative content store
 

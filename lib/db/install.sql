@@ -641,6 +641,17 @@ WHERE NOT EXISTS (
   SELECT 1 FROM `nav_links` WHERE `kind` = 'system' AND `url` = '/feeds'
 );
 
+-- Seed the system "Categories" nav row. Same idempotency rule as
+-- the Feeds row above: keyed on (kind='system' AND url='/categories')
+-- so re-running this script never duplicates the row. The owner can
+-- hide it from the navbar via `UPDATE ... SET visible = 0 ...` or
+-- the /admin/navigation UI; system rows can never be deleted.
+INSERT INTO `nav_links` (`label`, `url`, `open_in_new_tab`, `sort_order`, `kind`, `page_id`, `visible`)
+SELECT 'Categories', '/categories', 0, 1010, 'system', NULL, 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM `nav_links` WHERE `kind` = 'system' AND `url` = '/categories'
+);
+
 -- 18. Hard-reset per-user theme on a single user (snaps them back to the
 --     site default everywhere). Replace `<<TARGET_EMAIL>>` first.
 -- UPDATE `users` SET

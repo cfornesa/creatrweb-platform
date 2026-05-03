@@ -323,7 +323,12 @@ describe("Navbar", () => {
     ow.mockRestore();
   });
 
-  it("renders inline nav links and a hamburger when nav links exist on mobile", () => {
+  it("renders a hamburger and zero inline search bars on mobile (search lives only in the Sheet)", async () => {
+    // The mobile center zone used to render a `<SearchBar compact />`
+    // alongside the hamburger, which collided with the hamburger
+    // button at narrow widths. The fix removes the inline search on
+    // mobile so search is reachable only by opening the Sheet.
+    const user = userEvent.setup();
     userHolder.current = { isAuthenticated: false, currentUser: null };
     navHolder.current = [
       { id: 1, label: "Docs", url: "https://example.com/docs", openInNewTab: true, sortOrder: 0, createdAt: "", updatedAt: "" },
@@ -332,7 +337,16 @@ describe("Navbar", () => {
     setMatchMedia(true);
     renderNavbar();
     expect(screen.getByTestId("navbar-hamburger")).toBeTruthy();
-    // Mobile uses the compact SearchBar, centered between logo and hamburger.
-    expect(screen.getByTestId("searchbar-compact")).toBeTruthy();
+    // Mobile must NOT render the compact searchbar in the navbar
+    // center zone — the second one used to overlap the hamburger.
+    expect(screen.queryByTestId("searchbar-compact")).toBeNull();
+    // Center zone exists but is empty.
+    const center = screen.getByTestId("navbar-center");
+    expect(center.querySelector('[data-testid^="searchbar-"]')).toBeNull();
+
+    // Opening the hamburger surfaces the embedded SearchBar inside
+    // the Sheet — that's the single source of search on mobile.
+    await user.click(screen.getByTestId("navbar-hamburger"));
+    expect(screen.getByTestId("searchbar-embed")).toBeTruthy();
   });
 });

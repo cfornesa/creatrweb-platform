@@ -80,6 +80,20 @@ export default defineConfig({
         target: apiOrigin,
         changeOrigin: false,
       },
+      // Per-category and per-page feed URLs live under the SPA's
+      // path namespace (`/categories/:slug/feed.xml`,
+      // `/p/:slug/feed.json`, etc). Without these regex proxy
+      // entries the dev server hands the request to the SPA, which
+      // renders NotFound. The matching API server routes live in
+      // `feeds.ts` and produce real Atom/JSON Feed bytes.
+      "^/categories/[^/]+/feed\\.(xml|json)$": {
+        target: apiOrigin,
+        changeOrigin: false,
+      },
+      "^/p/[^/]+/feed\\.(xml|json)$": {
+        target: apiOrigin,
+        changeOrigin: false,
+      },
     },
     fs: {
       strict: true,

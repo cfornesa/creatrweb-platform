@@ -189,6 +189,54 @@ describe("nav-links CRUD + ordering", () => {
     expect(missing.status).toBe(404);
   });
 
+  it("seeds the system Categories nav row, refuses delete, and lets the owner toggle visible", async () => {
+    // The migration seeds a `kind='system'` row at `/categories`
+    // alongside the existing `/feeds` row. We don't assume which
+    // numeric id it has — we look it up by the (kind, url) tuple
+    // the seed inserts on.
+    userHolder.current = null;
+    const list = await fetch(`${baseUrl}/api/nav-links?includeHidden=1`);
+    expect(list.status).toBe(200);
+    const body = (await list.json()) as {
+      links: Array<{
+        id: number;
+        url: string;
+        kind: string;
+        label: string;
+        visible: boolean;
+      }>;
+    };
+    const categoriesRow = body.links.find(
+      (l) => l.kind === "system" && l.url === "/categories",
+    );
+    expect(categoriesRow, "Categories system nav row should be seeded").toBeTruthy();
+    expect(categoriesRow!.label).toBe("Categories");
+
+    // System rows can never be deleted (only hidden via visible=false).
+    userHolder.current = OWNER;
+    const del = await fetch(`${baseUrl}/api/nav-links/${categoriesRow!.id}`, {
+      method: "DELETE",
+    });
+    expect(del.status).toBe(400);
+
+    // The visibility toggle must persist round-trip.
+    const hide = await fetch(`${baseUrl}/api/nav-links/${categoriesRow!.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ visible: false }),
+    });
+    expect(hide.status).toBe(200);
+    expect(((await hide.json()) as { visible: boolean }).visible).toBe(false);
+
+    const restore = await fetch(`${baseUrl}/api/nav-links/${categoriesRow!.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ visible: true }),
+    });
+    expect(restore.status).toBe(200);
+    expect(((await restore.json()) as { visible: boolean }).visible).toBe(true);
+  });
+
   it("rejects unsafe URL schemes (javascript:, data:, file:) with 400", async () => {
     userHolder.current = OWNER;
     for (const url of [

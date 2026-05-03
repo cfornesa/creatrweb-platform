@@ -8,6 +8,7 @@ import {
   useUploadMedia,
   getListPagesQueryKey,
   getGetPageBySlugQueryKey,
+  getListNavLinksQueryKey,
 } from "@workspace/api-client-react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -132,6 +133,14 @@ export default function AdminPageEditor() {
       queryClient.invalidateQueries({ queryKey: ALL_QUERY_KEY });
       queryClient.invalidateQueries({
         queryKey: getGetPageBySlugQueryKey(page.slug),
+      });
+      // Page mutations can add, remove, rename, or rehide nav rows
+      // (the `showInNav` toggle and the slug both feed the navbar
+      // query). Invalidate both the public and owner-only nav-link
+      // queries so the navbar re-renders without a manual reload.
+      queryClient.invalidateQueries({ queryKey: getListNavLinksQueryKey() });
+      queryClient.invalidateQueries({
+        queryKey: getListNavLinksQueryKey({ includeHidden: "1" }),
       });
       toast({
         title: isEdit ? "Page updated" : "Page created",
