@@ -9,24 +9,34 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
  * Header search field. Lives in the Navbar on every page.
  *
  * Layout:
- *   - On `sm` and up the field is rendered inline in the navbar.
- *   - Below `sm` we render only a magnifier icon button; tapping it
- *     opens a top sheet with the same input. This keeps the navbar
- *     uncluttered on phones while still making search reachable
- *     from every page (the spec requires "header search on every
- *     page").
+ *   - Default (desktop, no flag): inline form rendered with a
+ *     responsive `hidden sm:flex` so the navbar can drop it in
+ *     directly. The mobile-icon trigger + bottom sheet are kept
+ *     for any caller that still wants the standalone responsive
+ *     widget, but the Navbar now owns the mobile placement and
+ *     uses `compact` instead.
+ *   - `compact` (used by the Navbar's centered mobile slot): just
+ *     the input + submit button, always visible, no separate
+ *     trigger or sheet of its own. The Navbar wraps it in a
+ *     centered flex container between the logo and the hamburger.
+ *   - `embed` (used inside the hamburger sheet): the same form
+ *     stretched to fill its container.
  *
  * Keyboard:
  *   - `/` from anywhere on the page (except inside another input or a
- *     contenteditable) focuses the inline input on desktop, or opens
- *     the sheet on mobile.
+ *     contenteditable) focuses the inline input. In the default
+ *     standalone widget on a narrow viewport, it instead opens the
+ *     bottom sheet.
  *   - `Esc` while focused clears the value and blurs the field. The
  *     sheet itself also closes on Esc via Radix.
  *
  * Submit on Enter navigates to `/search?q=…`; the search page is the
  * single source of truth for filter state going forward.
  */
-export function SearchBar({ embed = false }: { embed?: boolean } = {}) {
+export function SearchBar({
+  embed = false,
+  compact = false,
+}: { embed?: boolean; compact?: boolean } = {}) {
   const [, setLocation] = useLocation();
   // Subscribe to the URL's query string so the input mirrors the
   // active query (e.g. landing on `/search?q=hello` shows "hello",
@@ -85,8 +95,11 @@ export function SearchBar({ embed = false }: { embed?: boolean } = {}) {
       e.preventDefault();
       // Tailwind's `sm` breakpoint is 640px. We mirror it here so the
       // shortcut targets whichever surface is currently visible.
+      // In `compact` and `embed` modes the inline input is always in
+      // the DOM (the Navbar owns placement) so we focus it directly
+      // without consulting the viewport.
       const isMobile = window.matchMedia("(max-width: 639px)").matches;
-      if (isMobile) {
+      if (isMobile && !embed && !compact) {
         setSheetOpen(true);
       } else {
         inlineRef.current?.focus();
@@ -165,13 +178,13 @@ export function SearchBar({ embed = false }: { embed?: boolean } = {}) {
     }
   }
 
-  if (embed) {
+  if (embed || compact) {
     return (
       <form
         onSubmit={onInlineSubmit}
         role="search"
         className="relative flex items-center gap-1.5"
-        data-testid="header-search-embed"
+        data-testid={compact ? "header-search-compact" : "header-search-embed"}
       >
         <div className="relative flex-1">
           <Search

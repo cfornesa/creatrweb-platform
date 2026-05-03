@@ -31,6 +31,7 @@ type FitState = {
   authInline: boolean;
   searchInline: boolean;
   visibleLinkCount: number;
+  hamburgerNeeded: boolean;
 };
 
 const EMPTY_NAV_LINKS: NavLinkRecord[] = [];
@@ -54,6 +55,7 @@ export function Navbar() {
     authInline: true,
     searchInline: true,
     visibleLinkCount: navLinks.length,
+    hamburgerNeeded: false,
   });
   const [isMobile, setIsMobile] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -86,40 +88,44 @@ export function Navbar() {
       const avatarWidth = avatarRef.current?.offsetWidth ?? 0;
       const HAMBURGER_RESERVE = 44;
       const GAP = 8;
+      // Always reserve space for the hamburger and (when signed in)
+      // the avatar — the avatar is the user's session anchor and
+      // must stay inline regardless of how many nav links overflow.
       const reserved = logoWidth + avatarWidth + HAMBURGER_RESERVE + GAP * 3;
       const budget = Math.max(0, containerWidth - reserved);
 
       const linkEls = Array.from(measureLinkRef.current?.children ?? []) as HTMLElement[];
       const linkWidths = linkEls.map((el) => el.offsetWidth + GAP);
-      const linksTotal = linkWidths.reduce((a, b) => a + b, 0);
+      // Search is mandatory inline on desktop, so subtract it from
+      // the budget first; whatever's left is for nav links + auth.
       const searchWidth = (measureSearchRef.current?.offsetWidth ?? 0) + GAP;
       const authWidth = isAuthenticated
         ? 0
         : (measureAuthRef.current?.offsetWidth ?? 0) + GAP;
 
-      const everythingTotal = linksTotal + searchWidth + authWidth;
-      let authInline = false;
-      let searchInline = false;
-      let visibleLinkCount = 0;
+      const remaining = Math.max(0, budget - searchWidth);
 
-      if (everythingTotal <= budget) {
-        authInline = !isAuthenticated;
-        searchInline = true;
-        visibleLinkCount = navLinks.length;
-      } else {
-        let used = 0;
-        for (const w of linkWidths) {
-          if (used + w > budget) break;
-          used += w;
-          visibleLinkCount += 1;
-        }
+      let visibleLinkCount = 0;
+      let used = 0;
+      for (const w of linkWidths) {
+        if (used + w > remaining) break;
+        used += w;
+        visibleLinkCount += 1;
       }
+      let authInline = false;
+      if (!isAuthenticated && used + authWidth <= remaining) {
+        authInline = true;
+      }
+      const hamburgerNeeded =
+        visibleLinkCount < navLinks.length || (!isAuthenticated && !authInline);
+
       setFit((prev) =>
         prev.authInline === authInline &&
-        prev.searchInline === searchInline &&
-        prev.visibleLinkCount === visibleLinkCount
+        prev.searchInline === true &&
+        prev.visibleLinkCount === visibleLinkCount &&
+        prev.hamburgerNeeded === hamburgerNeeded
           ? prev
-          : { authInline, searchInline, visibleLinkCount },
+          : { authInline, searchInline: true, visibleLinkCount, hamburgerNeeded },
       );
     }
 
@@ -131,6 +137,7 @@ export function Navbar() {
       measureLinkRef.current,
       measureSearchRef.current,
       measureAuthRef.current,
+      avatarRef.current,
     ];
     for (const el of candidates) {
       if (el) ro.observe(el);
@@ -139,15 +146,24 @@ export function Navbar() {
   }, [navLinks, isAuthenticated, siteSettings?.siteTitle]);
 
   const effectiveFit: FitState = isMobile
-    ? { authInline: false, searchInline: false, visibleLinkCount: 0 }
+    ? {
+        authInline: false,
+        searchInline: false,
+        visibleLinkCount: 0,
+        hamburgerNeeded: true,
+      }
     : fit;
   const inlineLinks = navLinks.slice(0, effectiveFit.visibleLinkCount);
-  const overflow =
-    isMobile ||
-    effectiveFit.visibleLinkCount < navLinks.length ||
-    !effectiveFit.searchInline ||
-    (!effectiveFit.authInline && !isAuthenticated);
-  const showHamburger = overflow;
+  // The hamburger Sheet must show only the items that didn't fit
+  // inline — never the items already rendered in the inline strip.
+  // On mobile the inline strip is empty so every link goes here.
+  const overflowLinks = isMobile
+    ? navLinks
+    : navLinks.slice(effectiveFit.visibleLinkCount);
+  const showHamburger = effectiveFit.hamburgerNeeded;
+  // Auth control belongs in the hamburger only when it didn't fit
+  // inline (or on mobile where nothing fits inline).
+  const sheetShowsAuth = !isAuthenticated && (isMobile || !effectiveFit.authInline);
 
   const renderLink = (
     link: NavLinkRecord,
@@ -223,13 +239,29 @@ export function Navbar() {
           </span>
         </Link>
 
-        <nav
-          className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
-          aria-label="Primary"
-          data-testid="navbar-inline-links"
-        >
-          {inlineLinks.map((l) => renderLink(l, { variant: "inline" }))}
-        </nav>
+        {isMobile ? (
+          // Mobile: search bar centered between logo and hamburger.
+          <div className="flex min-w-0 flex-1 justify-center">
+            <div className="w-full max-w-xs">
+              <SearchBar compact />
+            </div>
+          </div>
+        ) : (
+          // Desktop: search sits between the logo and the inline
+          // nav links. It is always rendered inline regardless of
+          // whether the hamburger overflow is also needed.
+          <SearchBar />
+        )}
+
+        {!isMobile ? (
+          <nav
+            className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
+            aria-label="Primary"
+            data-testid="navbar-inline-links"
+          >
+            {inlineLinks.map((l) => renderLink(l, { variant: "inline" }))}
+          </nav>
+        ) : null}
 
         <div
           aria-hidden="true"
@@ -267,28 +299,14 @@ export function Navbar() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {effectiveFit.searchInline ? <SearchBar /> : null}
-
-          {!isAuthenticated && effectiveFit.authInline ? (
+          {!isAuthenticated && !isMobile && effectiveFit.authInline ? (
             <Button asChild className="rounded-full font-medium" data-testid="navbar-auth-inline">
               <Link href="/sign-in">Log in / Register</Link>
             </Button>
           ) : null}
 
-          {showHamburger ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Open menu"
-              data-testid="navbar-hamburger"
-              onClick={() => setSheetOpen(true)}
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-          ) : null}
-
-          {currentUser && !overflow ? (
-            <div ref={avatarRef}>
+          {currentUser && !isMobile ? (
+            <div ref={avatarRef} data-testid="navbar-avatar">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full">
@@ -352,6 +370,18 @@ export function Navbar() {
               </DropdownMenu>
             </div>
           ) : null}
+
+          {showHamburger ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Open menu"
+              data-testid="navbar-hamburger"
+              onClick={() => setSheetOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -361,14 +391,14 @@ export function Navbar() {
             <SheetTitle>Menu</SheetTitle>
           </SheetHeader>
           <div className="mt-6 space-y-4">
-            {navLinks.length > 0 ? (
+            {overflowLinks.length > 0 ? (
               <>
                 <nav
                   className="flex flex-col"
                   aria-label="Site navigation"
                   data-testid="navbar-sheet-links"
                 >
-                  {navLinks.map((link) =>
+                  {overflowLinks.map((link) =>
                     renderLink(link, {
                       variant: "sheet",
                       onClick: () => setSheetOpen(false),
@@ -379,7 +409,7 @@ export function Navbar() {
               </>
             ) : null}
 
-            {!isAuthenticated ? (
+            {sheetShowsAuth ? (
               <>
                 <Button
                   asChild
@@ -391,7 +421,9 @@ export function Navbar() {
                 </Button>
                 <hr className="border-border" />
               </>
-            ) : (
+            ) : null}
+
+            {isAuthenticated && isMobile ? (
               <>
                 <div className="flex flex-col" data-testid="navbar-sheet-user">
                   <button
@@ -447,11 +479,13 @@ export function Navbar() {
                 </div>
                 <hr className="border-border" />
               </>
-            )}
+            ) : null}
 
-            <div data-testid="navbar-sheet-search">
-              <SearchBar embed />
-            </div>
+            {isMobile ? (
+              <div data-testid="navbar-sheet-search">
+                <SearchBar embed />
+              </div>
+            ) : null}
           </div>
         </SheetContent>
       </Sheet>

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Router } from "wouter";
 
 class NoopRO {
@@ -11,7 +12,7 @@ class NoopRO {
 globalThis.ResizeObserver = globalThis.ResizeObserver ?? NoopRO;
 
 const navHolder: { current: any[] } = { current: [] };
-const userHolder: { current: { isAuthenticated: boolean; currentUser: any } } = {
+const userHolder: { current: { isAuthenticated: boolean; currentUser: any; isOwner?: boolean } } = {
   current: { isAuthenticated: false, currentUser: null },
 };
 
@@ -27,7 +28,17 @@ vi.mock("@/hooks/use-site-settings", () => ({
 }));
 vi.mock("@/lib/auth", () => ({ signOut: async () => undefined }));
 vi.mock("@/components/layout/SearchBar", () => ({
-  SearchBar: () => <div data-testid="searchbar-stub" />,
+  SearchBar: ({ embed, compact }: { embed?: boolean; compact?: boolean }) => (
+    <div
+      data-testid={
+        compact
+          ? "searchbar-compact"
+          : embed
+            ? "searchbar-embed"
+            : "searchbar-inline"
+      }
+    />
+  ),
 }));
 
 const { Navbar } = await import("@/components/layout/Navbar");
@@ -107,7 +118,7 @@ describe("Navbar", () => {
     offsetWidthSpy.mockRestore();
   });
 
-  it("collapses inline search and auth into the hamburger when links overflow on desktop", async () => {
+  it("keeps the search bar inline on desktop even when the hamburger is needed", () => {
     userHolder.current = { isAuthenticated: false, currentUser: null };
     navHolder.current = [
       { id: 30, label: "Docs", url: "https://x.example/docs", openInNewTab: true, sortOrder: 0, createdAt: "", updatedAt: "" },
@@ -116,16 +127,83 @@ describe("Navbar", () => {
     ];
     setMatchMedia(false);
 
-    const cw = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(520);
-    const ow = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(160);
+    const cw = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(400);
+    const ow = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(80);
 
     renderNavbar();
     expect(screen.getByTestId("navbar-hamburger")).toBeTruthy();
-    expect(screen.queryByTestId("header-search")).toBeNull();
-    const inlineLogin = screen
-      .queryAllByRole("button", { name: /Log in \/ Register/i })
-      .filter((el) => !el.closest('[aria-hidden="true"]'));
-    expect(inlineLogin.length).toBe(0);
+    // The desktop SearchBar is rendered inline (mocked stub testid).
+    expect(screen.getByTestId("searchbar-inline")).toBeTruthy();
+    // The compact (mobile-centered) variant must NOT be rendered on desktop.
+    expect(screen.queryByTestId("searchbar-compact")).toBeNull();
+
+    cw.mockRestore();
+    ow.mockRestore();
+  });
+
+  it("never renders the same nav link both inline and inside the open hamburger Sheet", async () => {
+    const user = userEvent.setup();
+    userHolder.current = { isAuthenticated: false, currentUser: null };
+    navHolder.current = [
+      { id: 40, label: "Feeds", url: "/feeds", openInNewTab: false, sortOrder: 0, createdAt: "", updatedAt: "" },
+      { id: 41, label: "Docs", url: "/docs", openInNewTab: false, sortOrder: 1, createdAt: "", updatedAt: "" },
+      { id: 42, label: "About", url: "/about", openInNewTab: false, sortOrder: 2, createdAt: "", updatedAt: "" },
+    ];
+    setMatchMedia(false);
+
+    const cw = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(400);
+    const ow = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(80);
+
+    renderNavbar();
+    await user.click(screen.getByTestId("navbar-hamburger"));
+
+    // Scope the inline lookup to the visible nav strip — the hidden
+    // off-screen measurer also renders every link with the same
+    // testid for width measurement, but it lives outside this node.
+    const inlineNav = screen.getByTestId("navbar-inline-links");
+    for (const link of navHolder.current) {
+      const inline = inlineNav.querySelector(
+        `[data-testid="nav-link-${link.id}-inline"]`,
+      );
+      const sheet = document.querySelector(
+        `[data-testid="nav-link-${link.id}-sheet"]`,
+      );
+      // The link must be rendered in at most one place — never both.
+      expect(inline === null || sheet === null).toBe(true);
+      // And every link is rendered in exactly one place (no link is
+      // dropped on the floor).
+      expect(Boolean(inline) || Boolean(sheet)).toBe(true);
+    }
+
+    cw.mockRestore();
+    ow.mockRestore();
+  });
+
+  it("keeps the avatar inline on desktop even when overflow forces a hamburger", () => {
+    userHolder.current = {
+      isAuthenticated: true,
+      currentUser: {
+        id: "u1",
+        name: "User",
+        email: "u@example.com",
+        username: "user",
+        imageUrl: null,
+      },
+      isOwner: false,
+    };
+    navHolder.current = [
+      { id: 50, label: "Docs", url: "/docs", openInNewTab: false, sortOrder: 0, createdAt: "", updatedAt: "" },
+      { id: 51, label: "Community", url: "/community", openInNewTab: false, sortOrder: 1, createdAt: "", updatedAt: "" },
+      { id: 52, label: "Showcase", url: "/showcase", openInNewTab: false, sortOrder: 2, createdAt: "", updatedAt: "" },
+    ];
+    setMatchMedia(false);
+
+    const cw = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(400);
+    const ow = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(80);
+
+    renderNavbar();
+    expect(screen.getByTestId("navbar-hamburger")).toBeTruthy();
+    expect(screen.getByTestId("navbar-avatar")).toBeTruthy();
 
     cw.mockRestore();
     ow.mockRestore();
@@ -140,5 +218,7 @@ describe("Navbar", () => {
     setMatchMedia(true);
     renderNavbar();
     expect(screen.getByTestId("navbar-hamburger")).toBeTruthy();
+    // Mobile uses the compact SearchBar, centered between logo and hamburger.
+    expect(screen.getByTestId("searchbar-compact")).toBeTruthy();
   });
 });
