@@ -55,17 +55,41 @@ const allowedOrigins = new Set([
 ]);
 
 app.use(
-  cors({
-    credentials: true,
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.has(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS: origin ${origin} not allowed`));
-      }
-    },
-  }),
+  (req, res, next) =>
+    cors({
+      credentials: true,
+      origin: (origin, callback) => {
+        if (!origin || isAllowedOrigin(origin, req)) {
+          callback(null, true);
+        } else {
+          callback(new Error(`CORS: origin ${origin} not allowed`));
+        }
+      },
+    })(req, res, next),
 );
+
+function isAllowedOrigin(origin: string, req: Request): boolean {
+  if (allowedOrigins.has(origin)) {
+    return true;
+  }
+
+  try {
+    const originUrl = new URL(origin);
+    const requestHost = req.hostname;
+
+    if (
+      originUrl.hostname === requestHost &&
+      (originUrl.hostname.endsWith(".replit.dev") ||
+        originUrl.hostname.endsWith(".replit.app"))
+    ) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+}
 
 app.use(createRateLimitMiddleware({ windowMs: 60_000, max: 240 }));
 app.use(express.json());
