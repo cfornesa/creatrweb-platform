@@ -4,6 +4,12 @@ import Google from "@auth/express/providers/google";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { db, usersTable, accountsTable, sessionsTable, verificationTokensTable, eq } from "@workspace/db";
 
+// @auth/express derives the `/api/auth` base path from the Express mount.
+// Letting it derive the origin from request headers avoids stale localhost,
+// Replit preview, or deployment AUTH_URL values creating redirect mismatches.
+delete process.env.AUTH_URL;
+delete process.env.NEXTAUTH_URL;
+
 type SessionUserWithId = {
   id?: string;
   role?: string;

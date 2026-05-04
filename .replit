@@ -3,7 +3,7 @@ modules = ["nodejs-24", "python-3.11", "postgresql-16"]
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
-run = ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
+run = ["npm", "run", "start"]
 build = ["npm", "run", "build"]
 
 [workflows]

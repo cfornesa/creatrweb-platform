@@ -4,11 +4,13 @@
   "license": "MIT",
   "packageManager": "npm@11.12.1",
   "scripts": {
-    "build": "npm run typecheck && npm run build --workspaces --if-present",
+    "build": "node scripts/build.mjs",
     "build:web:clean": "rm -rf artifacts/microblog/dist && npm run build --workspace=@workspace/microblog",
-    "dev": "npm run dev --workspace=@workspace/api-server",
+    "dev": "node scripts/serve.mjs",
+    "dev:hot": "node scripts/dev-hot.mjs",
     "dev:api": "npm run dev --workspace=@workspace/api-server",
     "dev:web": "npm run dev --workspace=@workspace/microblog",
+    "serve": "node scripts/serve.mjs",
     "start": "npm run start --workspace=@workspace/api-server",
     "typecheck:libs": "tsc --build",
     "typecheck": "npm run typecheck:libs && npm run typecheck --workspaces --if-present"

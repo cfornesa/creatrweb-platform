@@ -2,19 +2,25 @@
 
 ## Local Development
 
-Use two terminals:
+Use the one-port development command from the repository root:
 
 ```bash
-npm run dev:api
-npm run dev:web
+npm run dev
 ```
 
-The expected local origins are:
+The expected local origin is:
 
-- Frontend: `http://localhost:3000`
-- Backend: `http://localhost:8080`
+- App, API, and Auth.js: `http://localhost:8080`
 
-The frontend dev server proxies both `/api/*` and `/auth/*` to the backend, so browser-based auth and API calls stay on the frontend origin during development.
+The frontend is built first, then the API server serves the built frontend and all API/Auth routes from the same origin. This matches the Replit deployment shape and avoids OAuth callback mismatches between frontend and backend ports.
+
+For active frontend work with Vite hot reload, use the optional two-port mode:
+
+```bash
+npm run dev:hot
+```
+
+In hot mode, Vite serves the frontend at `http://localhost:3000` and proxies API/Auth routes to the API server at `http://localhost:8080`.
 
 ## Required `.env` Values
 
@@ -22,9 +28,8 @@ The frontend dev server proxies both `/api/*` and `/auth/*` to the backend, so b
 PORT=8080
 FRONTEND_PORT=3000
 API_ORIGIN=http://localhost:8080
-ALLOWED_ORIGINS=http://localhost:20925,http://localhost:3000,http://localhost:8080
+ALLOWED_ORIGINS=http://localhost:8080
 AUTH_SECRET=replace_with_a_long_random_secret
-AUTH_URL=http://localhost:3000/api/auth
 GITHUB_ID=your_github_oauth_app_client_id
 GITHUB_SECRET=your_github_oauth_app_client_secret
 GOOGLE_CLIENT_ID=your_google_oauth_client_id
@@ -52,10 +57,20 @@ openssl rand -hex 32
 
 Configure these callback URLs in your provider dashboards:
 
+- GitHub: `http://localhost:8080/api/auth/callback/github`
+- Google: `http://localhost:8080/api/auth/callback/google`
+
+If you use `npm run dev:hot`, also configure the hot-mode localhost callbacks:
+
 - GitHub: `http://localhost:3000/api/auth/callback/github`
 - Google: `http://localhost:3000/api/auth/callback/google`
 
-If you deploy under a different origin later, replace `http://localhost:3000` with that public origin.
+For Replit development and deployed Repls, configure the current public Replit origin with `/api/auth/callback/{provider}`. For example, if your public origin is `https://example.replit.app`, configure:
+
+- GitHub: `https://example.replit.app/api/auth/callback/github`
+- Google: `https://example.replit.app/api/auth/callback/google`
+
+Do not set `AUTH_URL` for this Express app. Auth.js derives the origin from the request host and derives `/api/auth` from the Express mount point, which keeps local, Replit preview, and deployed origins aligned.
 
 ## First Owner Bootstrap
 
@@ -91,7 +106,7 @@ npm run promote-owner --workspace=@workspace/scripts -- --id your-user-id
 
 Once the backend and frontend are running, these public feed/export routes should respond without authentication:
 
-- Atom: `http://localhost:3000/feed.xml`
-- JSON Feed: `http://localhost:3000/feed.json`
-- mf2-JSON export: `http://localhost:3000/export/json`
-- Compatibility alias: `http://localhost:3000/export.json`
+- Atom: `http://localhost:8080/feed.xml`
+- JSON Feed: `http://localhost:8080/feed.json`
+- mf2-JSON export: `http://localhost:8080/export/json`
+- Compatibility alias: `http://localhost:8080/export.json`
