@@ -219,6 +219,45 @@ options regardless of session context. -->
 
 ## 2026-04-28 — Frontend Auth.js Swap
 
+## 2026-05-04 — Opt-In AI Writing Assistant
+
+### Decisions Confirmed
+- AI writing assistance is opt-in and disabled by default; no AI action should appear in the frontend unless the current user has explicitly enabled and configured it.
+- Each user may save exactly one active AI vendor and one model slug at a time, plus one encrypted API key stored server-side.
+- The persisted backend vendor identifiers are the stable slug set: `mistral`, `opencode-zen`, `opencode-go`, `chatgpt`, `claude`, `google`.
+- Human-readable vendor labels are a frontend presentation concern, but the backend now exposes the canonical label mapping so the UI does not need its own divergent source of truth.
+- The `model` value is intentionally user-supplied freeform text rather than a server-maintained per-vendor model catalog, to avoid rapid model-list churn becoming a product migration burden.
+- Self-hosted or local-gateway AI routing is not permitted for this feature; the AI assistant is hosted-provider-only.
+- User-saved AI API keys are encrypted at rest using the app's `AI_SETTINGS_ENCRYPTION_KEY` secret and are never returned from API responses.
+
+### Implementation Notes
+- The API now exposes `GET /api/users/me/ai-settings`, `PATCH /api/users/me/ai-settings`, and `POST /api/ai/process`.
+- `POST /api/ai/process` accepts only editor content; vendor and model are resolved from the current user's saved AI settings record so the toggle remains the actual authorization gate.
+- Editor HTML is converted to plain text with the existing shared HTML-to-text helper before any provider call is made.
+- Provider dispatch is now adapter-based, with first-party adapters for Mistral, OpenAI/ChatGPT, Anthropic/Claude, Google Gemini, OpenCode Zen, and OpenCode Go.
+- The OpenAPI spec and generated API Zod/client packages were updated so later React UI work can consume the new typed AI settings/process endpoints directly.
+
+### Unresolved Checkpoints Entering Next Session
+- [ ] Implement the React settings surface and conditional AI button so the new backend opt-in contract is actually reachable in the frontend.
+- [ ] Decide whether disabling AI should merely hide the feature while preserving saved credentials, or also offer a separate "forget my API key" destructive action in the UI.
+- [ ] Propose MEMORY.md entries for the new opt-in AI assistant behavior if the human wants them persisted to shared session memory.
+
+## 2026-05-04 — Settings-Gated AI Composer UX
+
+### Decisions Confirmed
+- AI configuration now lives on `/settings`, not in the post composer.
+- The post composer remains focused on writing; it only exposes an AI action once the owner's AI settings are both enabled and configured.
+- Disabling AI hides the composer AI button but preserves the saved vendor, model slug, and encrypted API key so re-enabling can be a simple toggle.
+- The model field remains a freeform slug input in the settings UI rather than a server-maintained dropdown catalog.
+
+### Implementation Notes
+- The settings page now includes an AI Writing Assistant card backed by the existing `/api/users/me/ai-settings` endpoints.
+- The rich post editor now exposes a bottom-right AI button that sends the current editor HTML to `/api/ai/process`, then replaces the editor content with paragraph-wrapped plain text from the response.
+- The AI settings UI and editor AI affordance use grayscale surfaces with yellow-border emphasis rather than introducing a new theme system.
+
+### Operational Outcome
+- The owner now has a full frontend path to opt into AI assistance intentionally, while the composer stays free of vendor/model controls until that setup is already complete.
+
 ### Decisions Confirmed
 - The web app now uses a single `/sign-in` screen with GitHub and Google OAuth entry points.
 - `/sign-up` is retained only as a redirect alias to `/sign-in`.
@@ -704,4 +743,3 @@ approximation, so historical and new rows are stripped identically.
   `/api/feed-sources` endpoint still exposes the full row to the
   owner, so this is a deliberately narrowed projection rather than
   a change to the existing endpoint.
-

@@ -180,7 +180,24 @@ CREATE TABLE IF NOT EXISTS `users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
--- 2. Auth.js tables: `accounts`, `sessions`, `verification_tokens`.
+-- 2. Owner AI settings. One row per supported vendor so the owner can
+--    keep credentials on file for multiple AI gateways at once.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `user_ai_vendor_settings` (
+  `user_id`            VARCHAR(191) NOT NULL,                       -- FK -> users.id
+  `vendor`             VARCHAR(64) NOT NULL,                        -- stable backend slug, e.g. 'opencode-zen'
+  `enabled`            INT NOT NULL DEFAULT 0,                      -- 0 = off, 1 = on for this vendor
+  `model`              VARCHAR(191),                                -- user-supplied vendor model slug
+  `encrypted_api_key`  TEXT,                                        -- encrypted at rest with AI_SETTINGS_ENCRYPTION_KEY
+  `created_at`         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at`         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`user_id`, `vendor`),
+  CONSTRAINT `user_ai_vendor_settings_user_id_fk`
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------------
+-- 3. Auth.js tables: `accounts`, `sessions`, `verification_tokens`.
 --    These three exactly match what `@auth/drizzle-adapter` expects;
 --    do NOT rename columns or you will break sign-in.
 -- ----------------------------------------------------------------------------
@@ -217,7 +234,7 @@ CREATE TABLE IF NOT EXISTS `verification_tokens` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
--- 3. Inbound feeds (PESOS): `feed_sources` (subscriptions) +
+-- 4. Inbound feeds (PESOS): `feed_sources` (subscriptions) +
 --    `feed_items_seen` (per-source dedup ledger). Both empty after install
 --    — populate them through the /admin/feeds UI as the owner.
 -- ----------------------------------------------------------------------------

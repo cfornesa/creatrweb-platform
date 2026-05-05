@@ -49,6 +49,7 @@ Rich posts support:
 - formatting through a toolbar-backed editor
 - local image uploads
 - owner-trusted `https:` iframe embeds
+- optional AI-assisted rewrite from the post composer and post edit flow once the owner explicitly configures vendors in `/admin/ai`
 
 HTML is sanitized on the server before it is stored, and the frontend renders rich content after that sanitization step.
 
@@ -85,6 +86,18 @@ Authentication is handled by Auth.js in the Express server. The current provider
 - Google OAuth
 
 The first owner account is established by signing in once and then promoting that user in the local database.
+
+### Optional AI Writing Assistant
+
+The owner can optionally enable AI writing assistance from `/admin/ai`.
+
+- AI is owner-only and disabled per vendor by default.
+- Supported vendors are `OpenRouter`, `OpenCode Zen`, `OpenCode Go`, and `Google`.
+- Configuration is intentional and per vendor: one saved model slug and one saved API key for each supported vendor.
+- Once one or more vendors are enabled and configured, the post composer and post edit flow show an AI vendor dropdown plus an `AI` action.
+- Turning a vendor off hides it from the editor dropdown but preserves its saved model slug and encrypted API key for later reuse.
+- Saved API keys are encrypted at rest using `AI_SETTINGS_ENCRYPTION_KEY`.
+- Before treating any vendor as production-ready, run the verification checklist in [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md).
 
 ### Data Model In Practice
 
@@ -167,7 +180,14 @@ Core local variables are documented in [docs/auth-setup.md](./docs/auth-setup.md
 - `DB_NAME`
 - `DB_USER`
 - `DB_PASS`
+- `AI_SETTINGS_ENCRYPTION_KEY` for encrypting user-saved AI vendor keys at rest
 - `SQLITE_IMPORT_PATH` for the one-time SQLite import source
+
+Generate `AI_SETTINGS_ENCRYPTION_KEY` with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
 
 Do not set `AUTH_URL` for this Express app. Auth.js derives the request origin from the incoming host and derives `/api/auth` from the Express mount point.
 
@@ -201,6 +221,7 @@ This means:
 
 - local and deployed app instances can read and write the same canonical content store
 - the old SQLite content exists only as migration/recovery material rather than as the intended runtime database
+- app-managed MySQL `DATETIME(3)` writes are stored as naive local timestamps rather than ISO UTC strings, so newly created posts/comments/settings updates render the correct relative time in the UI without timezone-offset drift
 
 ### Owner Bootstrap
 
@@ -241,13 +262,13 @@ npm run import-sqlite-to-mysql --workspace=@workspace/scripts
 If you cloned this repo to run your own microblog, the high-level path is:
 
 1. Stand up a fresh MySQL 8.0+ or MariaDB 10.5+ database. On Replit (or any Node host) the API server's `ensureTables()` builds the schema on first boot. On shared hosts (e.g. Hostinger), import `lib/db/install.sql` via phpMyAdmin — it carries its own step-by-step header comments.
-2. Configure environment variables in `.env` (or your host's secrets panel). At minimum: MySQL connection (`DB_HOST`/`DB_NAME`/`DB_USER`/`DB_PASS`), `AUTH_SECRET`, and one OAuth provider (`GITHUB_ID`/`GITHUB_SECRET` or `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`). If you want unattended inbound feed refreshes through the included GitHub Actions workflow, also set `CRON_SECRET` on the deployed app and add two GitHub repository secrets: `CRON_SECRET` and `PUBLIC_SITE_URL` (deployed origin only, e.g. `https://yourdomain.com`).
+2. Configure environment variables in `.env` (or your host's secrets panel). At minimum: MySQL connection (`DB_HOST`/`DB_NAME`/`DB_USER`/`DB_PASS`), `AUTH_SECRET`, `AI_SETTINGS_ENCRYPTION_KEY`, and one OAuth provider (`GITHUB_ID`/`GITHUB_SECRET` or `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`). Generate `AI_SETTINGS_ENCRYPTION_KEY` with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. If you want unattended inbound feed refreshes through the included GitHub Actions workflow, also set `CRON_SECRET` on the deployed app and add two GitHub repository secrets: `CRON_SECRET` and `PUBLIC_SITE_URL` (deployed origin only, e.g. `https://yourdomain.com`).
 3. **Pick a username** — the handle your profile page will live at, e.g. `chris` → `/users/@chris`. The same chosen string must appear in **two places that match exactly**:
    - `site_settings.cta_href` — substitute the `<<YOUR_USERNAME>>` placeholder in `lib/db/install.sql` *before* importing, or edit `cta_href` in the `/settings` UI after you've completed step 4 below (the `/settings` page is owner-gated, so first sign-in alone isn't enough — you must also promote your row to `owner`).
    - `users.username` — set it with `UPDATE users SET username = '<your-username>' WHERE email = '<your-email>'` *after* you've signed in once via OAuth.
 
    Both values must be the same literal string. Until the `UPDATE` runs, no user row carries that username yet, so the hero CTA link will 404 — this is expected on a freshly-imported install and resolves the moment you set the username on your row.
-4. Sign in once via OAuth, then set your username AND promote yourself to the `owner` role (the role that unlocks `/settings`, `/admin/feeds`, and `/admin/pending`). You can use `npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com` for the promotion.
+4. Sign in once via OAuth, then set your username AND promote yourself to the `owner` role (the role that unlocks `/settings` and `/admin`, including `/admin/ai`). You can use `npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com` for the promotion.
 
 User-facing seed copy in both SQL files (`install.sql` and the narrow `site_settings_install.sql`) uses a `<<PLACEHOLDER>>` convention — double angle brackets, ALL CAPS (e.g. `<<YOUR_USERNAME>>`, `<<YOUR_NAME>>`, `<<SITE_TITLE>>`) — so a fresh fork visibly says "edit me" instead of shipping someone else's identity. Find-and-replace these in your editor before importing, or accept the placeholders and edit them via `/settings` once you've signed in and promoted yourself to the owner role (step 4).
 
@@ -266,6 +287,7 @@ Several top-level folders and markdown files in this repo are part of the **Crea
 ### Related Docs
 
 - [docs/auth-setup.md](./docs/auth-setup.md)
+- [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md)
 - [docs/dependencies.md](./docs/dependencies.md)
 - [DECISIONS.md](./DECISIONS.md)
 - [MEMORY.md](./MEMORY.md)

@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, mysqlPool, postsTable, commentsTable, feedSourcesTable, eq, desc, count, and } from "@workspace/db";
+import { db, mysqlPool, postsTable, commentsTable, feedSourcesTable, eq, desc, count, and, formatMysqlDateTime } from "@workspace/db";
 import {
   attachCategoriesToPosts,
   hydratePostCategories,
@@ -457,7 +457,7 @@ router.post("/posts", requireAuth, requireOwner, async (req: Request, res: Respo
           // sees instead of raw HTML tags.
           contentText: computeContentText(normalizedContent, body.contentFormat),
           contentFormat: body.contentFormat,
-          createdAt: new Date().toISOString(),
+          createdAt: formatMysqlDateTime(),
         })
         .$returningId();
       const newId = insertResult[0]?.id;

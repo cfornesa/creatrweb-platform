@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useUpdateMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import {
+  useUpdateMe,
+  getGetMeQueryKey,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -43,20 +46,19 @@ export default function SettingsPage() {
       onError: (error: any) => {
         const message = error?.response?.data?.error || "Failed to update profile";
         toast({ title: "Error", description: message, variant: "destructive" });
-      }
-    }
+      },
+    },
   });
 
   const handleSocialChange = (platform: string, value: string) => {
-    setSocialLinks(prev => ({ ...prev, [platform]: value }));
+    setSocialLinks((prev) => ({ ...prev, [platform]: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Filter out empty strings from social links
+
     const filteredSocialLinks = Object.fromEntries(
-      Object.entries(socialLinks).filter(([_, value]) => value && value.trim() !== "")
+      Object.entries(socialLinks).filter(([, value]) => value && value.trim() !== ""),
     );
 
     updateMe.mutate({
@@ -65,7 +67,7 @@ export default function SettingsPage() {
         bio: bio || undefined,
         website: website || undefined,
         socialLinks: Object.keys(filteredSocialLinks).length > 0 ? filteredSocialLinks : undefined,
-      }
+      },
     });
   };
 

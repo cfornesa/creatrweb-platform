@@ -88,3 +88,21 @@ or rejection. -->
 
 2026-05-04 · RUNTIME · Root `npm run dev` is now the standard one-port local/Replit development command; the app listens on dynamic `PORT`, and `npm run dev:hot` is reserved for Vite hot reload.
     [Confirmed by the human after the local/Replit run-command consolidation and dynamic-port cleanup session.]
+
+2026-05-04 · AI · Opt-in AI writing assistance is now per-user, disabled by default, and gated by saved vendor/model/key configuration before any AI action should appear in the UI.
+    [Confirmed by the human during the AI assistant implementation session and verified from the new `/api/users/me/ai-settings` + `/api/ai/process` backend contract.]
+
+2026-05-04 · AI · Backend AI vendor identifiers use the stable slug set `mistral`, `opencode-zen`, `opencode-go`, `chatgpt`, `claude`, and `google`, while human-readable labels are exposed for frontend display.
+    [Confirmed by the human during the AI assistant implementation session and verified from the new AI settings utilities, OpenAPI schema, and generated client types.]
+
+2026-05-05 · AI · AI provider failures are now classified explicitly as `timeout`, `upstream_http`, `parse`, `network`, or `unknown_model`, with structured safe logging that includes vendor, model, transport kind, endpoint family, URL, and real upstream status when available.
+    [Confirmed by the human during the AI hardening session and verified from `artifacts/api-server/src/lib/ai-providers.ts` plus the focused provider/route tests.]
+
+2026-05-05 · AI UX · The composer AI failure path now reads generated `ApiError` payloads instead of assuming Axios-style errors, preserves the current draft on failure, and shows a user-friendly timeout message when the provider takes too long.
+    [Confirmed by the human during the AI hardening session and verified from `RichPostEditor.tsx`, `ai-error.ts`, and the focused editor test coverage.]
+
+2026-05-05 · AI SETTINGS · AI configuration is now owner-only and managed from `/admin/ai`, with one saved model slug and one encrypted API key per supported vendor row in `user_ai_vendor_settings`. The supported vendor set is now hard-restricted to `kilo-gateway`, `opencode-zen`, `opencode-go`, and `google`.
+    [Confirmed by the human during the Phase 4 AI settings rework and verified from the new schema, AI routes, OpenAPI contract, and Admin AI page.]
+
+2026-05-05 · AI EDITOR · The owner post composer and owner post-edit flows now expose an AI vendor dropdown plus the `AI` button, and each request explicitly selects a configured vendor while using that vendor’s saved model/key from Admin settings.
+    [Confirmed by the human during the Phase 4 AI editor rework and verified from `ComposePost.tsx`, `PostCard.tsx`, `admin-pending.tsx`, `RichPostEditor.tsx`, and focused frontend tests.]

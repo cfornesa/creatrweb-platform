@@ -13,8 +13,10 @@ import {
   getListFeedSourcesQueryKey,
   type PendingPost,
   type PendingPostsPage,
+  type ProcessAiTextBodyVendor,
 } from "@workspace/api-client-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useOwnerAiVendors } from "@/hooks/use-owner-ai-vendors";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,6 +74,7 @@ function groupBySource(posts: PendingPost[]): SourceGroup[] {
 type PendingPostCardProps = {
   post: PendingPost;
   isMutating: boolean;
+  aiVendors: Array<{ id: ProcessAiTextBodyVendor; label: string }>;
   onApprove: (id: number) => void;
   onReject: (id: number) => void;
 };
@@ -79,7 +82,7 @@ type PendingPostCardProps = {
 // Per-row component so each card owns its own edit state and editor
 // instance — keeps the editor unmounted (and out of memory) for posts
 // the owner isn't actively touching.
-function PendingPostCard({ post, isMutating, onApprove, onReject }: PendingPostCardProps) {
+function PendingPostCard({ post, isMutating, aiVendors, onApprove, onReject }: PendingPostCardProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
@@ -155,6 +158,7 @@ function PendingPostCard({ post, isMutating, onApprove, onReject }: PendingPostC
               submitLabel="Save edits"
               cancelLabel="Cancel"
               isSubmitting={isSavingEdit}
+              aiVendors={aiVendors}
               onCancel={() => setIsEditing(false)}
               onUpload={async (file) => {
                 const uploaded = await uploadMedia.mutateAsync({ data: { file } });
@@ -203,6 +207,7 @@ function PendingPostCard({ post, isMutating, onApprove, onReject }: PendingPostC
 
 export default function AdminPendingPage() {
   const { isOwner, isLoading: isUserLoading } = useCurrentUser();
+  const { aiVendors } = useOwnerAiVendors();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -357,6 +362,7 @@ export default function AdminPendingPage() {
                     key={post.id}
                     post={post}
                     isMutating={isMutating}
+                    aiVendors={aiVendors}
                     onApprove={(id) => approve.mutate({ id })}
                     onReject={(id) => reject.mutate({ id })}
                   />

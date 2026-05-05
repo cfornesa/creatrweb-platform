@@ -1,4 +1,4 @@
-import { db, ensureTables, eq, usersTable } from "@workspace/db";
+import { db, ensureTables, eq, usersTable, formatMysqlDateTime } from "@workspace/db";
 
 type Args = {
   email?: string;
@@ -52,7 +52,7 @@ async function main() {
     .update(usersTable)
     .set({
       role: "owner",
-      updatedAt: new Date().toISOString(),
+      updatedAt: formatMysqlDateTime(),
     })
     .where(eq(usersTable.id, target.id));
 

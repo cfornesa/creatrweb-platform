@@ -4,9 +4,12 @@ import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import TextAlign from "@tiptap/extension-text-align";
 import { Button } from "@/components/ui/button";
-import { Loader2, ImagePlus, Link2, Pilcrow, Redo2, Undo2, Youtube } from "lucide-react";
+import { Loader2, ImagePlus, Link2, Pilcrow, Redo2, Sparkles, Undo2, Youtube } from "lucide-react";
+import { useProcessAiText, type ProcessAiTextBodyVendor } from "@workspace/api-client-react";
+import { useToast } from "@/hooks/use-toast";
 import { IframeEmbed } from "./iframe-embed";
 import { CategoryMultiSelect } from "./CategoryMultiSelect";
+import { getAiFailureMessage } from "./ai-error";
 
 type RichPostEditorProps = {
   initialContent: string;
@@ -22,6 +25,7 @@ type RichPostEditorProps = {
    * minimal editor.
    */
   showCategories?: boolean;
+  aiVendors?: Array<{ id: ProcessAiTextBodyVendor; label: string }>;
   onCancel?: () => void;
   onSubmit: (payload: {
     content: string;
@@ -85,15 +89,26 @@ export function RichPostEditor({
   isSubmitting = false,
   initialCategoryIds = [],
   showCategories = true,
+  aiVendors = [],
   onCancel,
   onSubmit,
   onContentChange,
   onUpload,
 }: RichPostEditorProps) {
+  const { toast } = useToast();
   const fileInputId = useId();
   const [textLength, setTextLength] = useState(getEditorTextLength(initialContent));
   const [categoryIds, setCategoryIds] = useState<number[]>(initialCategoryIds);
+  const [selectedAiVendor, setSelectedAiVendor] = useState<ProcessAiTextBodyVendor | "">(aiVendors[0]?.id ?? "");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const processAiText = useProcessAiText({
+    mutation: {
+      onError: (error: any) => {
+        const message = getAiFailureMessage(error);
+        toast({ title: "AI request failed", description: message, variant: "destructive" });
+      },
+    },
+  });
 
   const editor = useEditor({
     extensions: [
@@ -115,7 +130,7 @@ export function RichPostEditor({
     editorProps: {
       attributes: {
         class:
-          "min-h-[220px] rounded-b-2xl border border-t-0 border-border bg-background px-4 py-4 text-base leading-relaxed focus:outline-none prose prose-neutral max-w-none prose-p:my-3 prose-h2:mt-6 prose-h2:mb-3 prose-h3:mt-5 prose-h3:mb-2 prose-img:rounded-xl prose-img:border prose-img:border-border prose-iframe:w-full prose-iframe:rounded-xl prose-iframe:border prose-iframe:border-border",
+          "min-h-[220px] rounded-b-2xl border border-t-0 border-border bg-background px-4 py-4 pb-16 text-base leading-relaxed focus:outline-none prose prose-neutral max-w-none prose-p:my-3 prose-h2:mt-6 prose-h2:mb-3 prose-h3:mt-5 prose-h3:mb-2 prose-img:rounded-xl prose-img:border prose-img:border-border prose-iframe:w-full prose-iframe:rounded-xl prose-iframe:border prose-iframe:border-border",
       },
     },
     onUpdate({ editor: nextEditor }) {
@@ -134,6 +149,19 @@ export function RichPostEditor({
       editor.commands.setContent(nextContent, { emitUpdate: true });
     }
   }, [editor, initialContent]);
+
+  useEffect(() => {
+    if (aiVendors.length === 0) {
+      if (selectedAiVendor !== "") {
+        setSelectedAiVendor("");
+      }
+      return;
+    }
+
+    if (!aiVendors.some((vendor) => vendor.id === selectedAiVendor)) {
+      setSelectedAiVendor(aiVendors[0]!.id);
+    }
+  }, [aiVendors, selectedAiVendor]);
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -205,11 +233,50 @@ export function RichPostEditor({
     });
   }
 
+  async function handleImproveWithAi() {
+    if (!editor) {
+      return;
+    }
+
+    if (!selectedAiVendor) {
+      return;
+    }
+
+    const currentHtml = editor.getHTML();
+    const meaningfulHtml = currentHtml
+      .replace(/<p><\/p>/g, "")
+      .replace(/<p>\s*<\/p>/g, "")
+      .trim();
+
+    if (meaningfulHtml === "") {
+      return;
+    }
+
+    try {
+      const response = await processAiText.mutateAsync({
+        data: { content: currentHtml, vendor: selectedAiVendor },
+      });
+
+      editor.commands.setContent(ensureParagraphHtml(response.text), { emitUpdate: true });
+      toast({
+        title: "Draft improved",
+        description: "The editor content has been replaced with the AI-assisted rewrite.",
+      });
+    } catch {
+      // onError already surfaces the failure to the user; keep the current
+      // editor content unchanged and avoid bubbling an unhandled rejection.
+    }
+  }
+
   if (!editor) {
     return null;
   }
 
   const toolbarButtonClass = "h-9 rounded-full px-3 text-xs font-medium";
+  const aiButtonClass =
+    "rounded-none border-2 border-yellow-400 bg-zinc-100/95 text-zinc-950 shadow-[3px_3px_0_0_rgba(234,179,8,1)] hover:bg-yellow-200 dark:bg-zinc-950/95 dark:text-yellow-200 dark:hover:bg-zinc-900";
+  const aiSelectClass =
+    "pointer-events-auto h-9 min-w-[11rem] rounded-none border-2 border-yellow-400 bg-zinc-100/95 px-3 text-sm text-zinc-950 shadow-[3px_3px_0_0_rgba(234,179,8,1)] focus:outline-none focus:ring-0 dark:bg-zinc-950/95 dark:text-yellow-200";
 
   return (
     <div className="space-y-3">
@@ -278,6 +345,37 @@ export function RichPostEditor({
           ) : null}
 
           <EditorContent editor={editor} />
+
+          {aiVendors.length > 0 ? (
+            <div className="pointer-events-none absolute bottom-3 right-3 z-20 flex items-center gap-2">
+              <select
+                aria-label="AI Vendor"
+                className={aiSelectClass}
+                value={selectedAiVendor}
+                onChange={(event) => setSelectedAiVendor(event.target.value as ProcessAiTextBodyVendor)}
+              >
+                {aiVendors.map((vendor) => (
+                  <option key={vendor.id} value={vendor.id}>
+                    {vendor.label}
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                size="sm"
+                className={`pointer-events-auto min-h-9 px-3 ${aiButtonClass}`}
+                disabled={isSubmitting || processAiText.isPending || textLength === 0 || !selectedAiVendor}
+                onClick={() => void handleImproveWithAi()}
+              >
+                {processAiText.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                AI
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
 

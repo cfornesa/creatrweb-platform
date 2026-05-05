@@ -11,6 +11,7 @@ import {
   count,
   and,
   sql,
+  formatMysqlDateTime,
 } from "@workspace/db";
 import { CreateCategoryBody, UpdateCategoryBody } from "@workspace/api-zod";
 import { requireAuth, requireOwner } from "../middlewares/auth";
@@ -192,7 +193,7 @@ router.patch(
         slug?: string;
         description?: string | null;
         updatedAt: string;
-      } = { updatedAt: new Date().toISOString() };
+      } = { updatedAt: formatMysqlDateTime() };
 
       if (typeof body.name === "string") {
         const trimmed = body.name.trim();

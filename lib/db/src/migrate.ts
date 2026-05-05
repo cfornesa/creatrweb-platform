@@ -116,6 +116,22 @@ export async function ensureTables(): Promise<void> {
   `);
 
   await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS user_ai_vendor_settings (
+      user_id VARCHAR(191) NOT NULL,
+      vendor VARCHAR(64) NOT NULL,
+      enabled INT NOT NULL DEFAULT 0,
+      model VARCHAR(191) NULL,
+      encrypted_api_key TEXT NULL,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      PRIMARY KEY (user_id, vendor),
+      CONSTRAINT user_ai_vendor_settings_user_id_fk
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS accounts (
       user_id VARCHAR(191) NOT NULL,
       type VARCHAR(64) NOT NULL,

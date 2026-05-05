@@ -45,6 +45,7 @@ import type {
   ListPendingPostsParams,
   ListPostsParams,
   ListSiteFeedsParams,
+  MyAiSettings,
   NavItemsReorderBody,
   NavLink,
   NavLinksList,
@@ -54,6 +55,8 @@ import type {
   Post,
   PostWithComments,
   PostsPage,
+  ProcessAiTextBody,
+  ProcessAiTextResponse,
   PublicFeedSourcesList,
   RefreshAllFeedSourcesParams,
   SearchPostsPage,
@@ -63,6 +66,7 @@ import type {
   UpdateCategoryBody,
   UpdateCommentBody,
   UpdateFeedSourceBody,
+  UpdateMyAiSettingsBody,
   UpdateNavLinkBody,
   UpdatePageBody,
   UpdatePostBody,
@@ -1153,6 +1157,229 @@ export const useUpdateMe = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateMeMutationOptions(options));
+    }
+
+/**
+ * @summary Get owner AI writing assistant settings
+ */
+export const getGetMyAiSettingsUrl = () => {
+
+
+
+
+  return `/api/users/me/ai-settings`
+}
+
+export const getMyAiSettings = async ( options?: RequestInit): Promise<MyAiSettings> => {
+
+  return customFetch<MyAiSettings>(getGetMyAiSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyAiSettingsQueryKey = () => {
+    return [
+    `/api/users/me/ai-settings`
+    ] as const;
+    }
+
+
+export const getGetMyAiSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getMyAiSettings>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyAiSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyAiSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyAiSettings>>> = ({ signal }) => getMyAiSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyAiSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyAiSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getMyAiSettings>>>
+export type GetMyAiSettingsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get owner AI writing assistant settings
+ */
+
+export function useGetMyAiSettings<TData = Awaited<ReturnType<typeof getMyAiSettings>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyAiSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyAiSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * @summary Update owner AI writing assistant settings
+ */
+export const getUpdateMyAiSettingsUrl = () => {
+
+
+
+
+  return `/api/users/me/ai-settings`
+}
+
+export const updateMyAiSettings = async (updateMyAiSettingsBody: UpdateMyAiSettingsBody, options?: RequestInit): Promise<MyAiSettings> => {
+
+  return customFetch<MyAiSettings>(getUpdateMyAiSettingsUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateMyAiSettingsBody,)
+  }
+);}
+
+
+
+
+export const getUpdateMyAiSettingsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyAiSettings>>, TError,{data: BodyType<UpdateMyAiSettingsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMyAiSettings>>, TError,{data: BodyType<UpdateMyAiSettingsBody>}, TContext> => {
+
+const mutationKey = ['updateMyAiSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMyAiSettings>>, {data: BodyType<UpdateMyAiSettingsBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateMyAiSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMyAiSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateMyAiSettings>>>
+    export type UpdateMyAiSettingsMutationBody = BodyType<UpdateMyAiSettingsBody>
+    export type UpdateMyAiSettingsMutationError = ErrorType<void>
+
+    /**
+ * @summary Update owner AI writing assistant settings
+ */
+export const useUpdateMyAiSettings = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyAiSettings>>, TError,{data: BodyType<UpdateMyAiSettingsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateMyAiSettings>>,
+        TError,
+        {data: BodyType<UpdateMyAiSettingsBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateMyAiSettingsMutationOptions(options));
+    }
+
+/**
+ * Uses the owner's saved AI settings for the vendor selected in the
+editor. The request body contains editor content plus the chosen
+vendor; the model and API key come from the owner's Admin AI settings.
+
+ * @summary Process editor content with the owner-selected AI vendor
+ */
+export const getProcessAiTextUrl = () => {
+
+
+
+
+  return `/api/ai/process`
+}
+
+export const processAiText = async (processAiTextBody: ProcessAiTextBody, options?: RequestInit): Promise<ProcessAiTextResponse> => {
+
+  return customFetch<ProcessAiTextResponse>(getProcessAiTextUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      processAiTextBody,)
+  }
+);}
+
+
+
+
+export const getProcessAiTextMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof processAiText>>, TError,{data: BodyType<ProcessAiTextBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof processAiText>>, TError,{data: BodyType<ProcessAiTextBody>}, TContext> => {
+
+const mutationKey = ['processAiText'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof processAiText>>, {data: BodyType<ProcessAiTextBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  processAiText(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ProcessAiTextMutationResult = NonNullable<Awaited<ReturnType<typeof processAiText>>>
+    export type ProcessAiTextMutationBody = BodyType<ProcessAiTextBody>
+    export type ProcessAiTextMutationError = ErrorType<void>
+
+    /**
+ * @summary Process editor content with the owner-selected AI vendor
+ */
+export const useProcessAiText = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof processAiText>>, TError,{data: BodyType<ProcessAiTextBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof processAiText>>,
+        TError,
+        {data: BodyType<ProcessAiTextBody>},
+        TContext
+      > => {
+      return useMutation(getProcessAiTextMutationOptions(options));
     }
 
 /**

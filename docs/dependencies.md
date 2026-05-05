@@ -63,3 +63,30 @@
 - **What breaks if it changes or is removed:** Post links will fallback to a static generic image when shared on social media.
 - **Self-hosting alternative:** This is already the self-hosted path.
 
+## OpenCode Zen
+
+- **Purpose:** Optional owner-enabled AI writing assistance through OpenCode Zen using the owner's saved API key and chosen model slug.
+- **Sends data off-domain:** Yes, when the owner explicitly triggers AI from the post editor.
+- **What breaks if it changes or is removed:** AI-assisted rewriting for users who selected OpenCode Zen stops working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
+- **Self-hosting alternative:** Not permitted for this product direction. Hosted-provider-only.
+
+## OpenCode Go
+
+- **Purpose:** Optional owner-enabled AI writing assistance through OpenCode Go using the owner's saved API key and chosen model slug.
+- **Sends data off-domain:** Yes, when the owner explicitly triggers AI from the post editor.
+- **What breaks if it changes or is removed:** AI-assisted rewriting for users who selected OpenCode Go stops working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
+- **Self-hosting alternative:** Not permitted for this product direction. Hosted-provider-only.
+
+## Google Gemini API
+
+- **Purpose:** Optional owner-enabled AI writing assistance for the Google vendor using the owner's saved Gemini API key.
+- **Sends data off-domain:** Yes, when the owner explicitly triggers AI from the post editor.
+- **What breaks if it changes or is removed:** AI-assisted rewriting for users who selected Google stops working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
+- **Self-hosting alternative:** Not permitted for this product direction. Hosted-provider-only.
+
+## OpenRouter
+
+- **Purpose:** Optional owner-enabled AI writing assistance through OpenRouter using the owner's saved OpenRouter API key and chosen provider-prefixed model slug.
+- **Sends data off-domain:** Yes, when the owner explicitly triggers AI from the post editor.
+- **What breaks if it changes or is removed:** AI-assisted rewriting for users who selected OpenRouter stops working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
+- **Self-hosting alternative:** Not permitted for this product direction. Hosted-provider-only.

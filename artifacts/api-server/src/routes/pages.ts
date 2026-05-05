@@ -8,6 +8,7 @@ import {
   eq,
   desc,
   sql,
+  formatMysqlDateTime,
 } from "@workspace/db";
 import { CreatePageBody, UpdatePageBody } from "@workspace/api-zod";
 import { requireAuth, requireOwner } from "../middlewares/auth";
@@ -51,7 +52,7 @@ async function findOrCreatePageNavRow(
       .set({
         label: page.title.slice(0, 64),
         visible: wantVisible,
-        updatedAt: new Date().toISOString(),
+        updatedAt: formatMysqlDateTime(),
       })
       .where(eq(navLinksTable.id, existing[0].id));
     return;
@@ -218,7 +219,7 @@ router.patch(
         status: string;
         showInNav: boolean;
         updatedAt: string;
-      }> = { updatedAt: new Date().toISOString() };
+      }> = { updatedAt: formatMysqlDateTime() };
 
       if (typeof parsed.data.slug === "string") {
         const slugCheck = await validatePageSlug(parsed.data.slug, {
@@ -279,7 +280,7 @@ router.patch(
         }> = {
           label: updatedPage.title.slice(0, 64),
           url: `/p/${updatedPage.slug}`,
-          updatedAt: new Date().toISOString(),
+          updatedAt: formatMysqlDateTime(),
         };
         const wasPublished = page.status === "published";
         const isPublished = updatedPage.status === "published";

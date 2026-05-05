@@ -11,6 +11,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useOwnerAiVendors } from "@/hooks/use-owner-ai-vendors";
 import { RichPostEditor } from "./RichPostEditor";
 import { PenSquare } from "lucide-react";
 
@@ -19,6 +20,7 @@ export function ComposePost() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isExpanded, setIsExpanded] = useState(false);
+  const { aiVendors } = useOwnerAiVendors();
 
   const createPost = useCreatePost({
     mutation: {
@@ -82,6 +84,7 @@ export function ComposePost() {
               submitLabel="Post"
               cancelLabel="Cancel"
               isSubmitting={createPost.isPending || uploadMedia.isPending}
+              aiVendors={aiVendors}
               onCancel={() => setIsExpanded(false)}
               onUpload={async (file) => {
                 const uploaded = await uploadMedia.mutateAsync({ data: { file } });

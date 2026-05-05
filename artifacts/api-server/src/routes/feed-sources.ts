@@ -8,6 +8,7 @@ import {
   eq,
   desc,
   and,
+  formatMysqlDateTime,
 } from "@workspace/db";
 import { requireAuth, requireOwner } from "../middlewares/auth";
 import {
@@ -315,12 +316,12 @@ async function refreshOneSource(source: FeedSourceRow): Promise<RefreshResult> {
     await db
       .update(feedSourcesTable)
       .set({
-        lastFetchedAt: now.toISOString(),
+        lastFetchedAt: formatMysqlDateTime(now),
         nextFetchAt: computeNextFetchAt(now, source.cadence),
         lastStatus: "ok",
         lastError: null,
         itemsImported: source.itemsImported + result.imported,
-        updatedAt: now.toISOString(),
+        updatedAt: formatMysqlDateTime(now),
       })
       .where(eq(feedSourcesTable.id, source.id));
   } catch (err) {
@@ -331,13 +332,13 @@ async function refreshOneSource(source: FeedSourceRow): Promise<RefreshResult> {
     await db
       .update(feedSourcesTable)
       .set({
-        lastFetchedAt: now.toISOString(),
+        lastFetchedAt: formatMysqlDateTime(now),
         // On failure, retry on the cadence schedule rather than
         // hammering a broken endpoint every sweep.
         nextFetchAt: computeNextFetchAt(now, source.cadence),
         lastStatus: "error",
         lastError: result.error.slice(0, 1000),
-        updatedAt: now.toISOString(),
+        updatedAt: formatMysqlDateTime(now),
       })
       .where(eq(feedSourcesTable.id, source.id));
   }
@@ -396,8 +397,8 @@ router.post("/feed-sources", requireAuth, requireOwner, async (req: Request, res
         cadence: body.cadence,
         enabled: body.enabled ? 1 : 0,
         nextFetchAt: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: formatMysqlDateTime(),
+        updatedAt: formatMysqlDateTime(),
       })
       .$returningId();
 
@@ -438,7 +439,7 @@ router.patch("/feed-sources/:id", requireAuth, requireOwner, async (req: Request
     }
 
     const updates: Partial<typeof feedSourcesTable.$inferInsert> = {
-      updatedAt: new Date().toISOString(),
+      updatedAt: formatMysqlDateTime(),
     };
     if (body.name !== undefined) updates.name = body.name;
     if (body.feedUrl !== undefined) updates.feedUrl = body.feedUrl;
@@ -449,7 +450,7 @@ router.patch("/feed-sources/:id", requireAuth, requireOwner, async (req: Request
       if (existing.lastFetchedAt) {
         const last = new Date(existing.lastFetchedAt);
         if (!Number.isNaN(last.getTime())) {
-          updates.nextFetchAt = new Date(last.getTime() + cadenceIntervalMs(body.cadence)).toISOString();
+          updates.nextFetchAt = formatMysqlDateTime(new Date(last.getTime() + cadenceIntervalMs(body.cadence)));
         }
       } else {
         updates.nextFetchAt = null;

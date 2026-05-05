@@ -28,6 +28,8 @@ tags:
     description: Standalone CMS pages addressed at /p/:slug, orthogonal to posts
   - name: feeds-catalog
     description: Public catalog of subscribable site feeds (Atom / JSON Feed / MF2 export)
+  - name: ai
+    description: Opt-in AI writing assistant configuration and processing
 paths:
   /healthz:
     get:
@@ -390,6 +392,79 @@ paths:
           description: Unauthorized
         "400":
           description: Invalid request (e.g. username taken)
+
+  /users/me/ai-settings:
+    get:
+      operationId: getMyAiSettings
+      tags: [ai]
+      summary: Get owner AI writing assistant settings
+      responses:
+        "200":
+          description: Owner-safe AI settings for all supported vendors
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyAiSettings"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+    patch:
+      operationId: updateMyAiSettings
+      tags: [ai]
+      summary: Update owner AI writing assistant settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMyAiSettingsBody"
+      responses:
+        "200":
+          description: Updated safe AI settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyAiSettings"
+        "400":
+          description: Invalid request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /ai/process:
+    post:
+      operationId: processAiText
+      tags: [ai]
+      summary: Process editor content with the owner-selected AI vendor
+      description: |
+        Uses the owner's saved AI settings for the vendor selected in the
+        editor. The request body contains editor content plus the chosen
+        vendor; the model and API key come from the owner's Admin AI settings.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProcessAiTextBody"
+      responses:
+        "200":
+          description: Expanded text result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcessAiTextResponse"
+        "400":
+          description: Invalid request or provider configuration
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "409":
+          description: Selected AI vendor is not enabled for this user
+        "429":
+          description: Upstream provider rate limited the request
 
   /feed/stats:
     get:
@@ -1762,6 +1837,138 @@ components:
           nullable: true
           maxLength: 32
           pattern: "^[0-9]{1,3}(\\.[0-9]+)? [0-9]{1,3}(\\.[0-9]+)?% [0-9]{1,3}(\\.[0-9]+)?%$"
+
+    AiVendorOption:
+      type: object
+      properties:
+        id:
+          type: string
+          enum:
+            - openrouter
+            - opencode-zen
+            - opencode-go
+            - google
+        label:
+          type: string
+      required:
+        - id
+        - label
+
+    MyAiVendorSetting:
+      type: object
+      properties:
+        vendor:
+          type: string
+          enum:
+            - openrouter
+            - opencode-zen
+            - opencode-go
+            - google
+        vendorLabel:
+          type: string
+        enabled:
+          type: boolean
+        configured:
+          type: boolean
+        model:
+          type: string
+          nullable: true
+      required:
+        - vendor
+        - vendorLabel
+        - enabled
+        - configured
+    
+    MyAiSettings:
+      type: object
+      properties:
+        availableVendors:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiVendorOption"
+        settings:
+          type: array
+          items:
+            $ref: "#/components/schemas/MyAiVendorSetting"
+      required:
+        - availableVendors
+        - settings
+
+    UpdateMyAiVendorSettingBody:
+      type: object
+      properties:
+        vendor:
+          type: string
+          enum:
+            - openrouter
+            - opencode-zen
+            - opencode-go
+            - google
+        enabled:
+          type: boolean
+        model:
+          type: string
+          minLength: 1
+          maxLength: 191
+        apiKey:
+          type: string
+          minLength: 1
+          maxLength: 4096
+      required:
+        - vendor
+
+    UpdateMyAiSettingsBody:
+      type: object
+      description: |
+        Owner AI settings for all supported vendors. Each vendor keeps its own
+        enabled flag, model slug, and encrypted API key so the editor can
+        switch vendors without re-entering credentials.
+      properties:
+        settings:
+          type: array
+          items:
+            $ref: "#/components/schemas/UpdateMyAiVendorSettingBody"
+      required:
+        - settings
+
+    ProcessAiTextBody:
+      type: object
+      properties:
+        content:
+          type: string
+          maxLength: 40000
+        vendor:
+          type: string
+          enum:
+            - openrouter
+            - opencode-zen
+            - opencode-go
+            - google
+      required:
+        - content
+        - vendor
+
+    ProcessAiTextResponse:
+      type: object
+      properties:
+        text:
+          type: string
+        vendor:
+          type: string
+          enum:
+            - openrouter
+            - opencode-zen
+            - opencode-go
+            - google
+        vendorLabel:
+          type: string
+        model:
+          type: string
+      required:
+        - text
+        - vendor
+        - vendorLabel
+        - model
 
     FeedStats:
       type: object

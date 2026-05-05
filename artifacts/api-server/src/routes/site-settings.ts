@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, siteSettingsTable, siteSettingsDefaults, usersTable, eq } from "@workspace/db";
+import { db, siteSettingsTable, siteSettingsDefaults, usersTable, eq, formatMysqlDateTime } from "@workspace/db";
 import { requireAuth, requireOwner } from "../middlewares/auth";
 import { UpdateSiteSettingsBody } from "@workspace/api-zod";
 import { parseSocialLinks } from "./users";
@@ -98,7 +98,7 @@ router.patch(
       if (Object.keys(updates).length > 0) {
         await db
           .update(siteSettingsTable)
-          .set({ ...updates, updatedAt: new Date().toISOString() })
+          .set({ ...updates, updatedAt: formatMysqlDateTime() })
           .where(eq(siteSettingsTable.id, 1));
       }
 

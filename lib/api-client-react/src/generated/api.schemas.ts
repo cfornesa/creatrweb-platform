@@ -380,6 +380,112 @@ export interface UpdateUserProfileBody {
   colorDestructiveForeground?: string | null;
 }
 
+export type AiVendorOptionId = typeof AiVendorOptionId[keyof typeof AiVendorOptionId];
+
+
+export const AiVendorOptionId = {
+  openrouter: 'openrouter',
+  'opencode-zen': 'opencode-zen',
+  'opencode-go': 'opencode-go',
+  google: 'google',
+} as const;
+
+export interface AiVendorOption {
+  id: AiVendorOptionId;
+  label: string;
+}
+
+export type MyAiVendorSettingVendor = typeof MyAiVendorSettingVendor[keyof typeof MyAiVendorSettingVendor];
+
+
+export const MyAiVendorSettingVendor = {
+  openrouter: 'openrouter',
+  'opencode-zen': 'opencode-zen',
+  'opencode-go': 'opencode-go',
+  google: 'google',
+} as const;
+
+export interface MyAiVendorSetting {
+  vendor: MyAiVendorSettingVendor;
+  vendorLabel: string;
+  enabled: boolean;
+  configured: boolean;
+  model?: string | null;
+}
+
+export interface MyAiSettings {
+  availableVendors: AiVendorOption[];
+  settings: MyAiVendorSetting[];
+}
+
+export type UpdateMyAiVendorSettingBodyVendor = typeof UpdateMyAiVendorSettingBodyVendor[keyof typeof UpdateMyAiVendorSettingBodyVendor];
+
+
+export const UpdateMyAiVendorSettingBodyVendor = {
+  openrouter: 'openrouter',
+  'opencode-zen': 'opencode-zen',
+  'opencode-go': 'opencode-go',
+  google: 'google',
+} as const;
+
+export interface UpdateMyAiVendorSettingBody {
+  vendor: UpdateMyAiVendorSettingBodyVendor;
+  enabled?: boolean;
+  /**
+     * @minLength 1
+     * @maxLength 191
+     */
+  model?: string;
+  /**
+     * @minLength 1
+     * @maxLength 4096
+     */
+  apiKey?: string;
+}
+
+/**
+ * Owner AI settings for all supported vendors. Each vendor keeps its own
+enabled flag, model slug, and encrypted API key so the editor can
+switch vendors without re-entering credentials.
+
+ */
+export interface UpdateMyAiSettingsBody {
+  settings: UpdateMyAiVendorSettingBody[];
+}
+
+export type ProcessAiTextBodyVendor = typeof ProcessAiTextBodyVendor[keyof typeof ProcessAiTextBodyVendor];
+
+
+export const ProcessAiTextBodyVendor = {
+  openrouter: 'openrouter',
+  'opencode-zen': 'opencode-zen',
+  'opencode-go': 'opencode-go',
+  google: 'google',
+} as const;
+
+export interface ProcessAiTextBody {
+  /** @maxLength 40000 */
+  content: string;
+  vendor: ProcessAiTextBodyVendor;
+}
+
+export type ProcessAiTextResponseVendor = typeof ProcessAiTextResponseVendor[keyof typeof ProcessAiTextResponseVendor];
+
+
+export const ProcessAiTextResponseVendor = {
+  openrouter: 'openrouter',
+  'opencode-zen': 'opencode-zen',
+  'opencode-go': 'opencode-go',
+  google: 'google',
+} as const;
+
+export interface ProcessAiTextResponse {
+  text: string;
+  vendor: ProcessAiTextResponseVendor;
+  vendorLabel: string;
+  model: string;
+}
+
 export interface FeedStats {
   totalPosts: number;
   totalComments: number;

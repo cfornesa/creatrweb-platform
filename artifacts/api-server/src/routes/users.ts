@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, postsTable, usersTable, eq, count, and, ne } from "@workspace/db";
+import { db, postsTable, usersTable, eq, count, and, ne, formatMysqlDateTime } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { UpdateMeBody } from "@workspace/api-zod";
 
@@ -212,7 +212,7 @@ router.patch("/users/me", requireAuth, async (req: Request, res: Response) => {
         website: website ?? undefined,
         socialLinks: socialLinks ?? undefined,
         ...themeUpdate,
-        updatedAt: new Date().toISOString(),
+        updatedAt: formatMysqlDateTime(),
       })
       .where(eq(usersTable.id, currentUser.id));
 

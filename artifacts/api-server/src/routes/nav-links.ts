@@ -5,6 +5,7 @@ import {
   pagesTable,
   eq,
   asc,
+  formatMysqlDateTime,
 } from "@workspace/db";
 import {
   CreateNavLinkBody,
@@ -167,7 +168,7 @@ router.patch(
         });
       }
       const ordered = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
-      const now = new Date().toISOString();
+      const now = formatMysqlDateTime();
       await db.transaction(async (tx) => {
         for (let i = 0; i < ordered.length; i += 1) {
           await tx
@@ -217,7 +218,7 @@ router.patch(
         sortOrder: number;
         visible: boolean;
         updatedAt: string;
-      }> = { updatedAt: new Date().toISOString() };
+      }> = { updatedAt: formatMysqlDateTime() };
 
       if (typeof parsed.data.label === "string") {
         const trimmed = parsed.data.label.trim();

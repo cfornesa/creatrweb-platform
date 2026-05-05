@@ -27,6 +27,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useOwnerAiVendors } from "@/hooks/use-owner-ai-vendors";
 import { PostContent } from "./PostContent";
 import { RichPostEditor } from "./RichPostEditor";
 import { SharePostDialog } from "./SharePostDialog";
@@ -48,6 +49,7 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { aiVendors } = useOwnerAiVendors();
   const [displayPost, setDisplayPost] = useState(post);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -338,6 +340,7 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
               submitLabel="Save"
               cancelLabel="Cancel"
               isSubmitting={updatePost.isPending || uploadMedia.isPending}
+              aiVendors={aiVendors}
               onCancel={() => setIsEditing(false)}
               onUpload={async (file) => {
                 const uploaded = await uploadMedia.mutateAsync({ data: { file } });

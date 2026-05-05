@@ -491,6 +491,81 @@ export const UpdateMeResponse = zod.object({
 
 
 /**
+ * @summary Get owner AI writing assistant settings
+ */
+export const GetMyAiSettingsResponse = zod.object({
+  "availableVendors": zod.array(zod.object({
+  "id": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']),
+  "label": zod.string()
+})),
+  "settings": zod.array(zod.object({
+  "vendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']),
+  "vendorLabel": zod.string(),
+  "enabled": zod.boolean(),
+  "configured": zod.boolean(),
+  "model": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Update owner AI writing assistant settings
+ */
+export const updateMyAiSettingsBodySettingsItemModelMax = 191;
+
+export const updateMyAiSettingsBodySettingsItemApiKeyMax = 4096;
+
+
+
+export const UpdateMyAiSettingsBody = zod.object({
+  "settings": zod.array(zod.object({
+  "vendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']),
+  "enabled": zod.boolean().optional(),
+  "model": zod.string().min(1).max(updateMyAiSettingsBodySettingsItemModelMax).optional(),
+  "apiKey": zod.string().min(1).max(updateMyAiSettingsBodySettingsItemApiKeyMax).optional()
+}))
+}).describe('Owner AI settings for all supported vendors. Each vendor keeps its own\nenabled flag, model slug, and encrypted API key so the editor can\nswitch vendors without re-entering credentials.\n')
+
+export const UpdateMyAiSettingsResponse = zod.object({
+  "availableVendors": zod.array(zod.object({
+  "id": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']),
+  "label": zod.string()
+})),
+  "settings": zod.array(zod.object({
+  "vendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']),
+  "vendorLabel": zod.string(),
+  "enabled": zod.boolean(),
+  "configured": zod.boolean(),
+  "model": zod.string().nullish()
+}))
+})
+
+
+/**
+ * Uses the owner's saved AI settings for the vendor selected in the
+editor. The request body contains editor content plus the chosen
+vendor; the model and API key come from the owner's Admin AI settings.
+
+ * @summary Process editor content with the owner-selected AI vendor
+ */
+export const processAiTextBodyContentMax = 40000;
+
+
+
+export const ProcessAiTextBody = zod.object({
+  "content": zod.string().max(processAiTextBodyContentMax),
+  "vendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google'])
+})
+
+export const ProcessAiTextResponse = zod.object({
+  "text": zod.string(),
+  "vendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']),
+  "vendorLabel": zod.string(),
+  "model": zod.string()
+})
+
+
+/**
  * @summary Get feed statistics (total posts, active users today)
  */
 export const GetFeedStatsResponse = zod.object({

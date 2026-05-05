@@ -10,4 +10,5 @@ export * from "./feeds.ts";
 export * from "./categories.ts";
 export * from "./nav-links.ts";
 export * from "./pages.ts";
+export * from "./user-ai-settings.ts";
 export * from "../lib/reserved-slugs.ts";

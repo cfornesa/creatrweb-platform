@@ -11,6 +11,7 @@ import categoriesRouter from "./categories";
 import navLinksRouter from "./nav-links";
 import pagesRouter from "./pages";
 import feedsCatalogRouter from "./feeds-catalog";
+import aiRouter from "./ai";
 
 const router: IRouter = Router();
 
@@ -28,6 +29,7 @@ router.use(postsRouter);
 router.use(commentsRouter);
 router.use(mediaRouter);
 router.use(usersRouter);
+router.use(aiRouter);
 router.use(siteSettingsRouter);
 router.use(feedSourcesRouter);
 router.use(navLinksRouter);

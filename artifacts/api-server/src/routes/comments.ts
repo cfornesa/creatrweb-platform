@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, commentsTable, postsTable, eq } from "@workspace/db";
+import { db, commentsTable, postsTable, eq, formatMysqlDateTime } from "@workspace/db";
 import { CreateCommentBody, CreateCommentParams, DeleteCommentParams, UpdateCommentBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
 
@@ -31,7 +31,7 @@ router.post("/posts/:postId/comments", requireAuth, async (req: Request, res: Re
         authorName,
         authorImageUrl: currentUser.image,
         content: body.content,
-        createdAt: new Date().toISOString(),
+        createdAt: formatMysqlDateTime(),
       })
       .$returningId();
 
