@@ -1,0 +1,67 @@
+modules = ["nodejs-24", "postgresql-16"]
+run = "npm run dev"
+
+[deployment]
+router = "application"
+deploymentTarget = "autoscale"
+run = ["npm", "run", "start"]
+build = ["npm", "run", "build"]
+
+[workflows]
+
+[agent]
+expertMode = true
+integrations = ["github:1.0.0"]
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 90000
+
+[[ports]]
+localPort = 3000
+externalPort = 3000
+
+[[ports]]
+localPort = 8000
+externalPort = 8000
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 5173
+externalPort = 5173
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 8082
+externalPort = 3002
+
+[[ports]]
+localPort = 20925
+externalPort = 3000
+
+[[ports]]
+localPort = 25001
+externalPort = 4200
+
+[[ports]]
+localPort = 25002
+externalPort = 5000
+
+[[ports]]
+localPort = 25003
+externalPort = 6000
+
+[userenv]
+
+[userenv.shared]
+# Replace with your own Clerk publishable key
+VITE_CLERK_PUBLISHABLE_KEY = ""
+
+[nix]
+channel = "stable-25_05"
