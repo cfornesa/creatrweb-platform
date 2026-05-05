@@ -131,6 +131,7 @@ Unknown Zen model slugs must fail fast before any outbound request.
 - Confirm Bearer auth works with the user's OpenRouter API key.
 - Confirm provider-prefixed model slugs such as `anthropic/...`, `openai/...`, or `mistral/...` are accepted as saved model strings.
 - Confirm returned `choices[0].message.content` parses correctly.
+- Confirm the owner saved the model/API key in the `OpenRouter` section of `/admin/ai`, not an old `Kilo Gateway` row from a prior schema state.
 
 ## Recording Template
 

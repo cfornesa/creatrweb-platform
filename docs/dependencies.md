@@ -90,3 +90,4 @@
 - **Sends data off-domain:** Yes, when the owner explicitly triggers AI from the post editor.
 - **What breaks if it changes or is removed:** AI-assisted rewriting for users who selected OpenRouter stops working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
 - **Self-hosting alternative:** Not permitted for this product direction. Hosted-provider-only.
+- **Routing note:** Uses OpenRouter's official OpenAI-compatible `POST https://openrouter.ai/api/v1/chat/completions` endpoint.

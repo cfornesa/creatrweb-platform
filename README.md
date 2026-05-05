@@ -94,7 +94,8 @@ The owner can optionally enable AI writing assistance from `/admin/ai`.
 - AI is owner-only and disabled per vendor by default.
 - Supported vendors are `OpenRouter`, `OpenCode Zen`, `OpenCode Go`, and `Google`.
 - Configuration is intentional and per vendor: one saved model slug and one saved API key for each supported vendor.
-- Once one or more vendors are enabled and configured, the post composer and post edit flow show an AI vendor dropdown plus an `AI` action.
+- `OpenRouter` expects a provider-prefixed model slug such as `anthropic/...` or `openai/...`; the other vendors use their own documented model strings directly.
+- Once one or more vendors are enabled and configured, the owner-facing post composer and post edit flow show an AI vendor dropdown plus an `AI` action.
 - Turning a vendor off hides it from the editor dropdown but preserves its saved model slug and encrypted API key for later reuse.
 - Saved API keys are encrypted at rest using `AI_SETTINGS_ENCRYPTION_KEY`.
 - Before treating any vendor as production-ready, run the verification checklist in [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md).
@@ -262,7 +263,7 @@ npm run import-sqlite-to-mysql --workspace=@workspace/scripts
 If you cloned this repo to run your own microblog, the high-level path is:
 
 1. Stand up a fresh MySQL 8.0+ or MariaDB 10.5+ database. On Replit (or any Node host) the API server's `ensureTables()` builds the schema on first boot. On shared hosts (e.g. Hostinger), import `lib/db/install.sql` via phpMyAdmin — it carries its own step-by-step header comments.
-2. Configure environment variables in `.env` (or your host's secrets panel). At minimum: MySQL connection (`DB_HOST`/`DB_NAME`/`DB_USER`/`DB_PASS`), `AUTH_SECRET`, `AI_SETTINGS_ENCRYPTION_KEY`, and one OAuth provider (`GITHUB_ID`/`GITHUB_SECRET` or `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`). Generate `AI_SETTINGS_ENCRYPTION_KEY` with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. If you want unattended inbound feed refreshes through the included GitHub Actions workflow, also set `CRON_SECRET` on the deployed app and add two GitHub repository secrets: `CRON_SECRET` and `PUBLIC_SITE_URL` (deployed origin only, e.g. `https://yourdomain.com`).
+2. Configure environment variables in `.env` (or your host's secrets panel). At minimum: MySQL connection (`DB_HOST`/`DB_NAME`/`DB_USER`/`DB_PASS`), `AUTH_SECRET`, `AI_SETTINGS_ENCRYPTION_KEY`, and one OAuth provider (`GITHUB_ID`/`GITHUB_SECRET` or `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`). Generate `AI_SETTINGS_ENCRYPTION_KEY` with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. If you want unattended inbound feed refreshes through the included GitHub Actions workflow, also set `CRON_SECRET` on the deployed app and add two GitHub repository secrets: `CRON_SECRET` and `PUBLIC_SITE_URL` (deployed origin only, e.g. `https://yourdomain.com`). If you plan to use AI rewriting, also make sure your database schema includes `user_ai_vendor_settings`.
 3. **Pick a username** — the handle your profile page will live at, e.g. `chris` → `/users/@chris`. The same chosen string must appear in **two places that match exactly**:
    - `site_settings.cta_href` — substitute the `<<YOUR_USERNAME>>` placeholder in `lib/db/install.sql` *before* importing, or edit `cta_href` in the `/settings` UI after you've completed step 4 below (the `/settings` page is owner-gated, so first sign-in alone isn't enough — you must also promote your row to `owner`).
    - `users.username` — set it with `UPDATE users SET username = '<your-username>' WHERE email = '<your-email>'` *after* you've signed in once via OAuth.

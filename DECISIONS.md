@@ -258,6 +258,62 @@ options regardless of session context. -->
 ### Operational Outcome
 - The owner now has a full frontend path to opt into AI assistance intentionally, while the composer stays free of vendor/model controls until that setup is already complete.
 
+## 2026-05-05 — AI Failure Hardening And Vendor Verification Readiness
+
+### Decisions Confirmed
+- AI failure handling needed to be hardened before broader vendor testing so the owner could distinguish bad credentials, unsupported models, parse failures, and timeouts without losing draft content.
+- Provider failures are now classified explicitly as `timeout`, `upstream_http`, `network`, `parse`, or `unknown_model` instead of being treated as a single generic provider error.
+- Local provider timeouts should not masquerade as real upstream `504` responses in logs or UI messaging.
+- The owner-facing editor should preserve the draft on any AI failure and show a direct, non-provider-jargon error toast rather than silently failing.
+
+### Implementation Notes
+- The provider layer now records transport kind, endpoint family, failure class, retryability, and real upstream status when present, without logging prompt bodies or API keys.
+- The React editor was updated to read the generated client `ApiError` shape correctly, rather than assuming an Axios-style `error.response.data`.
+- A shared frontend helper now maps AI failures into stable user-facing messages, including an explicit timeout message.
+- The AI settings and process routes now send `Cache-Control: no-store, max-age=0` so owner AI configuration is not stranded behind stale `304` responses after contract changes.
+
+### Operational Outcome
+- Vendor verification can now use one repeatable runbook because backend logs, route responses, and frontend error handling speak the same failure vocabulary.
+- The owner can safely test risky or free-tier models without losing draft content when a provider stalls or rejects the request.
+
+## 2026-05-05 — Owner-Only Multi-Vendor AI Configuration
+
+### Decisions Confirmed
+- AI configuration is now owner-administered from `/admin/ai`, not account-scoped from `/settings`.
+- The supported hosted-provider set was narrowed to exactly four vendors for this product direction: `kilo-gateway`, `opencode-zen`, `opencode-go`, and `google`.
+- Each supported vendor stores one enabled flag, one saved model slug, and one encrypted API key for the owner, with disabled vendors preserving their saved configuration for later reuse.
+- The post composer and post edit flows should let the owner choose among configured vendors at rewrite time, while non-owner users should never see AI controls.
+
+### Implementation Notes
+- The single-row `user_ai_settings` shape was superseded by `user_ai_vendor_settings`, keyed by `(user_id, vendor)`.
+- `POST /api/ai/process` now accepts `{ content, vendor }` and resolves the selected vendor's saved model/key from the owner's Admin configuration.
+- `/settings` no longer acts as the source of truth for AI configuration; the owner-facing settings UI moved to `/admin/ai`.
+- The editor now exposes an AI vendor dropdown plus the existing `AI` action across compose and post-edit surfaces that already use the shared rich editor.
+
+### Operational Outcome
+- The owner can keep multiple low-cost vendors configured at once and switch between them per rewrite without re-entering credentials.
+- AI configuration is now clearly treated as site-administration state rather than ordinary account-preference state.
+
+## 2026-05-05 — OpenRouter Replaces Kilo Gateway
+
+### Trigger
+- Live testing showed repeated timeout-class failures through `kilo-gateway`, and the human chose to replace that dependency rather than continue debugging it.
+
+### Decisions Confirmed
+- `kilo-gateway` was removed from the supported AI vendor contract and replaced everywhere with `openrouter`.
+- `openrouter` is now the stable persisted backend slug and `OpenRouter` is the human-readable frontend label.
+- OpenRouter should use its official OpenAI-compatible `chat/completions` route rather than a gateway-specific fallback chain.
+- OpenRouter model strings are provider-prefixed slugs such as `anthropic/...`, `openai/...`, or `mistral/...`.
+
+### Implementation Notes
+- The AI settings allowlist, OpenAPI contract, frontend Admin UI, and vendor verification runbook were updated from `kilo-gateway` to `openrouter`.
+- The provider adapter now sends OpenRouter traffic to `POST https://openrouter.ai/api/v1/chat/completions` with Bearer auth.
+- Legacy `kilo-gateway` rows in `user_ai_vendor_settings` are not part of the supported runtime shape and should be removed or replaced during operator migration.
+
+### Operational Outcome
+- The owner-facing AI vendor set is now `openrouter`, `opencode-zen`, `opencode-go`, and `google`.
+- OpenRouter became the low-cost gateway option in the product after Kilo Gateway proved unreliable in live testing.
+
 ### Decisions Confirmed
 - The web app now uses a single `/sign-in` screen with GitHub and Google OAuth entry points.
 - `/sign-up` is retained only as a redirect alias to `/sign-in`.
