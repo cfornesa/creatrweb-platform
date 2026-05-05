@@ -35,8 +35,9 @@ Full-stack microblogging platform ("Microblog") — npm workspace monorepo, Type
 - `npm run build` — typecheck + build all packages
 - `npm run codegen --workspace=@workspace/api-spec` — regenerate API hooks and Zod schemas from OpenAPI spec
 - `npm run push --workspace=@workspace/db` — push DB schema changes (dev only)
-- `npm run dev:api` — run API server locally
-- `npm run dev:web` — run the Vite frontend locally on `FRONTEND_PORT`
+- `npm run dev` — one-port development run: build frontend/API, then serve the built frontend and API/Auth routes from the API server on `PORT`
+- `npm run dev:hot` — optional two-port hot-reload workflow: API server plus Vite frontend
+- `npm run dev:api` / `npm run dev:web` — lower-level debugging commands for the two-port workflow
 - `npm run list-users --workspace=@workspace/scripts` — list local users after first sign-in
 - `npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com` — promote your account to owner
 
@@ -92,11 +93,10 @@ Posts also accept a `categoryIds: number[]` array on `POST /api/posts` and `PATC
 
 ## Auth.js
 
-- Backend auth is mounted at `/auth/*` in the Express server
-- Local development expects:
-  - frontend at `http://localhost:3000`
-  - backend at `http://localhost:8080`
-- The frontend dev server proxies both `/api/*` and `/auth/*` to the backend
+- Backend auth is mounted at `/api/auth` in the Express server
+- Default development is one-port: `npm run dev` builds the frontend and serves the built app plus `/api/*`, `/api/auth/*`, feeds, and export routes from the API server on `PORT`
+- The active development origin is the URL for the logged `Server listening port: <PORT>` value; locally `.env.example` uses `http://localhost:8080`, while Replit workspace development uses whatever Dev URL/port Replit exposes for that run
+- `npm run dev:hot` is the optional two-port workflow; in that mode Vite serves the frontend and proxies API/Auth routes to the API server
 - The web app uses cookie-backed sessions; do not attach bearer tokens for browser API calls
 - The first owner is promoted manually after first login using the scripts package
 
@@ -223,16 +223,16 @@ If someone clones this repo to run their own microblog, the path is:
    | `AUTH_SECRET` | yes | Long random string for Auth.js session signing. |
    | `GITHUB_ID`, `GITHUB_SECRET` | one OAuth provider required | GitHub OAuth app credentials. |
    | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | one OAuth provider required | Google OAuth client credentials. |
-   | `ALLOWED_ORIGINS` | production | Comma-separated origins the API's CORS layer trusts. Falls back to `http://localhost:20925, http://localhost:8080` when unset, so local dev runs without it. |
+   | `ALLOWED_ORIGINS` | optional | Comma-separated origins the API's CORS layer trusts. The server always allows its own local `PORT` origin and same-host Replit preview/deployment origins, so local/Replit one-port runs do not need hard-coded preview URLs. |
    | `CRON_SECRET` | optional | Required if you want the bulk feed refresh endpoint to be triggerable by an external scheduler (Replit Scheduled Deployment, Hostinger cPanel cron, plain Linux cron, GitHub Actions, etc.) without owner cookies. Must be identical on the API server (verifies the header) and on whatever sends the request (sends it as `X-Cron-Secret`). See "Inbound Feeds (PESOS)" → "Scheduled refresh". |
    | `PUBLIC_SITE_URL` | optional | Used in two places: (1) SSR meta-tag fallback for the catch-all HTML route before the singleton `site_settings` row is loaded, and (2) read by `scripts/scheduled-feed-refresh.sh` as the target origin for the bulk refresh POST — required there if you wire up any provider's cron facility (Replit, Hostinger, etc.) to use that wrapper script. |
    | `SITE_TITLE`, `SITE_DESCRIPTION`, `SITE_AUTHOR_NAME` | optional | SSR meta-tag fallbacks for the catch-all HTML route before the singleton `site_settings` row is loaded. |
    | `STATIC_FILES_PATH` | optional | Override for where the API server serves the built frontend bundle from in production. |
    | `LOG_LEVEL` | optional | `debug` / `info` / `warn` / `error`; defaults to `info`. |
    | `NODE_ENV` | optional | Standard `production` / `development` toggle (affects logging + cache headers). |
-   | `AUTH_URL` | yes in prod | Read by Auth.js itself (not directly by app code) to compute OAuth callback URLs. Set to your public origin (e.g. `https://yourdomain.com`). |
-   | `PORT` | optional | API server listen port (defaults to `8080`). |
-   | `FRONTEND_PORT`, `API_ORIGIN`, `API_PORT` | local dev only | `FRONTEND_PORT` is the Vite dev server's port (default `20925`). `API_ORIGIN` is the explicit dev-proxy target; if unset, the proxy falls back to `http://localhost:${API_PORT}` (default `8080`). All three are only consumed by the frontend dev server in `artifacts/microblog/vite.config.ts`. **Don't use the bare `PORT` env var to mean "the API port" in dev** — Replit's dev runner sets `PORT` to the *frontend* port, which is why the proxy uses `API_PORT` instead. |
+   | `AUTH_URL` | do not set | The Express Auth.js integration derives the request origin from the incoming host and derives `/api/auth` from the Express mount point. Stale `AUTH_URL` values can cause OAuth redirect mismatches, so the app ignores `AUTH_URL`/`NEXTAUTH_URL` at runtime. |
+   | `PORT` | optional | API server listen port. Local `.env.example` uses `8080`; Replit workspace/deployment runtimes may provide another value such as `8000`. Use the URL for the logged `Server listening port: <PORT>` value. |
+   | `FRONTEND_PORT`, `API_ORIGIN`, `API_PORT` | hot dev only | Only used by `npm run dev:hot` / Vite. The default `npm run dev` path is one-port and does not need Vite proxy settings. |
 
 3. **Pick a username**: choose the handle your profile page will live at — the URL is `/users/@<your-username>` (e.g. picking `chris` yields `/users/@chris`). Pick something short, lowercase, ASCII-only — it shows up in URLs, bylines, and the hero CTA.
 

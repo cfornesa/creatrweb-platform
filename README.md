@@ -126,19 +126,28 @@ docs/                Setup and dependency notes
 
 ### Local Development
 
-Run the frontend and backend in separate terminals:
+Run the one-port development server from the repository root:
 
 ```bash
-npm run dev:api
-npm run dev:web
+npm run dev
 ```
 
-Default local origins:
+The frontend is built first, then the Express server serves the built frontend and all API/Auth routes from one origin. The active origin is shown by the startup log:
 
-- frontend: `http://localhost:3000`
-- backend: `http://localhost:8080`
+```text
+Server listening
+port: <PORT>
+```
 
-The frontend dev server proxies `/api/*` and `/auth/*` to the backend.
+For the default local `.env.example`, use `http://localhost:8080`. If you set `PORT=8000`, use `http://localhost:8000`.
+
+For active frontend work with Vite hot reload, use the optional two-port mode:
+
+```bash
+npm run dev:hot
+```
+
+The lower-level `npm run dev:api` and `npm run dev:web` commands remain available for debugging.
 
 ### Environment Variables
 
@@ -149,7 +158,6 @@ Core local variables are documented in [docs/auth-setup.md](./docs/auth-setup.md
 - `API_ORIGIN`
 - `ALLOWED_ORIGINS`
 - `AUTH_SECRET`
-- `AUTH_URL`
 - `GITHUB_ID`
 - `GITHUB_SECRET`
 - `GOOGLE_CLIENT_ID`
@@ -160,6 +168,8 @@ Core local variables are documented in [docs/auth-setup.md](./docs/auth-setup.md
 - `DB_USER`
 - `DB_PASS`
 - `SQLITE_IMPORT_PATH` for the one-time SQLite import source
+
+Do not set `AUTH_URL` for this Express app. Auth.js derives the request origin from the incoming host and derives `/api/auth` from the Express mount point.
 
 ### Database Behavior
 

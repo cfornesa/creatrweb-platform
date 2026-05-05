@@ -85,3 +85,6 @@ or rejection. -->
 
 2026-05-02 · SEARCH · Visitors and the owner can search published posts at `/search` with relevance ranking and structured filters (date range, source, author, content format). The index is native MySQL InnoDB FULLTEXT on a new `posts.content_text` shadow column populated automatically from `posts.content` via the shared `computeContentText` helper. Always filters `WHERE status = 'published'` — even for the owner; the search and the public timeline are semantically the same set. The header search bar is reachable on every page on every viewport, with `/` to focus and `Esc` to clear.
     [Verified from the new Search section in replit.md, `routes/posts.ts` `GET /search`, the `posts_content_text_fulltext` index created by `ensureIndex` in `lib/db/src/migrate.ts`, and the `/search` page in the frontend. Task #13 merged 2026-05-02.]
+
+2026-05-04 · RUNTIME · Root `npm run dev` is now the standard one-port local/Replit development command; the app listens on dynamic `PORT`, and `npm run dev:hot` is reserved for Vite hot reload.
+    [Confirmed by the human after the local/Replit run-command consolidation and dynamic-port cleanup session.]
