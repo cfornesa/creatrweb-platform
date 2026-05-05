@@ -1,6 +1,7 @@
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { loadRootEnv } from "./env.mjs";
+import { stopStaleServerOnPort } from "./ports.mjs";
 
 loadRootEnv();
 
@@ -9,6 +10,8 @@ if (!entry) {
   console.error("Usage: node scripts/start-api.mjs <entrypoint>");
   process.exit(1);
 }
+
+await stopStaleServerOnPort(process.env.PORT ?? "8080");
 
 const child = spawn(
   process.execPath,

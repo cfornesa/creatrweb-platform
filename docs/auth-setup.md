@@ -14,6 +14,8 @@ The expected local origin is:
 
 The frontend is built first, then the API server serves the built frontend and all API/Auth routes from the same origin. This matches the Replit deployment shape and avoids OAuth callback mismatches between frontend and backend ports.
 
+On Replit, use the URL/port that Replit exposes for the running process. The log line `Server listening port: <PORT>` is the source of truth for workspace development. For example, if Replit exposes the app at `https://your-dev-url.replit.dev:8000`, use that origin for workspace testing. Published deployments use the deployment public origin without a dev port.
+
 For active frontend work with Vite hot reload, use the optional two-port mode:
 
 ```bash
@@ -25,6 +27,7 @@ In hot mode, Vite serves the frontend at `http://localhost:3000` and proxies API
 ## Required `.env` Values
 
 ```env
+# Local default only. Do not set PORT in Replit Secrets unless Replit explicitly requires it.
 PORT=8080
 FRONTEND_PORT=3000
 API_ORIGIN=http://localhost:8080
@@ -65,7 +68,12 @@ If you use `npm run dev:hot`, also configure the hot-mode localhost callbacks:
 - GitHub: `http://localhost:3000/api/auth/callback/github`
 - Google: `http://localhost:3000/api/auth/callback/google`
 
-For Replit development and deployed Repls, configure the current public Replit origin with `/api/auth/callback/{provider}`. For example, if your public origin is `https://example.replit.app`, configure:
+For Replit workspace development, configure the current Dev URL origin that Replit exposes for the running port. For example, if your workspace app opens at `https://example.replit.dev:8000`, configure:
+
+- GitHub: `https://example.replit.dev:8000/api/auth/callback/github`
+- Google: `https://example.replit.dev:8000/api/auth/callback/google`
+
+For published Replit deployments, configure the deployed public origin without a dev port. For example, if your deployment origin is `https://example.replit.app`, configure:
 
 - GitHub: `https://example.replit.app/api/auth/callback/github`
 - Google: `https://example.replit.app/api/auth/callback/google`
@@ -110,3 +118,5 @@ Once the backend and frontend are running, these public feed/export routes shoul
 - JSON Feed: `http://localhost:8080/feed.json`
 - mf2-JSON export: `http://localhost:8080/export/json`
 - Compatibility alias: `http://localhost:8080/export.json`
+
+On Replit workspace dev, replace `http://localhost:8080` with the Dev URL origin for the running port. On published Replit deployments, replace it with the deployed public origin.
