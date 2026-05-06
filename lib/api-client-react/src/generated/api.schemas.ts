@@ -300,6 +300,11 @@ makes their profile fall back to the site-wide theme value.
 
  */
 export interface UpdateUserProfileBody {
+  /**
+     * @maxLength 255
+     * @pattern .*\S.*
+     */
+  name?: string;
   /** @pattern ^[a-zA-Z0-9_]{3,30}$ */
   username?: string;
   /** @maxLength 500 */

@@ -378,6 +378,10 @@ export const GetMeResponse = zod.object({
 /**
  * @summary Update current user profile
  */
+export const updateMeBodyNameMax = 255;
+
+
+export const updateMeBodyNameRegExp = new RegExp('.\*\\S.\*');
 export const updateMeBodyUsernameRegExp = new RegExp('^[a-zA-Z0-9_]{3,30}$');
 export const updateMeBodyBioMax = 500;
 
@@ -440,6 +444,7 @@ export const updateMeBodyColorDestructiveForegroundRegExp = new RegExp('^[0-9]{1
 
 
 export const UpdateMeBody = zod.object({
+  "name": zod.string().max(updateMeBodyNameMax).regex(updateMeBodyNameRegExp).optional(),
   "username": zod.string().regex(updateMeBodyUsernameRegExp).optional(),
   "bio": zod.string().max(updateMeBodyBioMax).optional(),
   "website": zod.string().url().optional(),

@@ -2,14 +2,23 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
+import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
+import Underline from "@tiptap/extension-underline";
 import { Button } from "@/components/ui/button";
-import { Loader2, ImagePlus, Link2, Pilcrow, Redo2, Sparkles, Undo2, Youtube } from "lucide-react";
+import { Loader2, ImagePlus, Link2, MoreHorizontal, Pilcrow, Redo2, Sparkles, Undo2, Youtube } from "lucide-react";
 import { useProcessAiText, type ProcessAiTextBodyVendor } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { IframeEmbed } from "./iframe-embed";
 import { CategoryMultiSelect } from "./CategoryMultiSelect";
 import { getAiFailureMessage } from "./ai-error";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type RichPostEditorProps = {
   initialContent: string;
@@ -81,6 +90,51 @@ function parseIframeEmbed(embedCode: string) {
   };
 }
 
+function parseYouTubeUrl(input: string) {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return null;
+  }
+
+  let videoId = "";
+
+  if (url.hostname === "youtu.be") {
+    videoId = url.pathname.slice(1);
+  } else if (url.hostname.endsWith("youtube.com")) {
+    if (url.pathname === "/watch") {
+      videoId = url.searchParams.get("v") ?? "";
+    } else if (url.pathname.startsWith("/shorts/")) {
+      videoId = url.pathname.split("/")[2] ?? "";
+    } else if (url.pathname.startsWith("/embed/")) {
+      videoId = url.pathname.split("/")[2] ?? "";
+    }
+  }
+
+  if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+    return null;
+  }
+
+  return {
+    src: `https://www.youtube.com/embed/${videoId}`,
+    width: "100%",
+    height: "420",
+    title: "YouTube video",
+    allow:
+      "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share",
+    loading: "lazy",
+    referrerpolicy: "strict-origin-when-cross-origin",
+    frameborder: "0",
+    allowfullscreen: "true" as const,
+  };
+}
+
 export function RichPostEditor({
   initialContent,
   placeholder = "Write something worth lingering on...",
@@ -113,24 +167,25 @@ export function RichPostEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: { levels: [2, 3] },
-        link: {
-          openOnClick: false,
-          autolink: true,
-          defaultProtocol: "https",
-        },
+        heading: { levels: [1, 2, 3, 4, 5, 6] },
       }),
       Image,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        defaultProtocol: "https",
+      }),
       TextAlign.configure({
         types: ["heading", "paragraph"],
       }),
+      Underline,
       IframeEmbed,
     ],
     content: ensureParagraphHtml(initialContent),
     editorProps: {
       attributes: {
         class:
-          "min-h-[220px] rounded-b-2xl border border-t-0 border-border bg-background px-4 py-4 pb-16 text-base leading-relaxed focus:outline-none prose prose-neutral max-w-none prose-p:my-3 prose-h2:mt-6 prose-h2:mb-3 prose-h3:mt-5 prose-h3:mb-2 prose-img:rounded-xl prose-img:border prose-img:border-border prose-iframe:w-full prose-iframe:rounded-xl prose-iframe:border prose-iframe:border-border",
+          "wysiwyg-editor-content min-h-[220px] rounded-b-2xl border border-t-0 border-border bg-background px-4 py-4 pb-16 text-base leading-relaxed focus:outline-none prose prose-neutral max-w-none prose-p:my-3 prose-h1:mt-7 prose-h1:mb-4 prose-h2:mt-6 prose-h2:mb-3 prose-h3:mt-5 prose-h3:mb-2 prose-h4:mt-4 prose-h4:mb-2 prose-h5:mt-4 prose-h5:mb-2 prose-h6:mt-4 prose-h6:mb-2 prose-strong:font-extrabold prose-strong:text-foreground prose-img:rounded-xl prose-img:border prose-img:border-border prose-iframe:w-full prose-iframe:rounded-xl prose-iframe:border prose-iframe:border-border",
       },
     },
     onUpdate({ editor: nextEditor }) {
@@ -211,6 +266,29 @@ export function RichPostEditor({
     editor.chain().focus().insertIframe(iframe).run();
   }
 
+  function handleInsertYouTube() {
+    if (!editor) {
+      return;
+    }
+
+    const videoUrl = window.prompt("Paste the YouTube video URL", "https://www.youtube.com/watch?v=");
+    if (!videoUrl) {
+      return;
+    }
+
+    const iframe = parseYouTubeUrl(videoUrl);
+    if (!iframe) {
+      toast({
+        title: "Invalid YouTube URL",
+        description: "Use a full youtube.com or youtu.be link.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    editor.chain().focus().insertIframe(iframe).run();
+  }
+
   function handleSubmit() {
     if (!editor) {
       return;
@@ -272,65 +350,293 @@ export function RichPostEditor({
     return null;
   }
 
-  const toolbarButtonClass = "h-9 rounded-full px-3 text-xs font-medium";
+  const toolbarButtonClass =
+    "wysiwyg-toolbar-button h-8 min-h-8 rounded-sm border px-2 text-[11px] font-semibold uppercase tracking-wide shadow-none";
+  const toolbarIconButtonClass =
+    "wysiwyg-toolbar-button h-8 w-8 rounded-sm border p-0 text-[11px] font-semibold shadow-none";
   const aiButtonClass =
     "rounded-none border-2 border-yellow-400 bg-zinc-100/95 text-zinc-950 shadow-[3px_3px_0_0_rgba(234,179,8,1)] hover:bg-yellow-200 dark:bg-zinc-950/95 dark:text-yellow-200 dark:hover:bg-zinc-900";
   const aiSelectClass =
     "pointer-events-auto h-9 min-w-[11rem] rounded-none border-2 border-yellow-400 bg-zinc-100/95 px-3 text-sm text-zinc-950 shadow-[3px_3px_0_0_rgba(234,179,8,1)] focus:outline-none focus:ring-0 dark:bg-zinc-950/95 dark:text-yellow-200";
+  const headingLabel =
+    editor.isActive("heading", { level: 1 }) ? "H1"
+      : editor.isActive("heading", { level: 2 }) ? "H2"
+      : editor.isActive("heading", { level: 3 }) ? "H3"
+      : editor.isActive("heading", { level: 4 }) ? "H4"
+      : editor.isActive("heading", { level: 5 }) ? "H5"
+      : editor.isActive("heading", { level: 6 }) ? "H6"
+      : "P";
 
   return (
     <div className="space-y-3">
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <div className="flex flex-wrap items-center gap-2 border-b border-border/70 bg-muted/30 px-3 py-3">
-          <Button type="button" variant={editor.isActive("bold") ? "default" : "outline"} size="sm" className={toolbarButtonClass} onClick={() => editor.chain().focus().toggleBold().run()}>
-            Bold
-          </Button>
-          <Button type="button" variant={editor.isActive("italic") ? "default" : "outline"} size="sm" className={toolbarButtonClass} onClick={() => editor.chain().focus().toggleItalic().run()}>
-            Italic
-          </Button>
-          <Button type="button" variant={editor.isActive("underline") ? "default" : "outline"} size="sm" className={toolbarButtonClass} onClick={() => editor.chain().focus().toggleUnderline().run()}>
-            Underline
-          </Button>
-          <Button type="button" variant={editor.isActive("heading", { level: 2 }) ? "default" : "outline"} size="sm" className={toolbarButtonClass} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
-            H2
-          </Button>
-          <Button type="button" variant={editor.isActive("heading", { level: 3 }) ? "default" : "outline"} size="sm" className={toolbarButtonClass} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
-            H3
-          </Button>
-          <Button type="button" variant={editor.isActive("bulletList") ? "default" : "outline"} size="sm" className={toolbarButtonClass} onClick={() => editor.chain().focus().toggleBulletList().run()}>
-            List
-          </Button>
-          <Button type="button" variant={editor.isActive("blockquote") ? "default" : "outline"} size="sm" className={toolbarButtonClass} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
-            Quote
-          </Button>
-          <Button type="button" variant="outline" size="sm" className={toolbarButtonClass} onClick={() => editor.chain().focus().setTextAlign("left").run()}>
-            Left
-          </Button>
-          <Button type="button" variant="outline" size="sm" className={toolbarButtonClass} onClick={() => editor.chain().focus().setTextAlign("center").run()}>
-            Center
-          </Button>
-          <Button type="button" variant="outline" size="sm" className={toolbarButtonClass} onClick={() => editor.chain().focus().setTextAlign("right").run()}>
-            Right
-          </Button>
-          <Button type="button" variant="outline" size="sm" className={toolbarButtonClass} onClick={handleInsertLink}>
-            <Link2 className="mr-1.5 h-3.5 w-3.5" />
-            Link
-          </Button>
-          <Button type="button" variant="outline" size="sm" className={toolbarButtonClass} onClick={() => fileInputRef.current?.click()}>
-            <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
-            Image
-          </Button>
-          <Button type="button" variant="outline" size="sm" className={toolbarButtonClass} onClick={handleInsertEmbed}>
-            <Youtube className="mr-1.5 h-3.5 w-3.5" />
-            Embed
-          </Button>
-          <div className="ml-auto flex items-center gap-2">
-            <Button type="button" variant="ghost" size="icon" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}>
+        <div className="wysiwyg-toolbar flex flex-wrap items-center gap-1 border-b border-border/70 bg-muted/20 px-2 py-2">
+          <div className="flex items-center gap-1 border-r border-border/70 pr-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={toolbarIconButtonClass}
+              aria-label="Undo"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                editor.chain().focus().undo().run();
+              }}
+              disabled={!editor.can().undo()}
+            >
               <Undo2 className="h-4 w-4" />
             </Button>
-            <Button type="button" variant="ghost" size="icon" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()}>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={toolbarIconButtonClass}
+              aria-label="Redo"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                editor.chain().focus().redo().run();
+              }}
+              disabled={!editor.can().redo()}
+            >
               <Redo2 className="h-4 w-4" />
             </Button>
+          </div>
+
+          <div className="flex items-center gap-1 border-r border-border/70 pr-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={`${toolbarButtonClass} min-w-[3.25rem] justify-center`}
+                  aria-label="Text style"
+                >
+                  {headingLabel}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onSelect={() => editor.chain().focus().setParagraph().run()}>
+                  Paragraph
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {[1, 2, 3, 4, 5, 6].map((level) => (
+                  <DropdownMenuItem
+                    key={level}
+                    onSelect={() => editor.chain().focus().toggleHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 }).run()}
+                  >
+                    H{level}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button
+              type="button"
+              variant={editor.isActive("bold") ? "default" : "outline"}
+              size="sm"
+              className={toolbarButtonClass}
+              aria-label="Bold"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                editor.chain().focus().toggleBold().run();
+              }}
+            >
+              B
+            </Button>
+            <Button
+              type="button"
+              variant={editor.isActive("italic") ? "default" : "outline"}
+              size="sm"
+              className={toolbarButtonClass}
+              aria-label="Italic"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                editor.chain().focus().toggleItalic().run();
+              }}
+            >
+              I
+            </Button>
+            <Button
+              type="button"
+              variant={editor.isActive("underline") ? "default" : "outline"}
+              size="sm"
+              className={toolbarButtonClass}
+              aria-label="Underline"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                editor.chain().focus().toggleUnderline().run();
+              }}
+            >
+              U
+            </Button>
+          </div>
+
+          <div className="hidden items-center gap-1 md:flex">
+            <Button
+              type="button"
+              variant={editor.isActive("bulletList") ? "default" : "outline"}
+              size="sm"
+              className={toolbarButtonClass}
+              aria-label="Bullet list"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                editor.chain().focus().toggleBulletList().run();
+              }}
+            >
+              List
+            </Button>
+            <Button
+              type="button"
+              variant={editor.isActive("blockquote") ? "default" : "outline"}
+              size="sm"
+              className={toolbarButtonClass}
+              aria-label="Block quote"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                editor.chain().focus().toggleBlockquote().run();
+              }}
+            >
+              Quote
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={toolbarButtonClass}
+              aria-label="Align left"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                editor.chain().focus().setTextAlign("left").run();
+              }}
+            >
+              Left
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={toolbarButtonClass}
+              aria-label="Align center"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                editor.chain().focus().setTextAlign("center").run();
+              }}
+            >
+              Center
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={toolbarButtonClass}
+              aria-label="Align right"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                editor.chain().focus().setTextAlign("right").run();
+              }}
+            >
+              Right
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={toolbarIconButtonClass}
+              aria-label="Insert link"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                handleInsertLink();
+              }}
+            >
+              <Link2 className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={toolbarIconButtonClass}
+              aria-label="Upload image"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                fileInputRef.current?.click();
+              }}
+            >
+              <ImagePlus className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={toolbarIconButtonClass}
+              aria-label="Insert YouTube video"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                handleInsertYouTube();
+              }}
+            >
+              <Youtube className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={toolbarButtonClass}
+              aria-label="Insert iframe embed"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                handleInsertEmbed();
+              }}
+            >
+              Embed
+            </Button>
+          </div>
+
+          <div className="ml-auto flex items-center gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className={toolbarIconButtonClass}
+                  aria-label="More formatting options"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => editor.chain().focus().toggleBulletList().run()}>
+                  Bullet list
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => editor.chain().focus().toggleBlockquote().run()}>
+                  Quote
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => editor.chain().focus().setTextAlign("left").run()}>
+                  Align left
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => editor.chain().focus().setTextAlign("center").run()}>
+                  Align center
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => editor.chain().focus().setTextAlign("right").run()}>
+                  Align right
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={handleInsertLink}>
+                  Insert link
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => fileInputRef.current?.click()}>
+                  Upload image
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleInsertYouTube}>
+                  Insert YouTube video
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleInsertEmbed}>
+                  Insert iframe embed
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

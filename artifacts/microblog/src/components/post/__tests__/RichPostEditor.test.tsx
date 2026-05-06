@@ -14,6 +14,20 @@ const editorState = {
 const setContent = vi.fn((next: string) => {
   editorState.html = next;
 });
+const toggleBoldRun = vi.fn();
+const toggleItalicRun = vi.fn();
+const toggleUnderlineRun = vi.fn();
+const toggleHeadingRun = vi.fn();
+const toggleBulletListRun = vi.fn();
+const toggleBlockquoteRun = vi.fn();
+const setTextAlignRun = vi.fn();
+const setParagraphRun = vi.fn();
+const setLinkRun = vi.fn();
+const unsetLinkRun = vi.fn();
+const setImageRun = vi.fn();
+const insertIframeRun = vi.fn();
+const undoRun = vi.fn();
+const redoRun = vi.fn();
 const processMutateAsync = vi.fn();
 const toastSpy = vi.fn();
 let processPending = false;
@@ -31,19 +45,20 @@ vi.mock("@tiptap/react", () => ({
     }),
     chain: () => ({
       focus: () => ({
-        toggleBold: () => ({ run: vi.fn() }),
-        toggleItalic: () => ({ run: vi.fn() }),
-        toggleUnderline: () => ({ run: vi.fn() }),
-        toggleHeading: () => ({ run: vi.fn() }),
-        toggleBulletList: () => ({ run: vi.fn() }),
-        toggleBlockquote: () => ({ run: vi.fn() }),
-        setTextAlign: () => ({ run: vi.fn() }),
-        extendMarkRange: () => ({ setLink: () => ({ run: vi.fn() }) }),
-        unsetLink: () => ({ run: vi.fn() }),
-        setImage: () => ({ run: vi.fn() }),
-        insertIframe: () => ({ run: vi.fn() }),
-        undo: () => ({ run: vi.fn() }),
-        redo: () => ({ run: vi.fn() }),
+        toggleBold: () => ({ run: toggleBoldRun }),
+        toggleItalic: () => ({ run: toggleItalicRun }),
+        toggleUnderline: () => ({ run: toggleUnderlineRun }),
+        toggleHeading: () => ({ run: toggleHeadingRun }),
+        toggleBulletList: () => ({ run: toggleBulletListRun }),
+        toggleBlockquote: () => ({ run: toggleBlockquoteRun }),
+        setTextAlign: () => ({ run: setTextAlignRun }),
+        setParagraph: () => ({ run: setParagraphRun }),
+        extendMarkRange: () => ({ setLink: () => ({ run: setLinkRun }) }),
+        unsetLink: () => ({ run: unsetLinkRun }),
+        setImage: () => ({ run: setImageRun }),
+        insertIframe: () => ({ run: insertIframeRun }),
+        undo: () => ({ run: undoRun }),
+        redo: () => ({ run: redoRun }),
       }),
     }),
     commands: {
@@ -93,10 +108,20 @@ vi.mock("@tiptap/extension-image", () => ({
   default: {},
 }));
 
+vi.mock("@tiptap/extension-link", () => ({
+  default: {
+    configure: () => ({}),
+  },
+}));
+
 vi.mock("@tiptap/extension-text-align", () => ({
   default: {
     configure: () => ({}),
   },
+}));
+
+vi.mock("@tiptap/extension-underline", () => ({
+  default: {},
 }));
 
 function renderEditor(aiVendors: Array<{ id: string; label: string }>) {
@@ -122,6 +147,20 @@ describe("RichPostEditor AI action", () => {
     editorState.text = "Hello world";
     editorState.isEmpty = false;
     setContent.mockClear();
+    toggleBoldRun.mockClear();
+    toggleItalicRun.mockClear();
+    toggleUnderlineRun.mockClear();
+    toggleHeadingRun.mockClear();
+    toggleBulletListRun.mockClear();
+    toggleBlockquoteRun.mockClear();
+    setTextAlignRun.mockClear();
+    setParagraphRun.mockClear();
+    setLinkRun.mockClear();
+    unsetLinkRun.mockClear();
+    setImageRun.mockClear();
+    insertIframeRun.mockClear();
+    undoRun.mockClear();
+    redoRun.mockClear();
     processMutateAsync.mockReset();
     toastSpy.mockReset();
     processPending = false;
@@ -227,5 +266,43 @@ describe("RichPostEditor AI action", () => {
     expect(processMutateAsync).toHaveBeenCalledWith({
       data: { content: "<p>Hello world</p>", vendor: "google" },
     });
+  });
+
+  it("renders compact square toolbar controls plus the More menu", () => {
+    renderEditor([]);
+
+    expect(screen.getByLabelText("Bold")).toHaveClass("h-8", "rounded-sm");
+    expect(screen.getByLabelText("More formatting options")).toBeInTheDocument();
+  });
+
+  it("exposes H1 through H6 in the text-style menu", async () => {
+    const user = userEvent.setup();
+    renderEditor([]);
+
+    await user.click(screen.getByLabelText("Text style"));
+
+    expect(screen.getByRole("menuitem", { name: "H1" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "H6" })).toBeInTheDocument();
+  });
+
+  it("dispatches the bold command from the toolbar", async () => {
+    const user = userEvent.setup();
+    renderEditor([]);
+
+    await user.click(screen.getByLabelText("Bold"));
+
+    expect(toggleBoldRun).toHaveBeenCalled();
+  });
+
+  it("inserts a YouTube iframe from a normal video URL", async () => {
+    const user = userEvent.setup();
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    renderEditor([]);
+
+    await user.click(screen.getByLabelText("Insert YouTube video"));
+
+    expect(insertIframeRun).toHaveBeenCalled();
+    expect(promptSpy).toHaveBeenCalled();
+    promptSpy.mockRestore();
   });
 });

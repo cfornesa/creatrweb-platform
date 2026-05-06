@@ -24,12 +24,14 @@ export default function SettingsPage() {
   const { toast } = useToast();
 
   const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [website, setWebsite] = useState("");
   const [socialLinks, setSocialLinks] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (currentUser) {
+      setDisplayName(currentUser.name || "");
       setUsername(currentUser.username || "");
       setBio(currentUser.bio || "");
       setWebsite(currentUser.website || "");
@@ -56,6 +58,16 @@ export default function SettingsPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedDisplayName = displayName.trim();
+
+    if (!trimmedDisplayName) {
+      toast({
+        title: "Display name required",
+        description: "Every account must keep a public display name.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const filteredSocialLinks = Object.fromEntries(
       Object.entries(socialLinks).filter(([, value]) => value && value.trim() !== ""),
@@ -63,6 +75,7 @@ export default function SettingsPage() {
 
     updateMe.mutate({
       data: {
+        name: trimmedDisplayName,
         username: username || undefined,
         bio: bio || undefined,
         website: website || undefined,
@@ -97,6 +110,20 @@ export default function SettingsPage() {
             <CardDescription>Update your public profile details.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="displayName">Display name</Label>
+              <Input
+                id="displayName"
+                placeholder="How your name appears publicly"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                maxLength={255}
+              />
+              <p className="text-xs text-muted-foreground">
+                Required. This is the public name shown on your profile, posts, and comments.
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
               <div className="relative">

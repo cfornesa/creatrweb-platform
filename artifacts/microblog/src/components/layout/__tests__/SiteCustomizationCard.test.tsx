@@ -94,4 +94,30 @@ describe("SiteCustomizationCard palette switching", () => {
     }) as HTMLInputElement;
     expect(secondaryAfter.value).toBe(ocean.colorSecondary);
   });
+
+  it("resets only the visual theme fields without wiping site copy", async () => {
+    const user = userEvent.setup();
+    renderCard(
+      buildBauhausSettings({
+        theme: "nature",
+        palette: "forest",
+        siteTitle: "My Site",
+        heroHeading: "Keep this heading",
+        aboutBody: "Keep this about text",
+        ctaHref: "/keep-this-link",
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Reset to Bauhaus defaults" }));
+
+    expect((screen.getByLabelText("Site title") as HTMLInputElement).value).toBe("My Site");
+    expect((screen.getByLabelText("Hero heading") as HTMLInputElement).value).toBe("Keep this heading");
+    expect((screen.getByLabelText('"About" body') as HTMLTextAreaElement).value).toBe("Keep this about text");
+    expect((screen.getByLabelText("Hero button link") as HTMLInputElement).value).toBe("/keep-this-link");
+
+    const primaryInput = screen.getByLabelText("Primary", {
+      selector: "input#color-colorPrimary",
+    }) as HTMLInputElement;
+    expect(primaryInput.value).toBe(getPalette("bauhaus")!.colors.colorPrimary);
+  });
 });

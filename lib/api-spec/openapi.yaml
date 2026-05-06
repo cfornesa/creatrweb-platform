@@ -1728,6 +1728,10 @@ components:
         `null` to clear the user's customization for that column, which
         makes their profile fall back to the site-wide theme value.
       properties:
+        name:
+          type: string
+          maxLength: 255
+          pattern: ".*\\S.*"
         username:
           type: string
           pattern: "^[a-zA-Z0-9_]{3,30}$"

@@ -181,7 +181,12 @@ router.patch("/users/me", requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid request body", details: bodyResult.error.format() });
     }
 
-    const { username, bio, website, socialLinks, ...themeFields } = bodyResult.data;
+    const { name: rawName, username, bio, website, socialLinks, ...themeFields } = bodyResult.data;
+    const name = rawName?.trim();
+
+    if (rawName !== undefined && !name) {
+      return res.status(400).json({ error: "Display name is required" });
+    }
 
     // Validate username uniqueness if it's being changed
     if (username && username !== currentUser.username) {
@@ -207,6 +212,7 @@ router.patch("/users/me", requireAuth, async (req: Request, res: Response) => {
     await db
       .update(usersTable)
       .set({
+        name: name ?? undefined,
         username: username ?? undefined,
         bio: bio ?? undefined,
         website: website ?? undefined,
@@ -224,7 +230,7 @@ router.patch("/users/me", requireAuth, async (req: Request, res: Response) => {
       .limit(1);
 
     const updatedUser = updatedUserResult[0]!;
-    const name = updatedUser.name || updatedUser.email || "Anonymous";
+    const displayName = updatedUser.name || updatedUser.email || "Anonymous";
     const imageUrl = updatedUser.image || null;
 
     const postCountResult = await db
@@ -236,7 +242,7 @@ router.patch("/users/me", requireAuth, async (req: Request, res: Response) => {
 
     return res.json({
       id: updatedUser.id,
-      name,
+      name: displayName,
       username: updatedUser.username || null,
       imageUrl,
       bio: updatedUser.bio || null,

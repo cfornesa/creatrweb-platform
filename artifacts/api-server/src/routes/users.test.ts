@@ -46,9 +46,23 @@ describe("PATCH /users/me — UpdateMeBody contract", () => {
     expect(result.success).toBe(true);
   });
 
-  it("accepts a profile-info-only body (no theme keys)", () => {
-    const result = UpdateMeBody.safeParse({ bio: "hello", website: "https://example.com" });
+  it("accepts a profile display-name update", () => {
+    const result = UpdateMeBody.safeParse({ name: "Noah F." });
     expect(result.success).toBe(true);
+  });
+
+  it("accepts a profile-info-only body (no theme keys)", () => {
+    const result = UpdateMeBody.safeParse({
+      name: "Noah F.",
+      bio: "hello",
+      website: "https://example.com",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a whitespace-only display name", () => {
+    const result = UpdateMeBody.safeParse({ name: "   " });
+    expect(result.success).toBe(false);
   });
 
   it("rejects a stored-XSS attempt in a color field", () => {
