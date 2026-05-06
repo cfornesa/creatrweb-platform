@@ -42,6 +42,13 @@
 - **What breaks if it changes or is removed:** Rich post HTML would need a replacement sanitization layer before it can be safely persisted and rendered.
 - **Self-hosting alternative:** A custom allowlist sanitizer maintained in-repo.
 
+## rss-parser
+
+- **Purpose:** Fetching and parsing third-party RSS and Atom feeds for the API server's feed-ingest workflow.
+- **Sends data off-domain:** Yes, to whatever remote feed URLs the owner configures for ingestion.
+- **What breaks if it changes or is removed:** Feed ingestion stops being able to import remote feed items until a replacement parser/fetch pipeline is installed, but the rest of the app remains functional.
+- **Self-hosting alternative:** A custom in-repo feed fetcher and RSS/Atom parser maintained as part of the app.
+
 ## Local Media Uploads
 
 - **Purpose:** Store uploaded post media files on the app server for insertion into rich posts.
