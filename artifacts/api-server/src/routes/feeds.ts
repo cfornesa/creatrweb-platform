@@ -40,9 +40,13 @@ type FeedScope = {
 const router: IRouter = Router();
 
 function getOrigin(req: Request): string {
+  if (process.env.PUBLIC_SITE_URL) {
+    return process.env.PUBLIC_SITE_URL.replace(/\/$/, "").trim();
+  }
   const forwardedProto = req.header("x-forwarded-proto");
+  const forwardedHost = req.header("x-forwarded-host");
   const protocol = forwardedProto?.split(",")[0]?.trim() || req.protocol;
-  const host = req.get("host");
+  const host = forwardedHost?.split(",")[0]?.trim() || req.get("host");
   return `${protocol}://${host}`;
 }
 

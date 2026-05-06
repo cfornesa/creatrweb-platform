@@ -819,6 +819,11 @@ export const FeedSourceCadence = {
 export interface FeedSource {
   id: number;
   name: string;
+  /**
+     * Optional display name to use for all posts imported from this source. Falls back to the feed item's author, then the source name.
+     * @maxLength 255
+     */
+  authorName?: string | null;
   feedUrl: string;
   siteUrl?: string | null;
   cadence: FeedSourceCadence;
@@ -861,6 +866,11 @@ export const CreateFeedSourceBodyCadence = {
 export interface CreateFeedSourceBody {
   /** @maxLength 255 */
   name: string;
+  /**
+     * Optional display name to use for all posts imported from this source.
+     * @maxLength 255
+     */
+  authorName?: string | null;
   /** @maxLength 2048 */
   feedUrl: string;
   /** @maxLength 2048 */
@@ -881,6 +891,11 @@ export const UpdateFeedSourceBodyCadence = {
 export interface UpdateFeedSourceBody {
   /** @maxLength 255 */
   name?: string;
+  /**
+     * Optional display name to use for all posts imported from this source.
+     * @maxLength 255
+     */
+  authorName?: string | null;
   /** @maxLength 2048 */
   feedUrl?: string;
   /** @maxLength 2048 */
@@ -1010,6 +1025,14 @@ export interface UpdateSiteSettingsBody {
 export type ListPostsParams = {
 page?: number;
 limit?: number;
+/**
+ * Filter by category slug, or the special token "uncategorized" for posts with no assigned category. Omit or pass "all" for no filter.
+ */
+category?: string;
+/**
+ * Filter by source. "original" for posts with no feed source (native + deleted-source posts), or a numeric feed source ID. Omit or pass "all" for no filter.
+ */
+source?: string;
 };
 
 export type SearchPostsParams = {

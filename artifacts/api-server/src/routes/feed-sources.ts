@@ -36,6 +36,7 @@ function serialize(row: FeedSourceRow) {
   return {
     id: row.id,
     name: row.name,
+    authorName: row.authorName ?? null,
     feedUrl: row.feedUrl,
     siteUrl: row.siteUrl,
     cadence: row.cadence,
@@ -182,14 +183,14 @@ export type IngestDb = {
 // loser's insertDedupRow throws ER_DUP_ENTRY and we delete the orphan post.
 export async function ingestOneItem(
   ops: IngestDb,
-  source: { id: number; name: string },
+  source: { id: number; name: string; authorName?: string | null },
   normalized: ReturnType<typeof normalizeFeedItem>,
 ): Promise<"imported" | "skipped"> {
   if (await ops.isAlreadySeen(source.id, normalized.guidHash)) {
     return "skipped";
   }
 
-  const displayAuthor = normalized.originalAuthor ?? source.name;
+  const displayAuthor = source.authorName || normalized.originalAuthor || source.name;
 
   const newPostId = await ops.insertPost({
     sourceId: source.id,
@@ -392,6 +393,7 @@ router.post("/feed-sources", requireAuth, requireOwner, async (req: Request, res
       .insert(feedSourcesTable)
       .values({
         name: body.name,
+        authorName: body.authorName ?? null,
         feedUrl: body.feedUrl,
         siteUrl: body.siteUrl ?? null,
         cadence: body.cadence,
@@ -442,6 +444,7 @@ router.patch("/feed-sources/:id", requireAuth, requireOwner, async (req: Request
       updatedAt: formatMysqlDateTime(),
     };
     if (body.name !== undefined) updates.name = body.name;
+    if (body.authorName !== undefined) updates.authorName = body.authorName ?? null;
     if (body.feedUrl !== undefined) updates.feedUrl = body.feedUrl;
     if (body.siteUrl !== undefined) updates.siteUrl = body.siteUrl ?? null;
     if (body.cadence !== undefined) {

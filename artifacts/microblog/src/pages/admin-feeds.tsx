@@ -32,7 +32,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Trash2, RefreshCw, Plus, Rss, ExternalLink, CheckCircle2 } from "lucide-react";
+import { Trash2, RefreshCw, Plus, Rss, ExternalLink, CheckCircle2, Pencil, X } from "lucide-react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 
 const CADENCE_OPTIONS: CreateFeedSourceBodyCadence[] = ["daily", "weekly", "monthly"];
@@ -52,9 +52,17 @@ export default function AdminFeedsPage() {
 
   // New-source form state.
   const [newName, setNewName] = useState("");
+  const [newAuthorName, setNewAuthorName] = useState("");
   const [newFeedUrl, setNewFeedUrl] = useState("");
   const [newSiteUrl, setNewSiteUrl] = useState("");
   const [newCadence, setNewCadence] = useState<CreateFeedSourceBodyCadence>("daily");
+
+  // Inline-edit state — which source card is open for editing.
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editAuthorName, setEditAuthorName] = useState("");
+  const [editFeedUrl, setEditFeedUrl] = useState("");
+  const [editSiteUrl, setEditSiteUrl] = useState("");
 
   // Per-row "currently being refreshed / approved" tracking so the
   // spinners are scoped to one row instead of disabling the page.
@@ -85,6 +93,7 @@ export default function AdminFeedsPage() {
       onSuccess: () => {
         toast({ title: "Feed source added" });
         setNewName("");
+        setNewAuthorName("");
         setNewFeedUrl("");
         setNewSiteUrl("");
         setNewCadence("daily");
@@ -190,6 +199,7 @@ export default function AdminFeedsPage() {
     createMutation.mutate({
       data: {
         name: newName.trim(),
+        authorName: newAuthorName.trim() || null,
         feedUrl: newFeedUrl.trim(),
         siteUrl: newSiteUrl.trim() || null,
         cadence: newCadence,
@@ -229,6 +239,38 @@ export default function AdminFeedsPage() {
   const handleApproveAll = (source: FeedSource) => {
     setApprovingAllId(source.id);
     approveAllMutation.mutate({ id: source.id });
+  };
+
+  const handleStartEdit = (source: FeedSource) => {
+    setEditingId(source.id);
+    setEditName(source.name);
+    setEditAuthorName(source.authorName ?? "");
+    setEditFeedUrl(source.feedUrl);
+    setEditSiteUrl(source.siteUrl ?? "");
+  };
+
+  const handleSaveEdit = (sourceId: number) => {
+    if (!editName.trim() || !editFeedUrl.trim()) {
+      toast({ title: "Name and feed URL are required", variant: "destructive" });
+      return;
+    }
+    updateMutation.mutate(
+      {
+        id: sourceId,
+        data: {
+          name: editName.trim(),
+          authorName: editAuthorName.trim() || null,
+          feedUrl: editFeedUrl.trim(),
+          siteUrl: editSiteUrl.trim() || null,
+        },
+      },
+      {
+        onSuccess: () => {
+          setEditingId(null);
+          toast({ title: "Feed source updated" });
+        },
+      },
+    );
   };
 
   if (isUserLoading) {
@@ -312,6 +354,19 @@ export default function AdminFeedsPage() {
                 maxLength={2048}
               />
             </div>
+            <div className="space-y-1">
+              <Label htmlFor="feed-author">Author Name (optional)</Label>
+              <Input
+                id="feed-author"
+                placeholder="e.g. Jane Doe"
+                value={newAuthorName}
+                onChange={(e) => setNewAuthorName(e.target.value)}
+                maxLength={255}
+              />
+              <p className="text-xs text-muted-foreground">
+                Overrides the author shown on all posts imported from this source. Defaults to the source name if left blank.
+              </p>
+            </div>
           </CardContent>
           <CardFooter className="flex justify-end border-t pt-4">
             <Button type="submit" disabled={createMutation.isPending}>
@@ -345,6 +400,9 @@ export default function AdminFeedsPage() {
                       <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">disabled</span>
                     )}
                   </div>
+                  {source.authorName ? (
+                    <p className="text-xs text-muted-foreground">Author: {source.authorName}</p>
+                  ) : null}
                   <a
                     href={source.feedUrl}
                     target="_blank"
@@ -365,6 +423,15 @@ export default function AdminFeedsPage() {
                   ) : null}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => editingId === source.id ? setEditingId(null) : handleStartEdit(source)}
+                    aria-label={editingId === source.id ? "Cancel edit" : "Edit source"}
+                    title={editingId === source.id ? "Cancel edit" : "Edit source"}
+                  >
+                    {editingId === source.id ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -401,6 +468,61 @@ export default function AdminFeedsPage() {
                   </AlertDialog>
                 </div>
               </div>
+
+              {editingId === source.id ? (
+                <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Name</Label>
+                      <Input
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        maxLength={255}
+                        placeholder="Source name"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Author Name (optional)</Label>
+                      <Input
+                        value={editAuthorName}
+                        onChange={(e) => setEditAuthorName(e.target.value)}
+                        maxLength={255}
+                        placeholder="e.g. Jane Doe"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Feed URL</Label>
+                    <Input
+                      value={editFeedUrl}
+                      onChange={(e) => setEditFeedUrl(e.target.value)}
+                      maxLength={2048}
+                      placeholder="https://example.com/feed.xml"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Site URL (optional)</Label>
+                    <Input
+                      value={editSiteUrl}
+                      onChange={(e) => setEditSiteUrl(e.target.value)}
+                      maxLength={2048}
+                      placeholder="https://example.com"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={updateMutation.isPending}
+                      onClick={() => handleSaveEdit(source.id)}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="grid gap-3 sm:grid-cols-3 text-xs">
                 <div className="space-y-1">

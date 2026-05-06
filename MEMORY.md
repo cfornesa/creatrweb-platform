@@ -29,11 +29,14 @@ or rejection. -->
 2026-04-29 · COMMENTS · Signed-in users can edit their own plain-text comments inline, while post publishing remains owner-only.
     [Verified from DECISIONS.md, CONSTRAINTS.md, and the current frontend/backend comment flow.]
 
-2026-04-29 · FEEDS · The site now publishes public standardized feeds at `GET /feed.xml` (Atom), `GET /feed.json` (JSON Feed 1.1), and `GET /export/json` (mf2-JSON), while preserving `GET /export.json` as a compatibility alias.
+2026-04-29 · FEEDS · The site publishes public standardized feeds at `GET /feed.xml` (Atom), `GET /feed.json` (JSON Feed 1.1), and `GET /export/json` (mf2-JSON), while preserving `GET /export.json` as a compatibility alias.
     [Verified from DECISIONS.md and the current route surface.]
 
-2026-04-29 · HOMEPAGE UX · The owner post composer is collapsed by default, and the home feed now includes client-side sort/filter controls for browsing posts.
-    [Verified from DECISIONS.md and the current homepage component structure.]
+2026-05-06 · FEEDS CATALOG · The feeds catalog (`GET /api/feeds`) always returns all category feeds — no `?category` param needed. Adding or deleting a category is reflected on the next request with no deploy. The `/feeds` page groups feeds into sections: "Site Feeds" for the three standard formats, one section per category (alphabetical), and optionally a per-page section via `?page=<slug>`. Feed URL generation uses `PUBLIC_SITE_URL` as the authoritative origin override when set, then `x-forwarded-host`, then Express host.
+    [Verified from feeds-catalog.ts, feeds.tsx, and the updated integration tests.]
+
+2026-05-06 · HOMEPAGE UX · The home feed has four browsing controls: Sort, Filter (has-comments / has-media / rich-posts), Category, and Source. Category and Source filter server-side via `GET /api/posts?category=&source=` so all posts in the archive are reachable, not just the first 50. Special tokens: `"uncategorized"` (posts with no category) and `"original"` (native posts + posts from deleted sources). The controls bar is permanently visible after initial load regardless of result count.
+    [Verified from home.tsx, posts.ts GET /posts route, and openapi.yaml.]
 
 2026-04-29 · DATASTORE · MySQL is now the canonical datastore for both local authoring and deployed publishing, while SQLite is retained only as legacy import material during the migration away from build-coupled storage.
     [Verified from DECISIONS.md, the current DB runtime code, and the successful local MySQL-backed publishing behavior observed in session.]
@@ -80,8 +83,8 @@ or rejection. -->
 2026-05-02 · TEST INFRA · `vitest` ^3.2.4 is now a direct devDependency of `@workspace/api-server` rather than relying on transitive resolution from the workspace root. The `injectUserTheme()` server-side first paint path has explicit integration coverage asserting both the site-theme `<style>` block and the user-scoped `<style>` block are present in the rendered HTML, so navbar/footer keeping the site theme is locked in.
     [Verified from `artifacts/api-server/package.json` and `meta-injection.injector.test.ts`. Task #8 merged 2026-05-02.]
 
-2026-05-02 · INBOUND FEEDS · The site now supports inbound RSS/Atom feed ingestion (PESOS — Publish Elsewhere, Syndicate to Own Site). The owner subscribes to feeds at `/admin/feeds`, items land in a pending-review queue at `/admin/pending` grouped by source, and the owner approves or rejects each item before it appears on the public timeline. Imported posts carry the original feed author's name verbatim and a `u-url u-syndication` link to the canonical URL. Cadence per source is `daily` / `weekly` / `monthly`; the bulk-refresh endpoint accepts an `X-Cron-Secret` header for Replit Scheduled Deployments. All public reads filter `status='published'`.
-    [Verified from the PESOS section in replit.md, `routes/feed-sources.ts`, `routes/pending-posts.ts`, the new `feed_sources` and `feed_items_seen` tables, and the new columns on `posts`. Task #9 merged 2026-05-02.]
+2026-05-06 · INBOUND FEEDS · The site supports inbound RSS/Atom feed ingestion (PESOS). The owner subscribes at `/admin/feeds`, items queue at `/admin/pending`, and each source can have an optional custom **Author Name** (`feed_sources.author_name`) that overrides the feed item's declared author for all posts from that source. Ingest priority: `source.authorName || normalizedOriginalAuthor || source.name`. On the timeline, imported post **bylines show the blog/source name** (`sourceFeedName`); the individual author appears in the attribution line as "by `<author>` via `<blog>`" when the two values differ. The `/admin/feeds` source cards now have an Edit panel for Name, Author Name, Feed URL, and Site URL. Cadence per source: `daily` / `weekly` / `monthly`. Bulk-refresh endpoint accepts `X-Cron-Secret`. All public reads filter `status='published'`.
+    [Updated 2026-05-06; verified from `feed-sources.ts` ingest logic, `PostCard.tsx` attribution display, `lib/db/src/schema/feeds.ts` `authorName` column, and `admin-feeds.tsx` edit panel.]
 
 2026-05-02 · SEARCH · Visitors and the owner can search published posts at `/search` with relevance ranking and structured filters (date range, source, author, content format). The index is native MySQL InnoDB FULLTEXT on a new `posts.content_text` shadow column populated automatically from `posts.content` via the shared `computeContentText` helper. Always filters `WHERE status = 'published'` — even for the owner; the search and the public timeline are semantically the same set. The header search bar is reachable on every page on every viewport, with `/` to focus and `Esc` to clear.
     [Verified from the new Search section in replit.md, `routes/posts.ts` `GET /search`, the `posts_content_text_fulltext` index created by `ensureIndex` in `lib/db/src/migrate.ts`, and the `/search` page in the frontend. Task #13 merged 2026-05-02.]
@@ -107,8 +110,8 @@ or rejection. -->
 2026-05-05 · AI EDITOR · The owner post composer and owner post-edit flows now expose an AI vendor dropdown plus the `AI` button, and each request explicitly selects a configured vendor while using that vendor’s saved model/key from Admin settings.
     [Confirmed by the human during the Phase 4 AI editor rework and verified from `ComposePost.tsx`, `PostCard.tsx`, `admin-pending.tsx`, `RichPostEditor.tsx`, and focused frontend tests.]
 
-2026-05-06 · USER PROFILES · Public profile identity now distinguishes between a stable `username` handle for `/users/@handle` URLs and a required editable display name (`users.name`) shown in profile/session UI and on newly-authored content.
-    [Confirmed by the human during the display-name and editor refinement session and verified from `PATCH /api/users/me`, the Settings page form, and the updated README/replit docs.]
+2026-05-06 · USER PROFILES · Public profile identity distinguishes a stable `username` handle (for `/users/@handle` URLs) from the required editable display name (`users.name`). Changing the display name via `/settings` now cascades immediately to all owner-authored posts (`posts.author_name` WHERE `author_user_id = userId`). Comment `author_name` rows are not rewritten — comments keep the name as posted.
+    [Confirmed during the display-name session and the feed-attribution session; verified from `PATCH /api/users/me` in `users.ts` and the cascade UPDATE on `postsTable`.]
 
 2026-05-06 · CUSTOMIZATION · The owner-facing "Reset to Bauhaus defaults" action is intentionally non-destructive: it resets only theme/palette/color values and preserves all site copy and links.
     [Confirmed by the human after the earlier text-loss regression and verified from `SiteCustomizationCard` behavior plus the new regression test.]

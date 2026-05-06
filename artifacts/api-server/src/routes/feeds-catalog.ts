@@ -1,15 +1,19 @@
 // Hand-maintained catalog of subscribable site feeds rendered at /feeds.
-// Optionally narrowed to a single category via `?category=<slug>`, in
-// which case category-scoped Atom + JSON feeds are appended.
+// All categories' Atom + JSON feeds are always included.
+// `?page=<slug>` appends per-page feeds when it resolves to a published page.
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, categoriesTable, pagesTable, eq, and } from "@workspace/db";
+import { db, categoriesTable, pagesTable, eq, and, asc } from "@workspace/db";
 
 const router: IRouter = Router();
 
 function getOrigin(req: Request): string {
+  if (process.env.PUBLIC_SITE_URL) {
+    return process.env.PUBLIC_SITE_URL.replace(/\/$/, "").trim();
+  }
   const forwardedProto = req.header("x-forwarded-proto");
+  const forwardedHost = req.header("x-forwarded-host");
   const protocol = forwardedProto?.split(",")[0]?.trim() || req.protocol;
-  const host = req.get("host");
+  const host = forwardedHost?.split(",")[0]?.trim() || req.get("host");
   return `${protocol}://${host}`;
 }
 
@@ -58,49 +62,42 @@ router.get("/feeds", async (req: Request, res: Response) => {
     mimeType: feed.mimeType,
   }));
 
-  // When a viewer is browsing a category or CMS page the UI may pass
-  // `?category=<slug>` or `?page=<slug>` so the catalog also surfaces
-  // the per-resource Atom and JSON feeds. Unknown slugs simply fall
-  // through to the site-wide list — this endpoint is purely
-  // informational.
-  const categorySlug =
-    typeof req.query.category === "string"
-      ? req.query.category.toLowerCase()
-      : "";
-  const pageSlug =
-    typeof req.query.page === "string" ? req.query.page.toLowerCase() : "";
-  if (categorySlug) {
-    try {
-      const rows = await db
-        .select()
-        .from(categoriesTable)
-        .where(eq(categoriesTable.slug, categorySlug))
-        .limit(1);
-      const cat = rows[0];
-      if (cat) {
-        const base = `/categories/${cat.slug}`;
-        feeds.push(
-          {
-            slug: `category-${cat.slug}-atom`,
-            title: `Atom feed — ${cat.name}`,
-            description: `Posts in the “${cat.name}” category, in Atom 1.0.`,
-            url: `${origin}${base}/feed.xml`,
-            mimeType: "application/atom+xml",
-          },
-          {
-            slug: `category-${cat.slug}-json`,
-            title: `JSON Feed — ${cat.name}`,
-            description: `Posts in the “${cat.name}” category, in JSON Feed 1.1.`,
-            url: `${origin}${base}/feed.json`,
-            mimeType: "application/feed+json",
-          },
-        );
-      }
-    } catch {
-      // Swallow DB errors — catalog still returns the site-wide feeds.
+  // Always include every category's Atom + JSON feeds so the /feeds
+  // page shows them without the caller needing to know each slug.
+  // The former ?category=<slug> param is now a no-op (kept for
+  // backwards compatibility — existing callers still receive a valid response).
+  try {
+    const allCategories = await db
+      .select({ slug: categoriesTable.slug, name: categoriesTable.name })
+      .from(categoriesTable)
+      .orderBy(asc(categoriesTable.name));
+    for (const cat of allCategories) {
+      const base = `/categories/${cat.slug}`;
+      feeds.push(
+        {
+          slug: `category-${cat.slug}-atom`,
+          title: `Atom feed — ${cat.name}`,
+          description: `Posts in the "${cat.name}" category, in Atom 1.0.`,
+          url: `${origin}${base}/feed.xml`,
+          mimeType: "application/atom+xml",
+        },
+        {
+          slug: `category-${cat.slug}-json`,
+          title: `JSON Feed — ${cat.name}`,
+          description: `Posts in the "${cat.name}" category, in JSON Feed 1.1.`,
+          url: `${origin}${base}/feed.json`,
+          mimeType: "application/feed+json",
+        },
+      );
     }
+  } catch {
+    // Swallow DB errors — catalog still returns the site-wide feeds.
   }
 
+  // Per-page feeds are contextual: only appended when a valid published
+  // page slug is passed via `?page=<slug>`.
+  const pageSlug =
+    typeof req.query.page === "string" ? req.query.page.toLowerCase() : "";
   if (pageSlug) {
     try {
       const rows = await db
@@ -115,14 +112,14 @@ router.get("/feeds", async (req: Request, res: Response) => {
           {
             slug: `page-${page.slug}-atom`,
             title: `Atom feed — ${page.title}`,
-            description: `Updates to the “${page.title}” page, in Atom 1.0.`,
+            description: `Updates to the "${page.title}" page, in Atom 1.0.`,
             url: `${origin}${base}/feed.xml`,
             mimeType: "application/atom+xml",
           },
           {
             slug: `page-${page.slug}-json`,
             title: `JSON Feed — ${page.title}`,
-            description: `Updates to the “${page.title}” page, in JSON Feed 1.1.`,
+            description: `Updates to the "${page.title}" page, in JSON Feed 1.1.`,
             url: `${origin}${base}/feed.json`,
             mimeType: "application/feed+json",
           },

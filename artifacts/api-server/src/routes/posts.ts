@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, mysqlPool, postsTable, commentsTable, feedSourcesTable, eq, desc, count, and, formatMysqlDateTime } from "@workspace/db";
+import { db, mysqlPool, postsTable, commentsTable, feedSourcesTable, categoriesTable, postCategoriesTable, eq, desc, count, and, isNull, inArray, notExists, sql, formatMysqlDateTime } from "@workspace/db";
 import {
   attachCategoriesToPosts,
   hydratePostCategories,
@@ -378,6 +378,49 @@ router.get("/posts", async (req: Request, res: Response) => {
     const { page, limit } = query;
     const offset = (page - 1) * limit;
 
+    // Build filter conditions — start with the mandatory status check.
+    type Condition = Parameters<typeof and>[0];
+    const conditions: Condition[] = [eq(postsTable.status, "published")];
+
+    // Category filter: a slug → posts in that category; "uncategorized" → posts with no category.
+    const categoryParam = typeof query.category === "string" ? query.category.trim() : "";
+    if (categoryParam && categoryParam !== "all") {
+      if (categoryParam === "uncategorized") {
+        conditions.push(
+          notExists(
+            db.select({ _: sql`1` })
+              .from(postCategoriesTable)
+              .where(eq(postCategoriesTable.postId, postsTable.id)),
+          ),
+        );
+      } else {
+        conditions.push(
+          inArray(
+            postsTable.id,
+            db.select({ postId: postCategoriesTable.postId })
+              .from(postCategoriesTable)
+              .innerJoin(categoriesTable, eq(postCategoriesTable.categoryId, categoriesTable.id))
+              .where(eq(categoriesTable.slug, categoryParam)),
+          ),
+        );
+      }
+    }
+
+    // Source filter: "original" → source_feed_id IS NULL; a numeric ID → that specific source.
+    const sourceParam = typeof query.source === "string" ? query.source.trim() : "";
+    if (sourceParam && sourceParam !== "all") {
+      if (sourceParam === "original") {
+        conditions.push(isNull(postsTable.sourceFeedId));
+      } else {
+        const sourceId = Number.parseInt(sourceParam, 10);
+        if (Number.isFinite(sourceId) && sourceId > 0) {
+          conditions.push(eq(postsTable.sourceFeedId, sourceId));
+        }
+      }
+    }
+
+    const whereClause = and(...conditions);
+
     const posts = await db
       .select({
         id: postsTable.id,
@@ -395,7 +438,7 @@ router.get("/posts", async (req: Request, res: Response) => {
       .from(postsTable)
       .leftJoin(commentsTable, eq(commentsTable.postId, postsTable.id))
       .leftJoin(feedSourcesTable, eq(feedSourcesTable.id, postsTable.sourceFeedId))
-      .where(eq(postsTable.status, "published"))
+      .where(whereClause)
       .groupBy(postsTable.id)
       .orderBy(desc(postsTable.createdAt))
       .limit(limit)
@@ -404,7 +447,7 @@ router.get("/posts", async (req: Request, res: Response) => {
     const totalResult = await db
       .select({ count: count() })
       .from(postsTable)
-      .where(eq(postsTable.status, "published"));
+      .where(whereClause);
     const total = totalResult[0]?.count ?? 0;
 
     const hydrated = await attachCategoriesToPosts(posts);

@@ -1,5 +1,5 @@
 import { Link, useSearch } from "wouter";
-import { useListSiteFeeds, getListSiteFeedsQueryKey } from "@workspace/api-client-react";
+import { useListSiteFeeds, getListSiteFeedsQueryKey, type SiteFeed } from "@workspace/api-client-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Rss, FileJson, Database, ExternalLink, Copy } from "lucide-react";
@@ -15,6 +15,51 @@ function pickIcon(slug: string): typeof Rss {
   if (slug.endsWith("-atom")) return Rss;
   if (slug.endsWith("-json")) return FileJson;
   return ICONS[slug] ?? Rss;
+}
+
+type FeedGroup = {
+  heading: string;
+  type: "sitewide" | "category" | "page";
+  feeds: SiteFeed[];
+};
+
+const SITEWIDE_SLUGS = new Set(["atom", "json", "mf2"]);
+
+function groupFeeds(feeds: SiteFeed[]): FeedGroup[] {
+  const groups: FeedGroup[] = [];
+
+  const sitewide = feeds.filter((f) => SITEWIDE_SLUGS.has(f.slug));
+  if (sitewide.length > 0) {
+    groups.push({ heading: "Site Feeds", type: "sitewide", feeds: sitewide });
+  }
+
+  const categoryMap = new Map<string, SiteFeed[]>();
+  for (const feed of feeds) {
+    if (!feed.slug.startsWith("category-")) continue;
+    const catSlug = feed.slug.replace(/^category-/, "").replace(/-(?:atom|json)$/, "");
+    if (!categoryMap.has(catSlug)) categoryMap.set(catSlug, []);
+    categoryMap.get(catSlug)!.push(feed);
+  }
+  for (const catFeeds of categoryMap.values()) {
+    const atomEntry = catFeeds.find((f) => f.slug.endsWith("-atom"));
+    const heading = atomEntry?.title.replace(/^Atom feed — /, "") ?? "Category";
+    groups.push({ heading, type: "category", feeds: catFeeds });
+  }
+
+  const pageMap = new Map<string, SiteFeed[]>();
+  for (const feed of feeds) {
+    if (!feed.slug.startsWith("page-")) continue;
+    const pgSlug = feed.slug.replace(/^page-/, "").replace(/-(?:atom|json)$/, "");
+    if (!pageMap.has(pgSlug)) pageMap.set(pgSlug, []);
+    pageMap.get(pgSlug)!.push(feed);
+  }
+  for (const pageFeedGroup of pageMap.values()) {
+    const atomEntry = pageFeedGroup.find((f) => f.slug.endsWith("-atom"));
+    const heading = atomEntry?.title.replace(/^Atom feed — /, "") ?? "Page";
+    groups.push({ heading, type: "page", feeds: pageFeedGroup });
+  }
+
+  return groups;
 }
 
 export default function FeedsIndexPage() {
@@ -53,57 +98,66 @@ export default function FeedsIndexPage() {
       ) : feeds.length === 0 ? (
         <p className="text-sm text-muted-foreground">No feeds available.</p>
       ) : (
-        <ul className="space-y-4" data-testid="feeds-index-list">
-          {feeds.map((feed) => {
-            const Icon = pickIcon(feed.slug);
-            return (
-              <li key={feed.slug}>
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Icon className="h-5 w-5 text-primary" />
-                      {feed.title}
-                    </CardTitle>
-                    <CardDescription>{feed.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1.5 text-xs">
-                        {feed.url}
-                      </code>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={async () => {
-                          try {
-                            await navigator.clipboard.writeText(feed.url);
-                            toast({ title: "Copied", description: feed.url });
-                          } catch {
-                            toast({
-                              title: "Couldn't copy",
-                              description: "Select the URL and copy manually.",
-                              variant: "destructive",
-                            });
-                          }
-                        }}
-                      >
-                        <Copy className="mr-1 h-3.5 w-3.5" /> Copy
-                      </Button>
-                      <Button asChild size="sm" variant="secondary">
-                        <a href={feed.url} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="mr-1 h-3.5 w-3.5" /> Open
-                        </a>
-                      </Button>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      MIME: <code>{feed.mimeType}</code>
-                    </p>
-                  </CardContent>
-                </Card>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="space-y-10" data-testid="feeds-index-list">
+          {groupFeeds(feeds).map((group) => (
+            <section key={group.heading}>
+              <h2 className="mb-4 text-lg font-semibold tracking-tight">{group.heading}</h2>
+              <ul className="space-y-4">
+                {group.feeds.map((feed) => {
+                  const Icon = pickIcon(feed.slug);
+                  const displayTitle =
+                    group.type !== "sitewide" ? feed.title.replace(/ — .*$/, "") : feed.title;
+                  return (
+                    <li key={feed.slug}>
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="flex items-center gap-2 text-lg">
+                            <Icon className="h-5 w-5 text-primary" />
+                            {displayTitle}
+                          </CardTitle>
+                          <CardDescription>{feed.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1.5 text-xs">
+                              {feed.url}
+                            </code>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(feed.url);
+                                  toast({ title: "Copied", description: feed.url });
+                                } catch {
+                                  toast({
+                                    title: "Couldn't copy",
+                                    description: "Select the URL and copy manually.",
+                                    variant: "destructive",
+                                  });
+                                }
+                              }}
+                            >
+                              <Copy className="mr-1 h-3.5 w-3.5" /> Copy
+                            </Button>
+                            <Button asChild size="sm" variant="secondary">
+                              <a href={feed.url} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="mr-1 h-3.5 w-3.5" /> Open
+                              </a>
+                            </Button>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            MIME: <code>{feed.mimeType}</code>
+                          </p>
+                        </CardContent>
+                      </Card>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
       )}
 
       <p className="mt-10 text-xs text-muted-foreground">

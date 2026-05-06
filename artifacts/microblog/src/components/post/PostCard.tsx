@@ -194,8 +194,24 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
   const sourceCanonicalUrl =
     (displayPost as Post & { sourceCanonicalUrl?: string | null }).sourceCanonicalUrl ?? null;
   const sourceFeedName =
-    (displayPost as Post & { sourceFeedName?: string | null }).sourceFeedName ??
-    displayPost.authorName;
+    (displayPost as Post & { sourceFeedName?: string | null }).sourceFeedName ?? null;
+
+  // For imported posts, show the blog name in the byline. The feed item's
+  // individual author (authorName) is shown in the attribution line instead.
+  const bylineName = isFeedImportedPost && sourceFeedName
+    ? sourceFeedName
+    : displayPost.authorName;
+
+  // Show "by <author> via <blog>" when the recorded authorName differs from
+  // the source blog name — i.e., the feed item declared its own author or the
+  // owner set a custom author override. Falls back to "via <blog>" when they
+  // are identical (no individual author info worth surfacing separately).
+  const feedItemAuthor =
+    isFeedImportedPost &&
+    sourceFeedName &&
+    displayPost.authorName !== sourceFeedName
+      ? displayPost.authorName
+      : null;
 
   const canDelete = isOwnerAuthorPost || (isOwner && isFeedImportedPost);
   const canEdit = isOwnerAuthorPost || (isOwner && isFeedImportedPost);
@@ -223,9 +239,9 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
     <div className={`group relative flex gap-4 p-5 sm:p-6 transition-colors ${!isDetail && !isDeleting && !isEditing ? "hover:bg-accent/30" : ""} ${isDeleting ? "opacity-50 scale-95 transition-all duration-300" : "transition-all duration-300"}`}>
       <Link href={`/users/${displayPost.authorId}`} className="shrink-0 z-10" onClick={(e) => e.stopPropagation()}>
         <Avatar className="h-10 w-10 border border-border ring-2 ring-transparent transition-all group-hover:ring-primary/20">
-          <AvatarImage src={displayPost.authorImageUrl || undefined} alt={displayPost.authorName} />
+          <AvatarImage src={displayPost.authorImageUrl || undefined} alt={bylineName} />
           <AvatarFallback className="bg-primary/10 text-primary font-medium">
-            {(displayPost.authorName?.charAt(0) || "U").toUpperCase()}
+            {(bylineName?.charAt(0) || "U").toUpperCase()}
           </AvatarFallback>
         </Avatar>
       </Link>
@@ -233,12 +249,12 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
       <div className="flex-1 space-y-2 min-w-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm">
-            <Link 
-              href={`/users/${displayPost.authorId}`} 
+            <Link
+              href={`/users/${displayPost.authorId}`}
               className="font-semibold text-foreground hover:underline z-10"
               onClick={(e) => e.stopPropagation()}
             >
-              {displayPost.authorName}
+              {bylineName}
             </Link>
             <span className="text-muted-foreground text-xs font-medium">·</span>
             <span className="text-muted-foreground text-xs" title={new Date(displayPost.createdAt).toLocaleString()}>
@@ -315,7 +331,10 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Rss className="h-3 w-3" />
             <span>
-              via <span className="font-medium text-foreground">{sourceFeedName}</span>
+              {feedItemAuthor ? (
+                <>by <span className="font-medium text-foreground">{feedItemAuthor}</span>{" "}via{" "}</>
+              ) : "via "}
+              <span className="font-medium text-foreground">{sourceFeedName ?? displayPost.authorName}</span>
             </span>
             {sourceCanonicalUrl ? (
               // mf2: u-url + u-syndication on the canonical link.

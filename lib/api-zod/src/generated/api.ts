@@ -24,7 +24,9 @@ export const listPostsQueryLimitDefault = 20;
 
 export const ListPostsQueryParams = zod.object({
   "page": zod.coerce.number().default(listPostsQueryPageDefault),
-  "limit": zod.coerce.number().default(listPostsQueryLimitDefault)
+  "limit": zod.coerce.number().default(listPostsQueryLimitDefault),
+  "category": zod.coerce.string().optional().describe('Filter by category slug, or the special token \"uncategorized\" for posts with no assigned category. Omit or pass \"all\" for no filter.'),
+  "source": zod.coerce.string().optional().describe('Filter by source. \"original\" for posts with no feed source (native + deleted-source posts), or a numeric feed source ID. Omit or pass \"all\" for no filter.')
 })
 
 export const ListPostsResponse = zod.object({
@@ -808,10 +810,15 @@ export const ListPublicFeedSourcesResponse = zod.object({
 /**
  * @summary List configured RSS / Atom sources (owner only)
  */
+export const listFeedSourcesResponseSourcesItemAuthorNameMax = 255;
+
+
+
 export const ListFeedSourcesResponse = zod.object({
   "sources": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "authorName": zod.string().max(listFeedSourcesResponseSourcesItemAuthorNameMax).nullish().describe('Optional display name to use for all posts imported from this source. Falls back to the feed item\'s author, then the source name.'),
   "feedUrl": zod.string(),
   "siteUrl": zod.string().nullish(),
   "cadence": zod.enum(['daily', 'weekly', 'monthly']),
@@ -832,6 +839,8 @@ export const ListFeedSourcesResponse = zod.object({
  */
 export const createFeedSourceBodyNameMax = 255;
 
+export const createFeedSourceBodyAuthorNameMax = 255;
+
 export const createFeedSourceBodyFeedUrlMax = 2048;
 
 export const createFeedSourceBodySiteUrlMax = 2048;
@@ -841,6 +850,7 @@ export const createFeedSourceBodyEnabledDefault = true;
 
 export const CreateFeedSourceBody = zod.object({
   "name": zod.string().max(createFeedSourceBodyNameMax),
+  "authorName": zod.string().max(createFeedSourceBodyAuthorNameMax).nullish().describe('Optional display name to use for all posts imported from this source.'),
   "feedUrl": zod.string().url().max(createFeedSourceBodyFeedUrlMax),
   "siteUrl": zod.string().url().max(createFeedSourceBodySiteUrlMax).nullish(),
   "cadence": zod.enum(['daily', 'weekly', 'monthly']).default(createFeedSourceBodyCadenceDefault),
@@ -857,6 +867,8 @@ export const UpdateFeedSourceParams = zod.object({
 
 export const updateFeedSourceBodyNameMax = 255;
 
+export const updateFeedSourceBodyAuthorNameMax = 255;
+
 export const updateFeedSourceBodyFeedUrlMax = 2048;
 
 export const updateFeedSourceBodySiteUrlMax = 2048;
@@ -865,15 +877,21 @@ export const updateFeedSourceBodySiteUrlMax = 2048;
 
 export const UpdateFeedSourceBody = zod.object({
   "name": zod.string().max(updateFeedSourceBodyNameMax).optional(),
+  "authorName": zod.string().max(updateFeedSourceBodyAuthorNameMax).nullish().describe('Optional display name to use for all posts imported from this source.'),
   "feedUrl": zod.string().url().max(updateFeedSourceBodyFeedUrlMax).optional(),
   "siteUrl": zod.string().url().max(updateFeedSourceBodySiteUrlMax).nullish(),
   "cadence": zod.enum(['daily', 'weekly', 'monthly']).optional(),
   "enabled": zod.boolean().optional()
 })
 
+export const updateFeedSourceResponseAuthorNameMax = 255;
+
+
+
 export const UpdateFeedSourceResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "authorName": zod.string().max(updateFeedSourceResponseAuthorNameMax).nullish().describe('Optional display name to use for all posts imported from this source. Falls back to the feed item\'s author, then the source name.'),
   "feedUrl": zod.string(),
   "siteUrl": zod.string().nullish(),
   "cadence": zod.enum(['daily', 'weekly', 'monthly']),

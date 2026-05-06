@@ -222,6 +222,13 @@ router.patch("/users/me", requireAuth, async (req: Request, res: Response) => {
       })
       .where(eq(usersTable.id, currentUser.id));
 
+    if (name) {
+      await db
+        .update(postsTable)
+        .set({ authorName: name })
+        .where(eq(postsTable.authorUserId, currentUser.id));
+    }
+
     // Fetch updated user
     const updatedUserResult = await db
       .select()

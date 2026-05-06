@@ -34,6 +34,47 @@ options regardless of session context. -->
 
 ---
 
+## 2026-05-06 — Feed Source Author Name, Edit UI, Display Name Cascade, Feed Post Attribution
+
+### Decisions Confirmed
+
+- `feed_sources` gains an optional `author_name VARCHAR(255) NULL` column. Provisioned via `ensureColumn` in `lib/db/src/migrate.ts`; no manual SQL required on existing deploys.
+- `author_name` on a feed source is the owner-controlled override for all posts ingested from that source. Priority at ingest time: `source.authorName || normalized.originalAuthor || source.name`.
+- The `/admin/feeds` "Add a source" form now includes an optional "Author Name" field. Each existing source card has an Edit button (pencil icon) that expands an inline form for Name, Author Name, Feed URL, and Site URL. The `PATCH /api/feed-sources/:id` endpoint already supported these fields; this was a frontend-only addition for the edit panel.
+- Feed-imported post **byline** on the timeline now shows the blog/source name (`sourceFeedName`) rather than `author_name`. `author_name` surfaces in the attribution line as "by `<author_name>` via `<sourceFeedName>`" when the two values differ. When they are the same (no individual author to surface separately), the attribution collapses to "via `<sourceFeedName>`". This is a display-only change in `PostCard.tsx` — no schema or API changes required.
+- `PATCH /api/users/me` now cascades a display name change to `posts.author_name` for all posts where `author_user_id = userId`. Feed-imported posts (`author_user_id = NULL`) are not touched. Comment `author_name` rows are not rewritten — comments retain the name as it was when posted.
+
+### Options Considered
+
+- **Separate `source_author` column on `posts`**: would have cleanly separated the "custom/blog author name shown in byline" from "individual feed item author shown in attribution" at the schema level. Rejected in favour of the display-layer heuristic (`authorName !== sourceFeedName` → show "by X via Y") to avoid a schema migration for what is ultimately a presentational distinction.
+- **Name cascade via JOIN at read time**: dynamically joining `users.name` on every post SELECT instead of writing back to `posts.author_name`. Rejected — adds JOIN overhead to every post list query and would be invisible to cached or exported content.
+
+---
+
+## 2026-05-06 — Home Feed Category And Source Filter Dropdowns
+
+### Decisions Confirmed
+- `GET /api/posts` now accepts two optional query parameters — `category` (a category slug or the special token `"uncategorized"` for posts with no assigned category) and `source` (`"original"` for posts with no feed source, or a numeric feed source ID) — enabling server-side filtering of the full post archive rather than client-side filtering of a fixed window.
+- `"uncategorized"` is a permanent API token, not an actual database row; it maps to a `NOT EXISTS` subquery against `post_categories`.
+- `"original"` covers both native (owner-authored) posts and posts whose source feed has since been deleted, because the database sets `source_feed_id = NULL` on source deletion (`ON DELETE SET NULL`).
+- The home feed controls bar (Sort / Filter / Category / Source dropdowns) must always be visible once the initial page load completes, regardless of how many posts the current filter returns.
+- The label text ("Posts / Sort and filter through my posts.") must always appear above the dropdown row, never beside it, at any viewport width.
+
+### Implementation Notes
+- Two new parameters were added to `GET /api/posts` in `lib/api-spec/openapi.yaml`; codegen regenerated `lib/api-zod` and `lib/api-client-react`.
+- `notExists` was added to the `@workspace/db` re-exports (`lib/db/src/index.ts`) so the backend route can build the uncategorized subquery via Drizzle without a direct drizzle-orm import.
+- The `GET /posts` route in `artifacts/api-server/src/routes/posts.ts` builds a shared `conditions[]` array applied to both the data query and the `total` count query, so pagination totals reflect the filtered set.
+- `artifacts/microblog/src/pages/home.tsx`: added `categoryFilter` and `sourceFilter` state; `useListCategories()` and `useListPublicFeedSources()` hooks populate the dropdowns; non-`"all"` values are passed as query params to `useListPosts()` so React Query refetches from the server on filter change.
+- The controls bar render condition was changed from `!isLoading && postsPage.posts.length > 0` to `!isLoading`, making it permanently visible after the skeleton loading phase.
+- The outer flex container was changed from `flex-col md:flex-row` to always `flex-col` so label text is always stacked above the dropdown row.
+
+### Operational Outcome
+- Selecting a category or source on the homepage correctly surfaces all matching posts across the full archive, not just those in the initial 50-post window.
+- Posts from deleted feed sources automatically appear under "Original" with no manual intervention.
+- The controls bar remains usable when a filter yields zero results, so visitors are never left stranded on an empty page without a way to change their selection.
+
+---
+
 ## 2026-05-06 — Profile Display Names, Safer Theme Reset, And Post Editor Refinement
 
 ### Decisions Confirmed
@@ -56,6 +97,32 @@ options regardless of session context. -->
 - Public profile identity is now clearer: a person can keep a stable handle while changing the public name shown on the site.
 - Owners can safely reset visual styling to Bauhaus defaults without risking site-text loss.
 - The post authoring surface now behaves more like a conventional document editor while preserving the app's existing sanitization and trust boundaries.
+
+---
+
+## 2026-05-06 — Feeds Catalog Fix And Sectioned /feeds Page
+
+### Decisions Confirmed
+- Feed route URL generation now uses `PUBLIC_SITE_URL` as the canonical origin override when set, falling back to the `x-forwarded-host` header and then to Express `req.protocol`/`req.get("host")`. Both `feeds.ts` and `feeds-catalog.ts` apply the same `getOrigin()` logic so generated feed URLs are correct regardless of reverse-proxy configuration.
+- The feeds catalog (`GET /api/feeds`) now always includes every category's Atom and JSON Feed entries, without requiring a `?category=<slug>` query parameter. The former `?category` param is retained for backwards compatibility but is now a no-op; callers get a valid response regardless.
+- The `/feeds` page now organises feeds into visual sections rather than a single flat list: a "Site Feeds" section for the three standard formats (Atom, JSON Feed, Microformats2), followed by one section per category in alphabetical order, and optionally a per-page section when `?page=<slug>` resolves a published page.
+- Category section headings use the category's human-readable name. Within a section, the redundant "— CategoryName" suffix is stripped from card titles because the heading already names the category.
+- No OpenAPI schema or codegen changes were made; grouping is done client-side from the existing flat `SiteFeed[]` response using slug-prefix detection. Extending the contract would be an irreversible change.
+
+### Implementation Notes
+- `getOrigin()` in both `artifacts/api-server/src/routes/feeds.ts` and `artifacts/api-server/src/routes/feeds-catalog.ts` was updated to the same three-tier origin resolution: `PUBLIC_SITE_URL` env var → `x-forwarded-host` header → `req.protocol`/`req.get("host")`.
+- `feeds-catalog.ts` replaced the conditional `?category=<slug>` block with an unconditional `SELECT slug, name FROM categories ORDER BY name ASC` query so every catalog response includes all current categories.
+- `feeds.tsx` gained a `FeedGroup` type, a `SITEWIDE_SLUGS` set, and a `groupFeeds()` pure function that partitions the flat feed list into sitewide / category / page groups using slug-prefix matching.
+- The two-level render iterates over `groups`, emits an `<h2>` section heading for each, then maps cards inside. Non-sitewide sections compute `displayTitle` by stripping `/ — .*$/` from the feed title.
+- Tests in `feeds-catalog.route.test.ts` were updated: the strict `toEqual(["atom", "json", "mf2"])` assertion was replaced with `toContain` checks, and a new integration test confirms all-categories are present in the default (no-param) response.
+
+### Category Lifecycle — No Code Changes Required
+- Adding a category automatically appears on the next `/api/feeds` request; no deploy is needed.
+- Deleting a category removes it from the next `/api/feeds` request. The actual per-category feed routes already return HTTP 404 for non-existent slugs. `post_categories` rows cascade away on category delete; posts themselves are unaffected.
+
+### Operational Outcome
+- Feed links on the `/feeds` page now resolve to correct absolute URLs in all proxy and reverse-proxy configurations.
+- The `/feeds` page is self-describing: a visitor can see at a glance that separate category-scoped feeds exist, without needing to know category slugs in advance.
 
 ---
 

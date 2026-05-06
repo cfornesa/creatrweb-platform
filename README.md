@@ -72,11 +72,11 @@ Every signed-in account has two distinct identity fields:
 - `username`: the stable `@handle` used in profile URLs such as `/users/@chris`
 - `name`: the required public display name shown in profile UI, session UI, and newly-authored post/comment bylines
 
-The display name is user-editable from `/settings`, but it cannot be cleared to blank. Accounts must always keep a non-empty public display name.
+The display name is user-editable from `/settings`, but it cannot be cleared to blank. Accounts must always keep a non-empty public display name. Changing it via `/settings` cascades immediately to all existing owner-authored posts — their stored `author_name` is updated so every post on the timeline shows the current name.
 
 ### Reading Experience
 
-The homepage acts as the main feed of posts and supports client-side browsing controls such as sorting and filtering. The owner-facing composer is collapsed by default and only expands when the owner chooses to start a post.
+The homepage acts as the main feed of posts. Four browsing controls sit above the post list: **Sort** (newest / oldest / most-commented), **Filter** (has comments / has media / rich posts), **Category** (All Categories, Uncategorized, or any named category), and **Source** (All Sources, Original, or any named feed source). Category and Source filtering is server-side — selecting a value queries the full post archive rather than a fixed in-memory window — so no matching post is ever hidden by a pagination limit. The "Original" source covers both natively authored posts and any posts whose external feed source has since been deleted. The controls bar is permanently visible once the page loads, even when the current filter returns zero posts. The owner-facing composer is collapsed by default and only expands when the owner chooses to start a post.
 
 The post composer and post edit flow intentionally use a denser editor toolbar than the rest of the site UI. This is a local editor treatment only: it is meant to feel closer to a conventional document editor without redesigning the global site theme.
 
@@ -88,8 +88,14 @@ The site publishes public machine-readable outputs so content remains accessible
 - `GET /feed.json`: JSON Feed 1.1
 - `GET /export/json`: mf2-JSON export
 - `GET /export.json`: compatibility alias retained for stability
+- `GET /categories/:slug/feed.xml`: per-category Atom feed
+- `GET /categories/:slug/feed.json`: per-category JSON Feed 1.1
+- `GET /p/:slug/feed.xml`: per-page Atom feed
+- `GET /p/:slug/feed.json`: per-page JSON Feed 1.1
 
 Each post in every feed surface carries its categories: Atom emits one `<category term="<slug>" label="<name>"/>` per category, JSON Feed sets `tags: [<name>, ...]`, and the mf2-JSON export sets `properties.category: [<name>, ...]` on each `h-entry`. Posts with no categories simply omit the field. These endpoints are part of the app’s long-term public surface and are intended to remain stable.
+
+The human-facing `/feeds` index page groups all subscribable feeds into sections — a "Site Feeds" section for the three standard formats, then one section per category (alphabetical). The catalog is live: adding a category causes its feeds to appear on the next page load; deleting one removes them. Set `PUBLIC_SITE_URL` in your environment to ensure all generated feed links use the correct public origin behind a proxy.
 
 ### Authentication Model
 
@@ -269,7 +275,7 @@ npm run import-sqlite-to-mysql --workspace=@workspace/scripts
 - Auth.js is mounted under `/auth`
 - the backend is the source of truth for authorization
 - rich post HTML is sanitized on the server before persistence
-- `PATCH /api/users/me` now treats `name` as a first-class editable profile field; the display name must be non-empty
+- `PATCH /api/users/me` treats `name` as a first-class editable profile field; the display name must be non-empty, and updating it cascades to all existing owner-authored posts so `author_name` stays in sync
 - the owner-facing "Reset to Bauhaus defaults" action on `/settings` resets only theme/palette/color values and intentionally preserves site copy and links
 - public feed and export routes are part of the stable site surface
 

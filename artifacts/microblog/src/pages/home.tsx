@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useListPosts, getListPostsQueryKey } from "@workspace/api-client-react";
+import { useListPosts, getListPostsQueryKey, useListCategories, useListPublicFeedSources } from "@workspace/api-client-react";
 import { PostCard } from "@/components/post/PostCard";
 import { ComposePost } from "@/components/post/ComposePost";
 import { FeedStatsWidget } from "@/components/layout/FeedStatsWidget";
@@ -12,6 +12,8 @@ import type { Post } from "@workspace/api-client-react";
 
 type SortMode = "newest" | "oldest" | "most-commented";
 type FilterMode = "all" | "has-comments" | "has-media" | "rich-posts";
+type CategoryFilter = "all" | "uncategorized" | string;
+type SourceFilter = "all" | "original" | string;
 
 function postHasMedia(post: Post) {
   if (post.contentFormat !== "html") {
@@ -26,9 +28,22 @@ export default function Home() {
   const { data: siteSettings } = useSiteSettings();
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+
+  const { data: categoriesData } = useListCategories();
+  const { data: sourcesData } = useListPublicFeedSources();
+  const categories = categoriesData?.categories ?? [];
+  const sources = sourcesData?.sources ?? [];
+
+  // Build server-side filter params — only include when a real filter is active.
+  const apiCategory = categoryFilter !== "all" ? categoryFilter : undefined;
+  const apiSource = sourceFilter !== "all" ? sourceFilter : undefined;
+  const queryParams = { page: 1, limit: 50, ...(apiCategory ? { category: apiCategory } : {}), ...(apiSource ? { source: apiSource } : {}) };
+
   const { data: postsPage, isLoading } = useListPosts(
-    { page: 1, limit: 50 },
-    { query: { queryKey: getListPostsQueryKey({ page: 1, limit: 50 }) } }
+    queryParams,
+    { query: { queryKey: getListPostsQueryKey(queryParams) } }
   );
 
   const visiblePosts = useMemo(() => {
@@ -92,9 +107,9 @@ export default function Home() {
               </div>
             ) : null}
 
-            {!isLoading && postsPage && postsPage.posts.length > 0 ? (
+            {!isLoading ? (
               <div className="border-b border-border bg-muted/20 px-5 py-4 sm:px-6">
-                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div className="flex flex-col gap-4">
                   <div className="space-y-1">
                     <p className="text-sm font-medium text-foreground">Posts</p>
                     <p className="text-sm text-muted-foreground">
@@ -127,6 +142,38 @@ export default function Home() {
                         <option value="has-comments">Has Comments</option>
                         <option value="has-media">Has Media</option>
                         <option value="rich-posts">Rich Posts</option>
+                      </select>
+                    </label>
+
+                    {categories.length > 0 && (
+                      <label className="flex flex-col gap-1 text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">Category</span>
+                        <select
+                          value={categoryFilter}
+                          onChange={(event) => setCategoryFilter(event.target.value as CategoryFilter)}
+                          className="min-w-[170px] rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary"
+                        >
+                          <option value="all">All Categories</option>
+                          <option value="uncategorized">Uncategorized</option>
+                          {categories.map((cat) => (
+                            <option key={cat.slug} value={cat.slug}>{cat.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+
+                    <label className="flex flex-col gap-1 text-sm text-muted-foreground">
+                      <span className="font-medium text-foreground">Source</span>
+                      <select
+                        value={sourceFilter}
+                        onChange={(event) => setSourceFilter(event.target.value as SourceFilter)}
+                        className="min-w-[170px] rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary"
+                      >
+                        <option value="all">All Sources</option>
+                        <option value="original">Original</option>
+                        {sources.map((src) => (
+                          <option key={src.id} value={String(src.id)}>{src.name}</option>
+                        ))}
                       </select>
                     </label>
                   </div>

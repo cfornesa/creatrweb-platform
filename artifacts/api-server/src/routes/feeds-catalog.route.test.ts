@@ -68,8 +68,12 @@ describe("feeds catalog", () => {
       }>;
     };
     expect(Array.isArray(body.feeds)).toBe(true);
-    const slugs = body.feeds.map((f) => f.slug).sort();
-    expect(slugs).toEqual(["atom", "json", "mf2"]);
+    const slugs = body.feeds.map((f) => f.slug);
+    // The three site-wide feeds are always present (categories may add more).
+    expect(slugs).toContain("atom");
+    expect(slugs).toContain("json");
+    expect(slugs).toContain("mf2");
+    expect(body.feeds.length).toBeGreaterThanOrEqual(3);
     for (const f of body.feeds) {
       expect(f.title.length).toBeGreaterThan(0);
       expect(f.description.length).toBeGreaterThan(0);
@@ -77,6 +81,17 @@ describe("feeds catalog", () => {
     }
     expect(body.feeds.find((f) => f.slug === "atom")!.mimeType).toMatch(/atom\+xml/);
     expect(body.feeds.find((f) => f.slug === "json")!.mimeType).toMatch(/feed\+json/);
+  });
+
+  it("includes all categories' Atom + JSON feeds in the default response (no query params)", async () => {
+    const res = await fetch(`${baseUrl}/api/feeds`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { feeds: Array<{ slug: string; url: string }> };
+    const slugs = body.feeds.map((f) => f.slug);
+    expect(slugs).toContain(`category-${CATEGORY_SLUG}-atom`);
+    expect(slugs).toContain(`category-${CATEGORY_SLUG}-json`);
+    const atom = body.feeds.find((f) => f.slug === `category-${CATEGORY_SLUG}-atom`)!;
+    expect(atom.url).toContain(`/categories/${CATEGORY_SLUG}/feed.xml`);
   });
 
   it("appends per-category Atom + JSON entries when ?category=<slug> resolves", async () => {
@@ -105,10 +120,18 @@ describe("feeds catalog", () => {
     expect(json.mimeType).toMatch(/feed\+json/);
   });
 
-  it("ignores unknown ?category / ?page slugs and returns just the site-wide list", async () => {
+  it("returns site-wide feeds plus all real categories; unknown page slug is silently ignored", async () => {
     const res = await fetch(`${baseUrl}/api/feeds?category=does-not-exist&page=does-not-exist`);
     const body = (await res.json()) as { feeds: Array<{ slug: string }> };
-    const slugs = body.feeds.map((f) => f.slug).sort();
-    expect(slugs).toEqual(["atom", "json", "mf2"]);
+    const slugs = body.feeds.map((f) => f.slug);
+    // The three site-wide feeds are always present.
+    expect(slugs).toContain("atom");
+    expect(slugs).toContain("json");
+    expect(slugs).toContain("mf2");
+    // The real test category is always included (always-on behavior).
+    expect(slugs).toContain(`category-${CATEGORY_SLUG}-atom`);
+    expect(slugs).toContain(`category-${CATEGORY_SLUG}-json`);
+    // An unknown page slug produces no page feed entry.
+    expect(slugs.some((s) => s.startsWith("page-does-not-exist"))).toBe(false);
   });
 });

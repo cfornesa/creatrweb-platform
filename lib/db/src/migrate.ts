@@ -481,6 +481,11 @@ export async function ensureTables(): Promise<void> {
     "next_fetch_at",
     "next_fetch_at DATETIME(3) NULL",
   );
+  await ensureColumn(
+    "feed_sources",
+    "author_name",
+    "author_name VARCHAR(255) NULL",
+  );
 
   // FK from `posts.source_feed_id` → `feed_sources.id`. Has to live
   // here (after both tables exist) rather than inline on the posts
