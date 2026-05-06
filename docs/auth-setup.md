@@ -104,10 +104,12 @@ npm run promote-owner --workspace=@workspace/scripts -- --id your-user-id
 
 ## Expected Behavior After Setup
 
+- Signed-in users can keep a stable `username` handle for `/users/@handle` URLs while editing a separate required public display name from `/settings`.
 - Signed-in members can comment.
 - Signed-in members can edit their own comments after posting.
 - The promoted owner can create, edit, and delete posts.
-- Owner post composition uses the rich editor with sanitized HTML storage, local image uploads, and owner-trusted `https:` iframe embeds.
+- Owner post composition uses the rich editor with sanitized HTML storage, compact square WYSIWYG-style controls, heading levels `H1`–`H6`, local image uploads, direct YouTube URL insertion, and owner-trusted `https:` iframe embeds.
+- The owner-facing Site Customization reset action restores only theme/palette/color values and preserves site copy and links.
 - The owner can also moderate comments.
 
 ## Public Feed Endpoints

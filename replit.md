@@ -65,6 +65,7 @@ For environments where schema is applied by hand (e.g. Hostinger via phpMyAdmin)
 - `POST /api/posts/:postId/comments` — add comment (auth required)
 - `DELETE /api/comments/:id` — delete own comment (auth required)
 - `GET /api/users/me` — current user profile (auth required)
+- `PATCH /api/users/me` — update the current user's profile (auth required). Supports `name`, `username`, `bio`, `website`, `socialLinks`, and the 16 nullable per-user theme fields
 - `GET /api/feed/stats` — total posts + comments count
 - `GET /api/site-settings` — public site identity + color palette (singleton); response also includes the owner user's `ownerSocialLinks` map (instagram/twitter/youtube/tiktok/twitch/github/linkedin) and `ownerWebsite` so the sitewide footer can render social icons without a second round-trip
 - `PATCH /api/site-settings` — update site identity + color palette (owner only)
@@ -93,6 +94,16 @@ For environments where schema is applied by hand (e.g. Hostinger via phpMyAdmin)
 
 Posts also accept a `categoryIds: number[]` array on `POST /api/posts` and `PATCH /api/posts/:id`. Validation is strict — every supplied value must be a positive integer that exists; a malformed or unknown id returns `400` with `{ error, unknownIds }` and leaves the post untouched. The post insert/update and the category join writes are wrapped in a single Drizzle transaction so a mid-flight failure can never strand a post with a half-applied category set. Every post-returning endpoint hydrates a `categories: Category[]` array via a single batched query in `lib/post-categories.ts`.
 
+## Profiles
+
+Authenticated users manage their public identity from `/settings`.
+
+- **Display name (`users.name`)**: required, user-editable, and used as the public label in profile UI, navbar/session UI, and newly-authored post/comment bylines. The API rejects whitespace-only values, and the frontend blocks blank saves before submit.
+- **Username (`users.username`)**: separate from display name, still the stable `@handle` used in `/users/@handle` URLs and other canonical route references.
+- **Other profile fields**: `bio`, `website`, and `socialLinks` remain optional.
+
+Important distinction: changing the display name does **not** rewrite historical `posts.author_name` or `comments.author_name` rows in bulk. Existing stored bylines remain as written; newly-authored content uses the current display name.
+
 ## Auth.js
 
 - Backend auth is mounted at `/api/auth` in the Express server
@@ -114,7 +125,7 @@ The catalog of themes and palettes lives in `artifacts/microblog/src/lib/site-th
 
 **Identity & copy fields**: site title (drives navbar wordmark, browser tab title, and post share-card title), hero heading + subheading, hero CTA label + link, "About This Platform" heading + body, copyright name, footer credit.
 
-A "Reset to Bauhaus defaults" button restores theme=`bauhaus`, palette=`bauhaus`, and the original tricolor color values.
+A "Reset to Bauhaus defaults" button restores **only the visual layer**: theme=`bauhaus`, palette=`bauhaus`, and the original tricolor color values. It does **not** touch site identity/copy fields such as site title, hero text, CTA label/link, about text, copyright name, or footer credit. This is intentionally non-destructive after an earlier regression where owners could accidentally wipe text content while trying to reset visual styling.
 
 ## Categories
 
@@ -143,6 +154,19 @@ Any signed-in user can theme their own profile page (`/users/@handle`) using the
   `<UserThemeScope>` reads the bootstrap synchronously on its first render via `useMemo`, so the wrapper exists with the right attributes from frame 1 — even before the React Query fetch resolves.
 - **Security hardening**: every interpolated color is validated against a strict HSL regex (`<h> <s>% <l>%`, max 32 chars) on both the server style builder and the client component, so a bad value is dropped rather than rendered. The bootstrap script body is JSON-stringified with `<` escaped as defense-in-depth. The scope key is whitelisted to `user-[a-zA-Z0-9_-]+` server- and client-side so the attribute selector cannot break out.
 - **Imported posts and theming**: feed-imported posts have `author_user_id = NULL` (their byline is the original feed author, who is not a local user), so they correctly fall back to the site default theme — they have no per-user theme to apply.
+
+## Post Editor
+
+Owner-authored posts and owner post edits use the shared `RichPostEditor` component.
+
+- **Toolbar style**: the editor intentionally uses compact square controls with denser grouping than the rest of the site. This is a local WYSIWYG-style treatment for the compose/edit surface only; it does not change the global theme system or the app's general button style.
+- **Formatting support**: bold, italic, underline, bullet lists, blockquotes, paragraph mode, text alignment, and heading levels `H1` through `H6`.
+- **Embeds and media**:
+  - image upload from the toolbar
+  - direct YouTube URL insertion, which normalizes supported `youtube.com` / `youtu.be` links into the existing iframe embed node
+  - generic iframe embed insertion for owner-trusted `https:` embeds when raw iframe code is needed
+- **Mobile behavior**: the toolbar keeps a compact core set of visible controls and moves secondary actions into a `More` dropdown so the post and edit-post surfaces stay usable on smaller viewports.
+- **Bold rendering regression**: the editor and rendered rich post output now both include explicit `strong` styling so bold text remains visibly heavier even when the current theme's body font weights are relatively light.
 
 ## Inbound Feeds (PESOS)
 

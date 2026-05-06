@@ -46,8 +46,10 @@ The owner can create posts in two formats:
 
 Rich posts support:
 
-- formatting through a toolbar-backed editor
+- formatting through a compact WYSIWYG-style toolbar with square controls
+- heading levels `H1` through `H6`
 - local image uploads
+- direct YouTube URL insertion that converts a normal watch/share link into an embedded video
 - owner-trusted `https:` iframe embeds
 - optional AI-assisted rewrite from the post composer and post edit flow once the owner explicitly configures vendors in `/admin/ai`
 
@@ -63,9 +65,20 @@ Members can:
 
 Comments currently remain plain text even though posts support rich formatting.
 
+### Profiles And Public Names
+
+Every signed-in account has two distinct identity fields:
+
+- `username`: the stable `@handle` used in profile URLs such as `/users/@chris`
+- `name`: the required public display name shown in profile UI, session UI, and newly-authored post/comment bylines
+
+The display name is user-editable from `/settings`, but it cannot be cleared to blank. Accounts must always keep a non-empty public display name.
+
 ### Reading Experience
 
 The homepage acts as the main feed of posts and supports client-side browsing controls such as sorting and filtering. The owner-facing composer is collapsed by default and only expands when the owner chooses to start a post.
+
+The post composer and post edit flow intentionally use a denser editor toolbar than the rest of the site UI. This is a local editor treatment only: it is meant to feel closer to a conventional document editor without redesigning the global site theme.
 
 ### Feeds And Export
 
@@ -256,6 +269,8 @@ npm run import-sqlite-to-mysql --workspace=@workspace/scripts
 - Auth.js is mounted under `/auth`
 - the backend is the source of truth for authorization
 - rich post HTML is sanitized on the server before persistence
+- `PATCH /api/users/me` now treats `name` as a first-class editable profile field; the display name must be non-empty
+- the owner-facing "Reset to Bauhaus defaults" action on `/settings` resets only theme/palette/color values and intentionally preserves site copy and links
 - public feed and export routes are part of the stable site surface
 
 ## Forking This Repo

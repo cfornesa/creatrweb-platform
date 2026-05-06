@@ -30,7 +30,7 @@
 
 ## TipTap
 
-- **Purpose:** Rich-text editing for owner-authored posts, including toolbar-driven formatting and custom embed/media nodes.
+- **Purpose:** Rich-text editing for owner-authored posts, including the compact WYSIWYG-style toolbar, heading levels `H1`–`H6`, direct YouTube insertion, and custom embed/media nodes.
 - **Sends data off-domain:** No.
 - **What breaks if it changes or is removed:** The post composer and editor lose their CMS-style authoring experience until replaced, but stored sanitized HTML content remains in the app database.
 - **Self-hosting alternative:** A custom `contenteditable` editor or a different in-repo editor stack.

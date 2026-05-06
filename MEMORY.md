@@ -106,3 +106,12 @@ or rejection. -->
 
 2026-05-05 · AI EDITOR · The owner post composer and owner post-edit flows now expose an AI vendor dropdown plus the `AI` button, and each request explicitly selects a configured vendor while using that vendor’s saved model/key from Admin settings.
     [Confirmed by the human during the Phase 4 AI editor rework and verified from `ComposePost.tsx`, `PostCard.tsx`, `admin-pending.tsx`, `RichPostEditor.tsx`, and focused frontend tests.]
+
+2026-05-06 · USER PROFILES · Public profile identity now distinguishes between a stable `username` handle for `/users/@handle` URLs and a required editable display name (`users.name`) shown in profile/session UI and on newly-authored content.
+    [Confirmed by the human during the display-name and editor refinement session and verified from `PATCH /api/users/me`, the Settings page form, and the updated README/replit docs.]
+
+2026-05-06 · CUSTOMIZATION · The owner-facing "Reset to Bauhaus defaults" action is intentionally non-destructive: it resets only theme/palette/color values and preserves all site copy and links.
+    [Confirmed by the human after the earlier text-loss regression and verified from `SiteCustomizationCard` behavior plus the new regression test.]
+
+2026-05-06 · POST EDITOR · The owner post composer and edit-post flow now use a compact square WYSIWYG-style toolbar with `H1`–`H6`, direct YouTube URL insertion, a mobile `More` menu, and explicit bold rendering so `strong` text stays visibly heavier.
+    [Confirmed by the human during the post/editor refinement session and verified from `RichPostEditor`, `PostContent`, and focused editor tests.]

@@ -34,6 +34,31 @@ options regardless of session context. -->
 
 ---
 
+## 2026-05-06 — Profile Display Names, Safer Theme Reset, And Post Editor Refinement
+
+### Decisions Confirmed
+- Signed-in users may now edit their public display name through `/settings`, while `username` remains the stable `@handle` used in profile URLs.
+- Every account must keep a non-empty public display name; blank or whitespace-only `name` values are rejected at both the frontend form layer and the `PATCH /api/users/me` API boundary.
+- The owner-facing "Reset to Bauhaus defaults" action in Site Customization must be non-destructive: it resets only theme, palette, and the 14 color values, and must never reset site copy or CTA links.
+- The post composer and post edit flow now intentionally use a denser WYSIWYG-style toolbar with compact square controls, without changing the broader site theme or global button language.
+- The post editor now supports heading levels `H1` through `H6` and direct YouTube URL insertion in addition to the existing image upload and generic iframe embed paths.
+- The bold-formatting regression was resolved at the rendering layer as well as the command layer, so `strong` text now remains visibly heavier in both the live editor and rendered rich post content.
+
+### Implementation Notes
+- `UpdateUserProfileBody` and `PATCH /api/users/me` now include `name` as a first-class editable field, with trimming and non-empty validation.
+- The Settings page profile form now exposes a required Display name input alongside username, bio, website, and social links.
+- Existing historical `posts.author_name` and `comments.author_name` rows were intentionally not bulk-rewritten; new content uses the current display name while older stored bylines remain unchanged.
+- The shared `RichPostEditor` toolbar was reorganized around compact grouped controls plus a `More` dropdown for secondary actions on smaller viewports.
+- YouTube insertion now accepts normal `youtube.com` and `youtu.be` URLs and normalizes them into the existing iframe embed node shape, rather than requiring raw iframe code for that common case.
+- The docs sweep for this session updated README, replit.md, auth setup notes, dependency notes, and shared memory/decision records to reflect the shipped behavior.
+
+### Operational Outcome
+- Public profile identity is now clearer: a person can keep a stable handle while changing the public name shown on the site.
+- Owners can safely reset visual styling to Bauhaus defaults without risking site-text loss.
+- The post authoring surface now behaves more like a conventional document editor while preserving the app's existing sanitization and trust boundaries.
+
+---
+
 ## 2026-04-29 — Canonical MySQL Datastore
 
 ### Decisions Confirmed
