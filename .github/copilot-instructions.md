@@ -67,8 +67,12 @@ These apply in every mode, regardless of how the request is phrased:
   step's approach. Log every agentic loop in DECISIONS.md.
 - Never break a public URL. Permanent redirects for moved content.
   No database IDs in public URLs.
-- Keep `GET /export.json`, `GET /feed.xml`, and `GET /feed.json`
-  functional at all times.
+- Keep all feed routes functional at all times. Primary (proxy-safe)
+  routes: `GET /atom`, `GET /jsonfeed`, `GET /export/json`,
+  `GET /categories/:slug/atom`, `GET /categories/:slug/jsonfeed`,
+  `GET /p/:slug/atom`, `GET /p/:slug/jsonfeed`. Legacy aliases that
+  must also remain: `GET /feed.xml`, `GET /feed.json`,
+  `GET /export.json`, and their per-category/per-page counterparts.
 - Never edit AGENTS.md without explicit human instruction.
 - Never auto-syndicate content. Syndication is always
   human-initiated.

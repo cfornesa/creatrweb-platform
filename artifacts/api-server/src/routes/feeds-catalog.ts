@@ -20,7 +20,7 @@ const FEEDS = [
     title: "Atom feed",
     description:
       "All published posts in standard Atom 1.0 — paste this URL into any feed reader to subscribe.",
-    path: "/feed.xml",
+    path: "/atom",
     mimeType: "application/atom+xml",
   },
   {
@@ -28,7 +28,7 @@ const FEEDS = [
     title: "JSON Feed",
     description:
       "Same posts as the Atom feed, in JSON Feed 1.1 format — handy for clients that prefer JSON.",
-    path: "/feed.json",
+    path: "/jsonfeed",
     mimeType: "application/feed+json",
   },
   {
@@ -36,7 +36,7 @@ const FEEDS = [
     title: "Microformats2 export",
     description:
       "Full portable export with reactions, comments, and category metadata. Useful for backups and migrations.",
-    path: "/export.json",
+    path: "/export/json",
     mimeType: "application/mf2+json",
   },
 ] as const;
@@ -75,14 +75,14 @@ router.get("/feeds", async (req: Request, res: Response) => {
           slug: `category-${cat.slug}-atom`,
           title: `Atom feed — ${cat.name}`,
           description: `Posts in the "${cat.name}" category, in Atom 1.0.`,
-          url: `${origin}${base}/feed.xml`,
+          url: `${origin}${base}/atom`,
           mimeType: "application/atom+xml",
         },
         {
           slug: `category-${cat.slug}-json`,
           title: `JSON Feed — ${cat.name}`,
           description: `Posts in the "${cat.name}" category, in JSON Feed 1.1.`,
-          url: `${origin}${base}/feed.json`,
+          url: `${origin}${base}/jsonfeed`,
           mimeType: "application/feed+json",
         },
       );
@@ -110,14 +110,14 @@ router.get("/feeds", async (req: Request, res: Response) => {
             slug: `page-${page.slug}-atom`,
             title: `Atom feed — ${page.title}`,
             description: `Updates to the "${page.title}" page, in Atom 1.0.`,
-            url: `${origin}${base}/feed.xml`,
+            url: `${origin}${base}/atom`,
             mimeType: "application/atom+xml",
           },
           {
             slug: `page-${page.slug}-json`,
             title: `JSON Feed — ${page.title}`,
             description: `Updates to the "${page.title}" page, in JSON Feed 1.1.`,
-            url: `${origin}${base}/feed.json`,
+            url: `${origin}${base}/jsonfeed`,
             mimeType: "application/feed+json",
           },
         );

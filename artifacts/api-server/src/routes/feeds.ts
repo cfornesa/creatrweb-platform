@@ -247,7 +247,29 @@ router.get("/feed.xml", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/atom", async (req: Request, res: Response) => {
+  try {
+    const origin = getOrigin(req);
+    const posts = await loadPosts();
+    res.type("application/atom+xml; charset=utf-8");
+    res.send(buildAtom(origin, siteScope(), posts));
+  } catch {
+    res.status(500).json({ error: "Failed to generate Atom feed" });
+  }
+});
+
 router.get("/feed.json", async (req: Request, res: Response) => {
+  try {
+    const origin = getOrigin(req);
+    const posts = await loadPosts();
+    res.type("application/feed+json; charset=utf-8");
+    res.json(buildJsonFeed(origin, siteScope(), posts));
+  } catch {
+    res.status(500).json({ error: "Failed to generate JSON feed" });
+  }
+});
+
+router.get("/jsonfeed", async (req: Request, res: Response) => {
   try {
     const origin = getOrigin(req);
     const posts = await loadPosts();
@@ -282,7 +304,33 @@ router.get("/categories/:slug/feed.xml", async (req: Request, res: Response) => 
   }
 });
 
+router.get("/categories/:slug/atom", async (req: Request, res: Response) => {
+  try {
+    const cat = await loadCategoryBySlug(req.params.slug);
+    if (!cat) return res.status(404).json({ error: "Not found" });
+    const origin = getOrigin(req);
+    const posts = await loadPosts({ categoryId: cat.id });
+    res.type("application/atom+xml; charset=utf-8");
+    return res.send(buildAtom(origin, categoryScope(cat), posts));
+  } catch {
+    return res.status(500).json({ error: "Failed to generate Atom feed" });
+  }
+});
+
 router.get("/categories/:slug/feed.json", async (req: Request, res: Response) => {
+  try {
+    const cat = await loadCategoryBySlug(req.params.slug);
+    if (!cat) return res.status(404).json({ error: "Not found" });
+    const origin = getOrigin(req);
+    const posts = await loadPosts({ categoryId: cat.id });
+    res.type("application/feed+json; charset=utf-8");
+    return res.json(buildJsonFeed(origin, categoryScope(cat), posts));
+  } catch {
+    return res.status(500).json({ error: "Failed to generate JSON feed" });
+  }
+});
+
+router.get("/categories/:slug/jsonfeed", async (req: Request, res: Response) => {
   try {
     const cat = await loadCategoryBySlug(req.params.slug);
     if (!cat) return res.status(404).json({ error: "Not found" });
@@ -408,7 +456,31 @@ router.get("/p/:slug/feed.xml", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/p/:slug/atom", async (req: Request, res: Response) => {
+  try {
+    const page = await loadPublishedPageBySlug(req.params.slug);
+    if (!page) return res.status(404).json({ error: "Not found" });
+    const origin = getOrigin(req);
+    res.type("application/atom+xml; charset=utf-8");
+    return res.send(buildPageAtom(origin, page));
+  } catch {
+    return res.status(500).json({ error: "Failed to generate Atom feed" });
+  }
+});
+
 router.get("/p/:slug/feed.json", async (req: Request, res: Response) => {
+  try {
+    const page = await loadPublishedPageBySlug(req.params.slug);
+    if (!page) return res.status(404).json({ error: "Not found" });
+    const origin = getOrigin(req);
+    res.type("application/feed+json; charset=utf-8");
+    return res.json(buildPageJsonFeed(origin, page));
+  } catch {
+    return res.status(500).json({ error: "Failed to generate JSON feed" });
+  }
+});
+
+router.get("/p/:slug/jsonfeed", async (req: Request, res: Response) => {
   try {
     const page = await loadPublishedPageBySlug(req.params.slug);
     if (!page) return res.status(404).json({ error: "Not found" });

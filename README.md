@@ -84,18 +84,29 @@ The post composer and post edit flow intentionally use a denser editor toolbar t
 
 The site publishes public machine-readable outputs so content remains accessible outside the main web UI.
 
-- `GET /feed.xml`: Atom feed
-- `GET /feed.json`: JSON Feed 1.1
+Primary (proxy-safe, no file extension):
+
+- `GET /atom`: Atom feed
+- `GET /jsonfeed`: JSON Feed 1.1
 - `GET /export/json`: mf2-JSON export
-- `GET /export.json`: compatibility alias retained for stability
-- `GET /categories/:slug/feed.xml`: per-category Atom feed
-- `GET /categories/:slug/feed.json`: per-category JSON Feed 1.1
-- `GET /p/:slug/feed.xml`: per-page Atom feed
-- `GET /p/:slug/feed.json`: per-page JSON Feed 1.1
+- `GET /categories/:slug/atom`: per-category Atom feed
+- `GET /categories/:slug/jsonfeed`: per-category JSON Feed 1.1
+- `GET /p/:slug/atom`: per-page Atom feed
+- `GET /p/:slug/jsonfeed`: per-page JSON Feed 1.1
+
+Backward-compatible aliases (retained for stability, work on direct Express access):
+
+- `GET /feed.xml` → same as `/atom`
+- `GET /feed.json` → same as `/jsonfeed`
+- `GET /export.json` → same as `/export/json`
+- `GET /categories/:slug/feed.xml` → same as `/categories/:slug/atom`
+- `GET /categories/:slug/feed.json` → same as `/categories/:slug/jsonfeed`
+- `GET /p/:slug/feed.xml` → same as `/p/:slug/atom`
+- `GET /p/:slug/feed.json` → same as `/p/:slug/jsonfeed`
 
 Each post in every feed surface carries its categories: Atom emits one `<category term="<slug>" label="<name>"/>` per category, JSON Feed sets `tags: [<name>, ...]`, and the mf2-JSON export sets `properties.category: [<name>, ...]` on each `h-entry`. Posts with no categories simply omit the field. These endpoints are part of the app’s long-term public surface and are intended to remain stable.
 
-The human-facing `/feeds` index page groups all subscribable feeds into sections — a "Site Feeds" section for the three standard formats, then one section per category (alphabetical). The catalog is live: adding a category causes its feeds to appear on the next page load; deleting one removes them. Set `PUBLIC_SITE_URL` in your environment to ensure all generated feed links use the correct public origin behind a proxy.
+The human-facing `/feeds` index page groups all subscribable feeds into sections — a "Site Feeds" section for the three standard formats, then one section per category (alphabetical). The catalog is live: adding a category causes its feeds to appear on the next page load; deleting one removes them. Feed URLs are host-agnostic: the origin is derived from the request, not from any environment variable.
 
 ### Authentication Model
 
@@ -172,7 +183,7 @@ Server listening
 port: <PORT>
 ```
 
-For the default local `.env.example`, use `http://localhost:8080`. If you set `PORT=8000`, use `http://localhost:8000`.
+For the default local `.env` (where `PORT=4000`), the app runs at `http://localhost:4000`. If you set a different `PORT`, use that value. Note: macOS's AirPlay Receiver occupies port 5000, so the default local port is 4000; Replit overrides this to 5000 via the workflow.
 
 For active frontend work with Vite hot reload, use the optional two-port mode:
 
