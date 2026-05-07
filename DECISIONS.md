@@ -34,6 +34,23 @@ options regardless of session context. -->
 
 ---
 
+## 2026-05-06 — Replit Port Routing and Feed Route Proxy Workaround
+
+### Trigger
+After migrating to a Replit-managed workflow (`PORT=5000 npm run dev`, `externalPort = 80 → localPort = 5000`), the default Replit webview URL and `platform.creatrweb.com` began serving the homepage correctly, but feed routes (`/feed.xml`, `/feed.json`, etc.) returned the React NotFound page in the dev webview. Root cause confirmed by screenshot: the Replit webview proxy intercepts file-extension paths (`.xml`, `.json`) and serves `index.html` directly without forwarding to Express.
+
+### Decisions Confirmed
+- `PORT=5000` is the canonical port across all environments. `.env` updated from 8080 → 5000. `ALLOWED_ORIGINS` and `AUTH_URL` in `.env` updated to reference `localhost:5000`.
+- Replit `.replit` `[[ports]]`: `externalPort = 80 → localPort = 5000` (default webview/custom domain); `externalPort = 5000 → localPort = 5000` (direct port access, bypasses webview proxy for feed route testing).
+- The Replit webview proxy limitation is accepted as a dev-only constraint. Feed routes are verified via direct `:5000` port access in dev and are fully functional on the production deployment (`platform.creatrweb.com`) where `router = "application"` forwards all paths to Express.
+- All stale `[[ports]]` entries from the pre-workflow era were removed from `.replit`.
+
+### Outcome
+- Default webview URL and `platform.creatrweb.com` serve the app correctly for all non-extension routes.
+- Feed routes (`/feed.xml`, `/feed.json`, `/export.json`, category and page feeds) are functional in production and testable via `https://[repl]:5000/feed.xml` in dev.
+
+---
+
 ## 2026-05-06 — Host-Agnostic Feed URL Generation
 
 ### Trigger
