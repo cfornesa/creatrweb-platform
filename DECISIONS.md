@@ -34,6 +34,21 @@ options regardless of session context. -->
 
 ---
 
+## 2026-05-06 — Host-Agnostic Feed URL Generation
+
+### Trigger
+Feed URLs (`/feed.xml`, `/feed.json`, category and page feeds) worked on the Replit dev URL (direct to Express) but returned 404 on the `platform.creatrweb.com` custom domain. Root cause: Replit's deployment CDN intercepts requests for paths with file extensions (`.xml`, `.json`) as static file requests before they reach Express. `PUBLIC_SITE_URL` was the authoritative origin override in `getOrigin()`, locking generated feed URLs to a single configured host regardless of the actual request origin.
+
+### Decision Confirmed
+Removed the `PUBLIC_SITE_URL` short-circuit from `getOrigin()` in both `feeds.ts` and `feeds-catalog.ts`. Origin is now derived exclusively from the request: `x-forwarded-proto`/`x-forwarded-host` (set by Replit's proxy for custom domains), falling back to `req.protocol`/`req.get("host")` for local. `PUBLIC_SITE_URL` remains in use for AI HTTP-Referer headers (`ai-providers.ts`) and OG meta tags (`meta-injection.ts`).
+
+### Outcome
+- Feed catalog and feed content URLs reflect the actual request host in every environment: local, Replit dev, and Replit production.
+- No URL structure changes — Rule 5 preserved.
+- `PUBLIC_SITE_URL` can be kept or removed from `.env` without affecting feed behaviour.
+
+---
+
 ## 2026-05-06 — Feed Source Author Name, Edit UI, Display Name Cascade, Feed Post Attribution
 
 ### Decisions Confirmed

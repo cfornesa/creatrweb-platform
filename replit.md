@@ -49,6 +49,7 @@ A full-stack microblogging platform enabling users to create, share, and discove
 
 - **Monorepo Structure**: Uses npm workspaces for a unified development environment for multiple packages, enhancing code sharing and consistency.
 - **Single-Runnable Deployment**: The application is deployed as a single runnable to ensure correct routing order for all API endpoints, including feeds, avoiding issues with static asset edge handlers.
+- **Host-Agnostic Feed URLs**: Feed URL generation (`feeds.ts`, `feeds-catalog.ts`) derives the origin from `x-forwarded-proto`/`x-forwarded-host` (or the raw Express host as fallback). `PUBLIC_SITE_URL` is intentionally not used for feed URLs so the correct host is reflected across local, Replit dev, and Replit production environments.
 - **HTML Sanitization**: All HTML feed bodies are sanitized server-side to prevent XSS attacks, stripping dangerous markup while preserving necessary microformats2 markers.
 - **Measurement-based Navbar**: The header dynamically adjusts inline navigation links and search bar visibility based on available width, using a `ResizeObserver` to optimize layout across various desktop screen sizes without a fixed hamburger.
 - **Dedicated `content_text` column for Full-Text Search**: A separate, automatically populated `content_text` column on the `posts` table ensures that the MySQL FULLTEXT index is always synchronized with the rendered post body, providing consistent and accurate search results.
