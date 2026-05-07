@@ -4,7 +4,7 @@ import { ensureTables } from "@workspace/db";
 import { ensureMediaRoot } from "./lib/media";
 import { backfillPostContentText } from "./lib/html";
 
-const rawPort = process.env["PORT"] ?? "8080";
+const rawPort = process.env["PORT"] ?? "5000";
 
 const port = Number(rawPort);
 

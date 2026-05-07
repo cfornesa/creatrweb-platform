@@ -8,6 +8,28 @@ run = ["npm", "run", "start"]
 build = ["npm", "run", "build"]
 
 [workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=5000 npm run dev"
+waitForPort = 5000
 
 [agent]
 expertMode = true
@@ -26,4 +48,9 @@ VITE_CLERK_PUBLISHABLE_KEY = "pk_test_b3JnYW5pYy1tb2xseS03Mi5jbGVyay5hY2NvdW50cy
 channel = "stable-25_05"
 
 [[ports]]
-localPort = 8080
+localPort = 3000
+externalPort = 3000
+
+[[ports]]
+localPort = 5000
+externalPort = 80
