@@ -116,9 +116,9 @@ npm run promote-owner --workspace=@workspace/scripts -- --id your-user-id
 
 Once the backend and frontend are running, these public feed/export routes should respond without authentication:
 
-- Atom: `http://localhost:4000/atom`
-- JSON Feed: `http://localhost:4000/jsonfeed`
-- mf2-JSON export: `http://localhost:4000/export/json`
-- Compatibility aliases (also functional): `/feed.xml`, `/feed.json`, `/export.json`
+- Atom: `http://localhost:4000/api/feeds/atom`
+- JSON Feed: `http://localhost:4000/api/feeds/json`
+- mf2-JSON export: `http://localhost:4000/api/feeds/mf2`
+- Compatibility aliases (also functional): `/atom`, `/jsonfeed`, `/export/json`, `/feed.xml`, `/feed.json`, `/export.json`
 
 On Replit workspace dev, replace `http://localhost:4000` with the Dev URL origin. On published deployments, replace it with the deployed public origin. Note: local port is 4000 (macOS AirPlay Receiver occupies 5000); Replit overrides to 5000 via its workflow.

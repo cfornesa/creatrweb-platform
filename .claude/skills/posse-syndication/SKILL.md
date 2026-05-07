@@ -239,10 +239,11 @@ or hosting provider.
 
 Test all three before every merge.
 
-### `GET /export/json` → mf2-JSON
+### `GET /api/feeds/mf2` → mf2-JSON
 Full site export in microformats2 JSON format. Every post,
 every post type, every piece of metadata. This is the
 migration path to any other IndieWeb-compatible platform.
+Backward-compatible alias: `GET /export/json`.
 
 ```json
 {
@@ -261,28 +262,30 @@ migration path to any other IndieWeb-compatible platform.
 }
 ```
 
-### `GET /feed.xml` → Atom
+### `GET /api/feeds/atom` → Atom
 Standards-compliant Atom feed. Must include `rel="hub"` and
 `rel="self"` link elements if WebSub is implemented.
+Backward-compatible aliases: `GET /atom`, `GET /feed.xml`.
 
 ```xml
 <feed xmlns="http://www.w3.org/2005/Atom">
-  <link rel="self" href="https://example.com/feed.xml" />
+  <link rel="self" href="https://example.com/api/feeds/atom" />
   <link rel="hub" href="https://hub.example.com" />
   <!-- entries -->
 </feed>
 ```
 
-### `GET /feed.json` → JSON Feed 1.1
+### `GET /api/feeds/json` → JSON Feed 1.1
 JSON Feed spec version 1.1. Human-readable alternative to
 Atom for feed readers that prefer JSON.
+Backward-compatible aliases: `GET /jsonfeed`, `GET /feed.json`.
 
 ```json
 {
   "version": "https://jsonfeed.org/version/1.1",
   "title": "Site Name",
   "home_page_url": "https://example.com",
-  "feed_url": "https://example.com/feed.json",
+  "feed_url": "https://example.com/api/feeds/json",
   "items": [
     {
       "id": "https://example.com/2026/04/10/post-slug",

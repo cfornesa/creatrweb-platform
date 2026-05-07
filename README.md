@@ -84,25 +84,28 @@ The post composer and post edit flow intentionally use a denser editor toolbar t
 
 The site publishes public machine-readable outputs so content remains accessible outside the main web UI.
 
-Primary (proxy-safe, no file extension):
+Primary (proxy-safe, under `/api`):
 
-- `GET /atom`: Atom feed
-- `GET /jsonfeed`: JSON Feed 1.1
-- `GET /export/json`: mf2-JSON export
-- `GET /categories/:slug/atom`: per-category Atom feed
-- `GET /categories/:slug/jsonfeed`: per-category JSON Feed 1.1
-- `GET /p/:slug/atom`: per-page Atom feed
-- `GET /p/:slug/jsonfeed`: per-page JSON Feed 1.1
+- `GET /api/feeds/atom`: Atom feed
+- `GET /api/feeds/json`: JSON Feed 1.1
+- `GET /api/feeds/mf2`: mf2-JSON export
+- `GET /api/categories/:slug/feeds/atom`: per-category Atom feed
+- `GET /api/categories/:slug/feeds/json`: per-category JSON Feed 1.1
+- `GET /api/p/:slug/feeds/atom`: per-page Atom feed
+- `GET /api/p/:slug/feeds/json`: per-page JSON Feed 1.1
 
-Backward-compatible aliases (retained for stability, work on direct Express access):
+Backward-compatible aliases (retained for stability):
 
-- `GET /feed.xml` → same as `/atom`
-- `GET /feed.json` → same as `/jsonfeed`
-- `GET /export.json` → same as `/export/json`
-- `GET /categories/:slug/feed.xml` → same as `/categories/:slug/atom`
-- `GET /categories/:slug/feed.json` → same as `/categories/:slug/jsonfeed`
-- `GET /p/:slug/feed.xml` → same as `/p/:slug/atom`
-- `GET /p/:slug/feed.json` → same as `/p/:slug/jsonfeed`
+- `GET /atom` → same as `/api/feeds/atom`
+- `GET /jsonfeed` → same as `/api/feeds/json`
+- `GET /export/json` → same as `/api/feeds/mf2`
+- `GET /feed.xml` → same as `/api/feeds/atom`
+- `GET /feed.json` → same as `/api/feeds/json`
+- `GET /export.json` → same as `/api/feeds/mf2`
+- `GET /categories/:slug/atom` → same as `/api/categories/:slug/feeds/atom`
+- `GET /categories/:slug/jsonfeed` → same as `/api/categories/:slug/feeds/json`
+- `GET /p/:slug/atom` → same as `/api/p/:slug/feeds/atom`
+- `GET /p/:slug/jsonfeed` → same as `/api/p/:slug/feeds/json`
 
 Each post in every feed surface carries its categories: Atom emits one `<category term="<slug>" label="<name>"/>` per category, JSON Feed sets `tags: [<name>, ...]`, and the mf2-JSON export sets `properties.category: [<name>, ...]` on each `h-entry`. Posts with no categories simply omit the field. These endpoints are part of the app’s long-term public surface and are intended to remain stable.
 

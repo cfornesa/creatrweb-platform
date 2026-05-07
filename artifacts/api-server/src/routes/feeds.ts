@@ -12,7 +12,7 @@ import {
 import { stripHtmlToText } from "../lib/html";
 import { attachCategoriesToPosts, type HydratedCategory } from "../lib/post-categories";
 
-type FeedPost = {
+export type FeedPost = {
   id: number;
   authorName: string;
   content: string;
@@ -39,7 +39,7 @@ type FeedScope = {
 
 const router: IRouter = Router();
 
-function getOrigin(req: Request): string {
+export function getOrigin(req: Request): string {
   const forwardedProto = req.header("x-forwarded-proto");
   const forwardedHost = req.header("x-forwarded-host");
   const protocol = forwardedProto?.split(",")[0]?.trim() || req.protocol;
@@ -96,7 +96,7 @@ function getAuthorName(posts: FeedPost[]): string {
   return process.env.SITE_AUTHOR_NAME?.trim() || posts[0]?.authorName || "Microblog Author";
 }
 
-function siteScope(): FeedScope {
+export function siteScope(): FeedScope {
   return {
     id: "",
     title: getSiteTitle(),
@@ -107,7 +107,7 @@ function siteScope(): FeedScope {
   };
 }
 
-function categoryScope(category: { slug: string; name: string; description: string | null }): FeedScope {
+export function categoryScope(category: { slug: string; name: string; description: string | null }): FeedScope {
   const path = `/categories/${category.slug}`;
   return {
     id: path,
@@ -121,7 +121,7 @@ function categoryScope(category: { slug: string; name: string; description: stri
   };
 }
 
-async function loadPosts(opts: { categoryId?: number } = {}): Promise<FeedPost[]> {
+export async function loadPosts(opts: { categoryId?: number } = {}): Promise<FeedPost[]> {
   // Public feed exports (Atom, JSON Feed, MF2) must mirror the visible
   // timeline exactly — pending items in the moderation queue stay out
   // of every syndicated copy until the owner approves them.
@@ -158,7 +158,7 @@ async function loadPosts(opts: { categoryId?: number } = {}): Promise<FeedPost[]
   return hydrated as FeedPost[];
 }
 
-function buildAtom(origin: string, scope: FeedScope, posts: FeedPost[]): string {
+export function buildAtom(origin: string, scope: FeedScope, posts: FeedPost[]): string {
   const authorName = getAuthorName(posts);
   const updatedAt = posts[0]?.createdAt ?? new Date().toISOString();
   const selfUrl = `${origin}${scope.atomPath}`;
@@ -206,7 +206,7 @@ ${entries}
 </feed>`;
 }
 
-function buildJsonFeed(origin: string, scope: FeedScope, posts: FeedPost[]) {
+export function buildJsonFeed(origin: string, scope: FeedScope, posts: FeedPost[]) {
   const authorName = getAuthorName(posts);
   return {
     version: "https://jsonfeed.org/version/1.1",
@@ -280,7 +280,7 @@ router.get("/jsonfeed", async (req: Request, res: Response) => {
   }
 });
 
-async function loadCategoryBySlug(rawSlug: unknown) {
+export async function loadCategoryBySlug(rawSlug: unknown) {
   const slug = String(rawSlug ?? "").toLowerCase();
   if (!slug) return null;
   const rows = await db
@@ -346,7 +346,7 @@ router.get("/categories/:slug/jsonfeed", async (req: Request, res: Response) => 
 // Per-page feeds — a single-entry Atom/JSON feed reflecting the
 // page's current title, body, and updated_at. Useful for readers
 // that want a notification when a long-lived CMS page changes.
-async function loadPublishedPageBySlug(rawSlug: unknown) {
+export async function loadPublishedPageBySlug(rawSlug: unknown) {
   const slug = String(rawSlug ?? "").toLowerCase();
   if (!slug) return null;
   const rows = await db
@@ -362,7 +362,7 @@ async function loadPublishedPageBySlug(rawSlug: unknown) {
   return page;
 }
 
-type PageRow = typeof pagesTable.$inferSelect;
+export type PageRow = typeof pagesTable.$inferSelect;
 
 function pageScope(page: PageRow): FeedScope {
   const path = `/p/${page.slug}`;
@@ -376,7 +376,7 @@ function pageScope(page: PageRow): FeedScope {
   };
 }
 
-function buildPageAtom(origin: string, page: PageRow): string {
+export function buildPageAtom(origin: string, page: PageRow): string {
   const scope = pageScope(page);
   const authorName = getAuthorName([]);
   const updatedAt = page.updatedAt;
@@ -413,7 +413,7 @@ function buildPageAtom(origin: string, page: PageRow): string {
 </feed>`;
 }
 
-function buildPageJsonFeed(origin: string, page: PageRow) {
+export function buildPageJsonFeed(origin: string, page: PageRow) {
   const scope = pageScope(page);
   const authorName = getAuthorName([]);
   const visibleText =
@@ -493,7 +493,7 @@ router.get("/p/:slug/jsonfeed", async (req: Request, res: Response) => {
 });
 
 
-function buildMf2Export(origin: string, posts: FeedPost[]) {
+export function buildMf2Export(origin: string, posts: FeedPost[]) {
   const authorName = getAuthorName(posts);
 
   return {
