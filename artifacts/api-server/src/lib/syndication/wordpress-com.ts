@@ -1,6 +1,7 @@
 import { decryptSecret } from "../crypto";
 import { getOAuthAppCredentials } from "../oauth-app-credentials";
 import type { PlatformAdapter, SyndicationPayload, SyndicationResult, TokenRefreshResult } from "./types";
+import { parseMeta } from "./types";
 import type { PlatformConnection } from "@workspace/db";
 
 type WpComPostResponse = { ID: number; URL: string };
@@ -9,11 +10,24 @@ type WpComTokenResponse = { access_token: string; refresh_token?: string; expire
 export const wordpressComAdapter: PlatformAdapter = {
   async publish(connection: PlatformConnection, payload: SyndicationPayload): Promise<SyndicationResult> {
     const token = decryptSecret(connection.encryptedAccessToken!);
-    const meta = connection.metadata as { blogId?: string | number } | null;
-    const siteId = meta?.blogId;
+    const meta = parseMeta(connection.metadata);
+    let siteId: string | number | undefined = meta.blogId as string | number | undefined;
+
+    // If blogId wasn't stored during OAuth (e.g. old connection or fetch failed),
+    // try to recover it from the API at publish time.
+    if (!siteId) {
+      const sitesRes = await fetch("https://public-api.wordpress.com/rest/v1.1/me/sites", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (sitesRes.ok) {
+        const data = (await sitesRes.json()) as { sites?: Array<{ ID: number }> };
+        const first = data.sites?.[0];
+        if (first) siteId = String(first.ID);
+      }
+    }
 
     if (!siteId) {
-      throw new Error("WordPress.com connection is missing blogId in metadata");
+      throw new Error("WordPress.com: no blog found on this account. Disconnect and reconnect from Admin → Platforms.");
     }
 
     const res = await fetch(

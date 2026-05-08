@@ -1,5 +1,6 @@
 import { decryptSecret } from "../crypto";
 import type { PlatformAdapter, SyndicationPayload, SyndicationResult } from "./types";
+import { parseMeta } from "./types";
 import type { PlatformConnection } from "@workspace/db";
 
 type WpSelfPostResponse = { id: number; link: string };
@@ -9,8 +10,8 @@ type WpSelfPostResponse = { id: number; link: string };
 // App Passwords do not expire, so no refreshToken method is needed.
 export const wordpressSelfAdapter: PlatformAdapter = {
   async publish(connection: PlatformConnection, payload: SyndicationPayload): Promise<SyndicationResult> {
-    const meta = connection.metadata as { siteUrl?: string } | null;
-    const siteUrl = meta?.siteUrl?.replace(/\/$/, "");
+    const meta = parseMeta(connection.metadata);
+    const siteUrl = (meta.siteUrl as string | undefined)?.replace(/\/$/, "");
 
     if (!siteUrl) {
       throw new Error("Self-hosted WordPress connection is missing siteUrl in metadata");

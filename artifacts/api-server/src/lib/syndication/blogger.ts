@@ -1,6 +1,7 @@
 import { decryptSecret } from "../crypto";
 import { getOAuthAppCredentials } from "../oauth-app-credentials";
 import type { PlatformAdapter, SyndicationPayload, SyndicationResult, TokenRefreshResult } from "./types";
+import { parseMeta } from "./types";
 import type { PlatformConnection } from "@workspace/db";
 
 type BloggerPostResponse = { id: string; url: string };
@@ -9,8 +10,8 @@ type GoogleTokenResponse = { access_token: string; refresh_token?: string; expir
 export const bloggerAdapter: PlatformAdapter = {
   async publish(connection: PlatformConnection, payload: SyndicationPayload): Promise<SyndicationResult> {
     const token = decryptSecret(connection.encryptedAccessToken!);
-    const meta = connection.metadata as { blogId?: string } | null;
-    const blogId = meta?.blogId;
+    const meta = parseMeta(connection.metadata);
+    const blogId = meta.blogId as string | undefined;
 
     if (!blogId) {
       throw new Error("Blogger connection is missing blogId in metadata");
