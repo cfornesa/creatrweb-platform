@@ -1,4 +1,5 @@
 import { decryptSecret } from "../crypto";
+import { getOAuthAppCredentials } from "../oauth-app-credentials";
 import type { PlatformAdapter, SyndicationPayload, SyndicationResult, TokenRefreshResult } from "./types";
 import type { PlatformConnection } from "@workspace/db";
 
@@ -49,19 +50,21 @@ export const bloggerAdapter: PlatformAdapter = {
       throw new Error("Blogger connection has no refresh token");
     }
 
-    const clientId = process.env.BLOGGER_GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.BLOGGER_GOOGLE_CLIENT_SECRET;
-
-    if (!clientId || !clientSecret) {
-      throw new Error("Missing BLOGGER_GOOGLE_CLIENT_ID or BLOGGER_GOOGLE_CLIENT_SECRET");
+    const creds = await getOAuthAppCredentials(
+      "blogger",
+      process.env.BLOGGER_GOOGLE_CLIENT_ID,
+      process.env.BLOGGER_GOOGLE_CLIENT_SECRET,
+    );
+    if (!creds) {
+      throw new Error("Blogger OAuth app credentials not configured");
     }
 
     const res = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
+        client_id: creds.clientId,
+        client_secret: creds.clientSecret,
         grant_type: "refresh_token",
         refresh_token: refreshToken,
       }),

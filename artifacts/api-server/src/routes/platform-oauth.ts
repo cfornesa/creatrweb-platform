@@ -1,18 +1,11 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import crypto from "node:crypto";
-import {
-  db,
-  mysqlPool,
-  platformConnectionsTable,
-  platformOAuthAppsTable,
-  eq,
-  and,
-  formatMysqlDateTime,
-} from "@workspace/db";
+import { mysqlPool, formatMysqlDateTime } from "@workspace/db";
 import { requireAuth, requireOwner } from "../middlewares/auth";
-import { encryptSecret, decryptSecret } from "../lib/crypto";
+import { encryptSecret } from "../lib/crypto";
 import { getOrigin } from "./feeds";
 import { logger } from "../lib/logger";
+import { getOAuthAppCredentials } from "../lib/oauth-app-credentials";
 
 const router: IRouter = Router();
 
@@ -36,28 +29,6 @@ function verifyState(req: Request): boolean {
   return expiry !== undefined && Date.now() <= expiry;
 }
 
-// Resolve OAuth app credentials: env var takes priority, then DB.
-async function getAppCredentials(
-  platform: string,
-  envClientId: string | undefined,
-  envClientSecret: string | undefined,
-): Promise<{ clientId: string; clientSecret: string } | null> {
-  if (envClientId && envClientSecret) {
-    return { clientId: envClientId, clientSecret: envClientSecret };
-  }
-  const [app] = await db
-    .select()
-    .from(platformOAuthAppsTable)
-    .where(eq(platformOAuthAppsTable.platform, platform))
-    .limit(1);
-  if (app?.encryptedClientId && app?.encryptedClientSecret) {
-    return {
-      clientId: decryptSecret(app.encryptedClientId),
-      clientSecret: decryptSecret(app.encryptedClientSecret),
-    };
-  }
-  return null;
-}
 
 async function upsertConnection(
   userId: string,
@@ -87,7 +58,7 @@ async function upsertConnection(
 
 // GET /platform-oauth/wordpress-com/start
 router.get("/platform-oauth/wordpress-com/start", requireAuth, requireOwner, async (req: Request, res: Response) => {
-  const creds = await getAppCredentials("wordpress_com", process.env.WORDPRESS_COM_CLIENT_ID, process.env.WORDPRESS_COM_CLIENT_SECRET);
+  const creds = await getOAuthAppCredentials("wordpress_com", process.env.WORDPRESS_COM_CLIENT_ID, process.env.WORDPRESS_COM_CLIENT_SECRET);
   if (!creds) {
     return res.status(503).json({
       error: "WordPress.com OAuth app not configured. Enter your Client ID and Secret in Admin → Platforms.",
@@ -102,7 +73,7 @@ router.get("/platform-oauth/wordpress-com/start", requireAuth, requireOwner, asy
   url.searchParams.set("client_id", creds.clientId);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", "posts");
+  url.searchParams.set("scope", "global");
   url.searchParams.set("state", state);
 
   return res.redirect(url.toString());
@@ -120,7 +91,7 @@ router.get("/platform-oauth/wordpress-com/callback", requireAuth, requireOwner, 
   }
 
   try {
-    const creds = await getAppCredentials("wordpress_com", process.env.WORDPRESS_COM_CLIENT_ID, process.env.WORDPRESS_COM_CLIENT_SECRET);
+    const creds = await getOAuthAppCredentials("wordpress_com", process.env.WORDPRESS_COM_CLIENT_ID, process.env.WORDPRESS_COM_CLIENT_SECRET);
     if (!creds) {
       return res.redirect("/admin/platforms?error=wordpress_com_not_configured");
     }
@@ -189,7 +160,7 @@ router.get("/platform-oauth/wordpress-com/callback", requireAuth, requireOwner, 
 
 // GET /platform-oauth/blogger/start
 router.get("/platform-oauth/blogger/start", requireAuth, requireOwner, async (req: Request, res: Response) => {
-  const creds = await getAppCredentials("blogger", process.env.BLOGGER_GOOGLE_CLIENT_ID, process.env.BLOGGER_GOOGLE_CLIENT_SECRET);
+  const creds = await getOAuthAppCredentials("blogger", process.env.BLOGGER_GOOGLE_CLIENT_ID, process.env.BLOGGER_GOOGLE_CLIENT_SECRET);
   if (!creds) {
     return res.status(503).json({
       error: "Blogger OAuth app not configured. Enter your Client ID and Secret in Admin → Platforms.",
@@ -224,7 +195,7 @@ router.get("/platform-oauth/blogger/callback", requireAuth, requireOwner, async 
   }
 
   try {
-    const creds = await getAppCredentials("blogger", process.env.BLOGGER_GOOGLE_CLIENT_ID, process.env.BLOGGER_GOOGLE_CLIENT_SECRET);
+    const creds = await getOAuthAppCredentials("blogger", process.env.BLOGGER_GOOGLE_CLIENT_ID, process.env.BLOGGER_GOOGLE_CLIENT_SECRET);
     if (!creds) {
       return res.redirect("/admin/platforms?error=blogger_not_configured");
     }
