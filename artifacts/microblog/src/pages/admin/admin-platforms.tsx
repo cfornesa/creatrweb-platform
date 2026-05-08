@@ -429,6 +429,11 @@ function PlatformCard({
                   Update app settings
                 </Button>
               ) : null}
+              {platform.credentialKind && isConnected ? (
+                <Button variant="ghost" size="sm" onClick={() => setShowDialog(true)}>
+                  Update credentials
+                </Button>
+              ) : null}
               {isConnected ? (
                 <Button variant="outline" size="sm" onClick={handleDisconnect} disabled={deleteConnection.isPending}>
                   {deleteConnection.isPending ? "Removing…" : "Disconnect"}
