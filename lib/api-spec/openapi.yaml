@@ -30,6 +30,8 @@ tags:
     description: Public catalog of subscribable site feeds (Atom / JSON Feed / MF2 export)
   - name: ai
     description: Opt-in AI writing assistant configuration and processing
+  - name: syndication
+    description: POSSE outbound syndication — platform connections, OAuth app credentials, and syndication history
 paths:
   /healthz:
     get:
@@ -1270,6 +1272,186 @@ paths:
         "404":
           description: Not found
 
+  /platform-oauth-apps:
+    get:
+      operationId: listPlatformOAuthApps
+      tags: [syndication]
+      summary: List OAuth app credential status for all supported platforms (owner only)
+      description: |
+        Returns one entry per OAuth-app platform (`wordpress_com`, `blogger`) with a
+        `configured` flag. The actual CLIENT_ID and CLIENT_SECRET are never returned.
+      responses:
+        "200":
+          description: OAuth app list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformOAuthAppsList"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /platform-oauth-apps/{platform}:
+    put:
+      operationId: upsertPlatformOAuthApp
+      tags: [syndication]
+      summary: Save or update OAuth app credentials for a platform (owner only)
+      parameters:
+        - in: path
+          name: platform
+          required: true
+          schema:
+            type: string
+            enum: [wordpress_com, blogger]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertPlatformOAuthAppBody"
+      responses:
+        "200":
+          description: Updated OAuth app status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformOAuthApp"
+        "400":
+          description: Invalid body or unsupported platform
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /platform-connections:
+    get:
+      operationId: listPlatformConnections
+      tags: [syndication]
+      summary: List the owner's platform connections (owner only)
+      responses:
+        "200":
+          description: Platform connections list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformConnectionsList"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+    post:
+      operationId: createPlatformConnection
+      tags: [syndication]
+      summary: Create or update a credential-based platform connection (owner only)
+      description: |
+        Used for credential-based platforms (`wordpress_self`). OAuth-based
+        platforms (`wordpress_com`, `medium`, `blogger`) create their
+        connection via the OAuth callback route at
+        `/api/platform-oauth/{platform}/start`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePlatformConnectionBody"
+      responses:
+        "200":
+          description: Updated existing connection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformConnection"
+        "201":
+          description: Created new connection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformConnection"
+        "400":
+          description: Invalid body or unsupported platform
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /platform-connections/{id}:
+    patch:
+      operationId: updatePlatformConnection
+      tags: [syndication]
+      summary: Enable or disable a platform connection (owner only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchPlatformConnectionBody"
+      responses:
+        "200":
+          description: Updated connection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformConnection"
+        "400":
+          description: Invalid body
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+    delete:
+      operationId: deletePlatformConnection
+      tags: [syndication]
+      summary: Disconnect and delete a platform connection (owner only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+
+  /platform-connections/{id}/syndications:
+    get:
+      operationId: listPlatformSyndications
+      tags: [syndication]
+      summary: List syndication history for a platform connection (owner only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Syndication history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostSyndicationsList"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+
 components:
   schemas:
     HealthStatus:
@@ -1410,6 +1592,11 @@ components:
           description: Categories this post belongs to (owner-managed taxonomy).
           items:
             $ref: "#/components/schemas/Category"
+        syndications:
+          type: array
+          description: Platforms this post was successfully cross-posted to (POSSE). Omitted when none.
+          items:
+            $ref: "#/components/schemas/PostSyndicationBadge"
         createdAt:
           type: string
           format: date-time
@@ -1583,6 +1770,16 @@ components:
             causes the request to fail with 400 and no post is created.
             Omitting the field (or sending an empty array) leaves the post
             uncategorized.
+          items:
+            type: integer
+            minimum: 1
+        platformIds:
+          type: array
+          description: |
+            Optional list of `platform_connections.id` values to syndicate to
+            after the post is created (POSSE). Only connections owned by the
+            authenticated user and with `enabled=true` are dispatched.
+            Omitting the field (or sending an empty array) skips syndication.
           items:
             type: integer
             minimum: 1
@@ -2102,6 +2299,15 @@ components:
             The owner user's `website` URL, surfaced here so the sitewide
             footer can render a globe icon next to the social row without
             an extra round-trip.
+        allowedOrigins:
+          type: array
+          items:
+            type: string
+          description: |
+            Origins parsed from the `ALLOWED_ORIGINS` environment variable.
+            Used by the admin UI to display the exact OAuth callback URLs
+            the operator must register with each platform's developer console.
+            Empty array when the env var is not set.
       required:
         - theme
         - palette
@@ -2129,6 +2335,7 @@ components:
         - colorDestructive
         - colorDestructiveForeground
         - ownerSocialLinks
+        - allowedOrigins
 
     NavLink:
       type: object
@@ -2769,3 +2976,192 @@ components:
         colorDestructiveForeground:
           type: string
           maxLength: 64
+
+    PlatformConnection:
+      type: object
+      description: |
+        An owner-managed connection to an external publishing platform.
+        Encrypted credential fields are never returned; `configured: true`
+        indicates a token/credential is stored.
+      properties:
+        id:
+          type: integer
+        platform:
+          type: string
+          enum: [wordpress_com, wordpress_self, medium, blogger]
+        configured:
+          type: boolean
+          description: True when an encrypted access token is stored for this connection.
+        enabled:
+          type: boolean
+          description: When false, this connection is skipped during syndication dispatch.
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Platform-specific metadata (e.g. blogId, authorId, siteUrl).
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - platform
+        - configured
+        - enabled
+        - createdAt
+        - updatedAt
+
+    PlatformConnectionsList:
+      type: object
+      properties:
+        connections:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlatformConnection"
+      required:
+        - connections
+
+    CreatePlatformConnectionBody:
+      type: object
+      description: |
+        Body for credential-based platform connections (`wordpress_self`, `medium`).
+        OAuth-based platforms use the `/api/platform-oauth/{platform}/start`
+        redirect flow instead.
+      properties:
+        platform:
+          type: string
+          enum: [wordpress_self, medium]
+        credentials:
+          type: object
+          description: Credentials for the target platform.
+          properties:
+            siteUrl:
+              type: string
+              format: uri
+            username:
+              type: string
+            appPassword:
+              type: string
+            token:
+              type: string
+              description: Self-integration token (Medium only).
+      required:
+        - platform
+
+    PatchPlatformConnectionBody:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: Set to false to pause syndication to this platform without disconnecting.
+
+    PostSyndication:
+      type: object
+      description: Result of one syndication attempt for a single post + platform pair.
+      properties:
+        id:
+          type: integer
+        postId:
+          type: integer
+        platformConnectionId:
+          type: integer
+        status:
+          type: string
+          enum: [pending, success, failed]
+        externalId:
+          type: string
+          nullable: true
+          description: The post's ID on the external platform (when available).
+        externalUrl:
+          type: string
+          nullable: true
+          description: The post's canonical URL on the external platform.
+        errorMessage:
+          type: string
+          nullable: true
+        syncedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - postId
+        - platformConnectionId
+        - status
+        - createdAt
+
+    PostSyndicationsList:
+      type: object
+      properties:
+        syndications:
+          type: array
+          items:
+            $ref: "#/components/schemas/PostSyndication"
+      required:
+        - syndications
+
+    PostSyndicationBadge:
+      type: object
+      description: Lightweight summary of a successful cross-post, embedded in post list responses.
+      properties:
+        platform:
+          type: string
+          enum: [wordpress_com, wordpress_self, medium, blogger]
+        externalUrl:
+          type: string
+          nullable: true
+          description: The post's URL on the external platform, if available.
+      required:
+        - platform
+
+    PlatformOAuthApp:
+      type: object
+      description: |
+        Site-wide OAuth application credentials for a POSSE platform.
+        CLIENT_ID and CLIENT_SECRET are stored encrypted and never returned;
+        `configured: true` means both are saved and the OAuth flow can proceed.
+      properties:
+        platform:
+          type: string
+          enum: [wordpress_com, blogger]
+        configured:
+          type: boolean
+      required:
+        - platform
+        - configured
+
+    PlatformOAuthAppsList:
+      type: object
+      properties:
+        apps:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlatformOAuthApp"
+      required:
+        - apps
+
+    UpsertPlatformOAuthAppBody:
+      type: object
+      description: CLIENT_ID and CLIENT_SECRET for an OAuth platform's developer app registration.
+      properties:
+        clientId:
+          type: string
+          minLength: 1
+          maxLength: 512
+        clientSecret:
+          type: string
+          minLength: 1
+          maxLength: 512
+      required:
+        - clientId
+        - clientSecret

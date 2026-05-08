@@ -63,13 +63,17 @@ async function loadOwnerPublicProfile(): Promise<{
   return { ownerSocialLinks: cleaned, ownerWebsite: website };
 }
 
+const allowedOrigins: string[] = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+  : [];
+
 router.get("/site-settings", async (_req: Request, res: Response) => {
   try {
     const [row, owner] = await Promise.all([
       loadOrSeedSettings(),
       loadOwnerPublicProfile(),
     ]);
-    return res.json({ ...serialize(row), ...owner });
+    return res.json({ ...serialize(row), ...owner, allowedOrigins });
   } catch (err) {
     console.error("Failed to fetch site settings:", err);
     return res.status(500).json({ error: "Server error" });
@@ -106,7 +110,7 @@ router.patch(
         loadOrSeedSettings(),
         loadOwnerPublicProfile(),
       ]);
-      return res.json({ ...serialize(row), ...owner });
+      return res.json({ ...serialize(row), ...owner, allowedOrigins });
     } catch (err) {
       console.error("Failed to update site settings:", err);
       return res.status(500).json({ error: "Server error" });

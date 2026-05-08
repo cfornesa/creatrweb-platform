@@ -98,3 +98,38 @@
 - **What breaks if it changes or is removed:** AI-assisted rewriting for users who selected OpenRouter stops working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
 - **Self-hosting alternative:** Not permitted for this product direction. Hosted-provider-only.
 - **Routing note:** Uses OpenRouter's official OpenAI-compatible `POST https://openrouter.ai/api/v1/chat/completions` endpoint.
+
+## WordPress.com REST API v1.1
+
+- **Purpose:** POSSE syndication — publishing owner-authored posts to connected WordPress.com blogs via the owner's stored OAuth token.
+- **Sends data off-domain:** Yes, to `public-api.wordpress.com` when the owner publishes a post with WordPress.com selected as a syndication target.
+- **What breaks if it changes or is removed:** Syndication to WordPress.com stops working or requires adapter updates; posts already published there remain, local content and all other syndication targets are unaffected.
+- **Self-hosting alternative:** A self-hosted WordPress instance connected via the self-hosted WordPress adapter (App Passwords, no WordPress.com API involved).
+
+## WordPress Self-Hosted REST API v2
+
+- **Purpose:** POSSE syndication — publishing owner-authored posts to a self-hosted WordPress site via Basic Auth (username + application password).
+- **Sends data off-domain:** Yes, to the owner-configured WordPress site URL when the owner publishes a post with self-hosted WordPress selected as a syndication target.
+- **What breaks if it changes or is removed:** Syndication to self-hosted WordPress stops working; local content and other syndication targets are unaffected.
+- **Self-hosting alternative:** This is already the self-hosted path.
+
+## Medium API v1
+
+- **Purpose:** POSSE syndication — publishing owner-authored posts to a connected Medium account via a self-integration token stored encrypted in the database. Medium deprecated its public OAuth API for new integrations; the app uses a personal self-integration token instead.
+- **Sends data off-domain:** Yes, to `api.medium.com` when the owner publishes a post with Medium selected as a syndication target.
+- **What breaks if it changes or is removed:** Syndication to Medium stops working or requires adapter updates; posts already published there remain, local content and all other syndication targets are unaffected.
+- **Self-hosting alternative:** None. Medium is a closed platform with no self-hosted equivalent.
+
+## Blogger API v3
+
+- **Purpose:** POSSE syndication — publishing owner-authored posts to a connected Blogger blog via the owner's stored Google OAuth token (scoped separately from the sign-in Google OAuth).
+- **Sends data off-domain:** Yes, to `www.googleapis.com` when the owner publishes a post with Blogger selected as a syndication target.
+- **What breaks if it changes or is removed:** Syndication to Blogger stops working or requires adapter updates; posts already published there remain, local content and all other syndication targets are unaffected.
+- **Self-hosting alternative:** None. Blogger is a Google-hosted platform.
+
+## turndown
+
+- **Purpose:** Converting rich-post HTML to Markdown before submitting to the Medium API, which accepts Markdown more cleanly than raw HTML.
+- **Sends data off-domain:** No. Runs entirely in-process on the API server.
+- **What breaks if it changes or is removed:** The Medium adapter would need a replacement HTML-to-Markdown converter; other syndication targets and all local functionality are unaffected.
+- **Self-hosting alternative:** A custom in-repo HTML-to-Markdown serializer, or switching Medium posts to plain-text with stripped HTML.

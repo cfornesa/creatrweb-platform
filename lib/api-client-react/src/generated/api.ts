@@ -31,6 +31,7 @@ import type {
   CreateFeedSourceBody,
   CreateNavLinkBody,
   CreatePageBody,
+  CreatePlatformConnectionBody,
   CreatePostBody,
   FeedRefreshResult,
   FeedRefreshSummary,
@@ -51,8 +52,14 @@ import type {
   NavLinksList,
   Page,
   PagesList,
+  PatchPlatformConnectionBody,
   PendingPostsPage,
+  PlatformConnection,
+  PlatformConnectionsList,
+  PlatformOAuthApp,
+  PlatformOAuthAppsList,
   Post,
+  PostSyndicationsList,
   PostWithComments,
   PostsPage,
   ProcessAiTextBody,
@@ -74,6 +81,7 @@ import type {
   UpdateUserProfileBody,
   UploadMediaBody,
   UploadedMedia,
+  UpsertPlatformOAuthAppBody,
   UserProfile
 } from './api.schemas';
 
@@ -3868,6 +3876,530 @@ export function useGetMedia<TData = Awaited<ReturnType<typeof getMedia>>, TError
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMediaQueryOptions(fileName,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Returns one entry per OAuth-app platform (`wordpress_com`, `blogger`) with a
+`configured` flag. The actual CLIENT_ID and CLIENT_SECRET are never returned.
+
+ * @summary List OAuth app credential status for all supported platforms (owner only)
+ */
+export const getListPlatformOAuthAppsUrl = () => {
+
+
+
+
+  return `/api/platform-oauth-apps`
+}
+
+export const listPlatformOAuthApps = async ( options?: RequestInit): Promise<PlatformOAuthAppsList> => {
+
+  return customFetch<PlatformOAuthAppsList>(getListPlatformOAuthAppsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPlatformOAuthAppsQueryKey = () => {
+    return [
+    `/api/platform-oauth-apps`
+    ] as const;
+    }
+
+
+export const getListPlatformOAuthAppsQueryOptions = <TData = Awaited<ReturnType<typeof listPlatformOAuthApps>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPlatformOAuthApps>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPlatformOAuthAppsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformOAuthApps>>> = ({ signal }) => listPlatformOAuthApps({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlatformOAuthApps>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPlatformOAuthAppsQueryResult = NonNullable<Awaited<ReturnType<typeof listPlatformOAuthApps>>>
+export type ListPlatformOAuthAppsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List OAuth app credential status for all supported platforms (owner only)
+ */
+
+export function useListPlatformOAuthApps<TData = Awaited<ReturnType<typeof listPlatformOAuthApps>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPlatformOAuthApps>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPlatformOAuthAppsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * @summary Save or update OAuth app credentials for a platform (owner only)
+ */
+export const getUpsertPlatformOAuthAppUrl = (platform: 'wordpress_com' | 'blogger',) => {
+
+
+
+
+  return `/api/platform-oauth-apps/${platform}`
+}
+
+export const upsertPlatformOAuthApp = async (platform: 'wordpress_com' | 'blogger',
+    upsertPlatformOAuthAppBody: UpsertPlatformOAuthAppBody, options?: RequestInit): Promise<PlatformOAuthApp> => {
+
+  return customFetch<PlatformOAuthApp>(getUpsertPlatformOAuthAppUrl(platform),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      upsertPlatformOAuthAppBody,)
+  }
+);}
+
+
+
+
+export const getUpsertPlatformOAuthAppMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertPlatformOAuthApp>>, TError,{platform: 'wordpress_com' | 'blogger';data: BodyType<UpsertPlatformOAuthAppBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof upsertPlatformOAuthApp>>, TError,{platform: 'wordpress_com' | 'blogger';data: BodyType<UpsertPlatformOAuthAppBody>}, TContext> => {
+
+const mutationKey = ['upsertPlatformOAuthApp'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upsertPlatformOAuthApp>>, {platform: 'wordpress_com' | 'blogger';data: BodyType<UpsertPlatformOAuthAppBody>}> = (props) => {
+          const {platform,data} = props ?? {};
+
+          return  upsertPlatformOAuthApp(platform,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpsertPlatformOAuthAppMutationResult = NonNullable<Awaited<ReturnType<typeof upsertPlatformOAuthApp>>>
+    export type UpsertPlatformOAuthAppMutationBody = BodyType<UpsertPlatformOAuthAppBody>
+    export type UpsertPlatformOAuthAppMutationError = ErrorType<void>
+
+    /**
+ * @summary Save or update OAuth app credentials for a platform (owner only)
+ */
+export const useUpsertPlatformOAuthApp = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertPlatformOAuthApp>>, TError,{platform: 'wordpress_com' | 'blogger';data: BodyType<UpsertPlatformOAuthAppBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof upsertPlatformOAuthApp>>,
+        TError,
+        {platform: 'wordpress_com' | 'blogger';data: BodyType<UpsertPlatformOAuthAppBody>},
+        TContext
+      > => {
+      return useMutation(getUpsertPlatformOAuthAppMutationOptions(options));
+    }
+
+/**
+ * @summary List the owner's platform connections (owner only)
+ */
+export const getListPlatformConnectionsUrl = () => {
+
+
+
+
+  return `/api/platform-connections`
+}
+
+export const listPlatformConnections = async ( options?: RequestInit): Promise<PlatformConnectionsList> => {
+
+  return customFetch<PlatformConnectionsList>(getListPlatformConnectionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPlatformConnectionsQueryKey = () => {
+    return [
+    `/api/platform-connections`
+    ] as const;
+    }
+
+
+export const getListPlatformConnectionsQueryOptions = <TData = Awaited<ReturnType<typeof listPlatformConnections>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPlatformConnections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPlatformConnectionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformConnections>>> = ({ signal }) => listPlatformConnections({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlatformConnections>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPlatformConnectionsQueryResult = NonNullable<Awaited<ReturnType<typeof listPlatformConnections>>>
+export type ListPlatformConnectionsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List the owner's platform connections (owner only)
+ */
+
+export function useListPlatformConnections<TData = Awaited<ReturnType<typeof listPlatformConnections>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPlatformConnections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPlatformConnectionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Used for credential-based platforms (`wordpress_self`). OAuth-based
+platforms (`wordpress_com`, `medium`, `blogger`) create their
+connection via the OAuth callback route at
+`/api/platform-oauth/{platform}/start`.
+
+ * @summary Create or update a credential-based platform connection (owner only)
+ */
+export const getCreatePlatformConnectionUrl = () => {
+
+
+
+
+  return `/api/platform-connections`
+}
+
+export const createPlatformConnection = async (createPlatformConnectionBody: CreatePlatformConnectionBody, options?: RequestInit): Promise<PlatformConnection> => {
+
+  return customFetch<PlatformConnection>(getCreatePlatformConnectionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      createPlatformConnectionBody,)
+  }
+);}
+
+
+
+
+export const getCreatePlatformConnectionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlatformConnection>>, TError,{data: BodyType<CreatePlatformConnectionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPlatformConnection>>, TError,{data: BodyType<CreatePlatformConnectionBody>}, TContext> => {
+
+const mutationKey = ['createPlatformConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPlatformConnection>>, {data: BodyType<CreatePlatformConnectionBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createPlatformConnection(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePlatformConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof createPlatformConnection>>>
+    export type CreatePlatformConnectionMutationBody = BodyType<CreatePlatformConnectionBody>
+    export type CreatePlatformConnectionMutationError = ErrorType<void>
+
+    /**
+ * @summary Create or update a credential-based platform connection (owner only)
+ */
+export const useCreatePlatformConnection = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlatformConnection>>, TError,{data: BodyType<CreatePlatformConnectionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPlatformConnection>>,
+        TError,
+        {data: BodyType<CreatePlatformConnectionBody>},
+        TContext
+      > => {
+      return useMutation(getCreatePlatformConnectionMutationOptions(options));
+    }
+
+/**
+ * @summary Enable or disable a platform connection (owner only)
+ */
+export const getUpdatePlatformConnectionUrl = (id: number,) => {
+
+
+
+
+  return `/api/platform-connections/${id}`
+}
+
+export const updatePlatformConnection = async (id: number,
+    patchPlatformConnectionBody: PatchPlatformConnectionBody, options?: RequestInit): Promise<PlatformConnection> => {
+
+  return customFetch<PlatformConnection>(getUpdatePlatformConnectionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      patchPlatformConnectionBody,)
+  }
+);}
+
+
+
+
+export const getUpdatePlatformConnectionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlatformConnection>>, TError,{id: number;data: BodyType<PatchPlatformConnectionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePlatformConnection>>, TError,{id: number;data: BodyType<PatchPlatformConnectionBody>}, TContext> => {
+
+const mutationKey = ['updatePlatformConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePlatformConnection>>, {id: number;data: BodyType<PatchPlatformConnectionBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updatePlatformConnection(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePlatformConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof updatePlatformConnection>>>
+    export type UpdatePlatformConnectionMutationBody = BodyType<PatchPlatformConnectionBody>
+    export type UpdatePlatformConnectionMutationError = ErrorType<void>
+
+    /**
+ * @summary Enable or disable a platform connection (owner only)
+ */
+export const useUpdatePlatformConnection = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlatformConnection>>, TError,{id: number;data: BodyType<PatchPlatformConnectionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePlatformConnection>>,
+        TError,
+        {id: number;data: BodyType<PatchPlatformConnectionBody>},
+        TContext
+      > => {
+      return useMutation(getUpdatePlatformConnectionMutationOptions(options));
+    }
+
+/**
+ * @summary Disconnect and delete a platform connection (owner only)
+ */
+export const getDeletePlatformConnectionUrl = (id: number,) => {
+
+
+
+
+  return `/api/platform-connections/${id}`
+}
+
+export const deletePlatformConnection = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeletePlatformConnectionUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeletePlatformConnectionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePlatformConnection>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePlatformConnection>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deletePlatformConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePlatformConnection>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deletePlatformConnection(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePlatformConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof deletePlatformConnection>>>
+
+    export type DeletePlatformConnectionMutationError = ErrorType<void>
+
+    /**
+ * @summary Disconnect and delete a platform connection (owner only)
+ */
+export const useDeletePlatformConnection = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePlatformConnection>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deletePlatformConnection>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeletePlatformConnectionMutationOptions(options));
+    }
+
+/**
+ * @summary List syndication history for a platform connection (owner only)
+ */
+export const getListPlatformSyndicationsUrl = (id: number,) => {
+
+
+
+
+  return `/api/platform-connections/${id}/syndications`
+}
+
+export const listPlatformSyndications = async (id: number, options?: RequestInit): Promise<PostSyndicationsList> => {
+
+  return customFetch<PostSyndicationsList>(getListPlatformSyndicationsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPlatformSyndicationsQueryKey = (id: number,) => {
+    return [
+    `/api/platform-connections/${id}/syndications`
+    ] as const;
+    }
+
+
+export const getListPlatformSyndicationsQueryOptions = <TData = Awaited<ReturnType<typeof listPlatformSyndications>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPlatformSyndications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPlatformSyndicationsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformSyndications>>> = ({ signal }) => listPlatformSyndications(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlatformSyndications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPlatformSyndicationsQueryResult = NonNullable<Awaited<ReturnType<typeof listPlatformSyndications>>>
+export type ListPlatformSyndicationsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List syndication history for a platform connection (owner only)
+ */
+
+export function useListPlatformSyndications<TData = Awaited<ReturnType<typeof listPlatformSyndications>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPlatformSyndications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPlatformSyndicationsQueryOptions(id,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

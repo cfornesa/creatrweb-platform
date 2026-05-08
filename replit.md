@@ -15,9 +15,12 @@ A full-stack microblogging platform enabling users to create, share, and discove
 
 **Required Environment Variables:**
 - `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`: MySQL connection details.
-- `AUTH_SECRET`: Long random string for Auth.js session signing.
-- `GITHUB_ID`, `GITHUB_SECRET` OR `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: OAuth credentials (at least one provider).
-- `AI_SETTINGS_ENCRYPTION_KEY`: 32-byte secret for encrypting AI API keys (if AI feature is used).
+- `DB_SSL=true`: Required for most hosted MySQL providers (Hostinger, Railway, etc.).
+- `ALLOWED_ORIGINS`: Comma-separated origins for CORS. Must match your deployment domain. Also used by the admin UI to generate OAuth callback URLs for platform syndication setup.
+- `AUTH_SECRET`, `SESSION_SECRET`: Long random strings for session signing.
+- `GITHUB_ID`, `GITHUB_SECRET` OR `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: OAuth credentials for sign-in (at least one provider required).
+- `AI_SETTINGS_ENCRYPTION_KEY`: 32-byte secret (base64 or hex) for encrypting AI API keys and platform OAuth app credentials at rest. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`.
+- `CRON_SECRET`: Required if using the GitHub Actions scheduled feed refresh.
 
 ## Stack
 

@@ -33,6 +33,13 @@ import { RichPostEditor } from "./RichPostEditor";
 import { SharePostDialog } from "./SharePostDialog";
 import { PostCategoryChips } from "./PostCategoryChips";
 
+const PLATFORM_LABELS: Record<string, string> = {
+  wordpress_com: "WordPress.com",
+  wordpress_self: "WordPress",
+  medium: "Medium",
+  blogger: "Blogger",
+};
+
 interface PostCardProps {
   post: Post;
   isDetail?: boolean;
@@ -440,6 +447,30 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
             </div>
           ) : null}
         </div>
+
+        {(displayPost.syndications?.length ?? 0) > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 pt-1 pb-1">
+            {displayPost.syndications!.map((s) =>
+              s.externalUrl ? (
+                <a
+                  key={s.platform}
+                  href={s.externalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="relative z-10 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  {PLATFORM_LABELS[s.platform] ?? s.platform}
+                </a>
+              ) : (
+                <span key={s.platform} className="text-xs text-muted-foreground">
+                  {PLATFORM_LABELS[s.platform] ?? s.platform}
+                </span>
+              ),
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
   );

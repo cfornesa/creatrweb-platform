@@ -11,4 +11,7 @@ export * from "./categories.ts";
 export * from "./nav-links.ts";
 export * from "./pages.ts";
 export * from "./user-ai-settings.ts";
+export * from "./platform-connections.ts";
+export * from "./post-syndications.ts";
+export * from "./platform-oauth-apps.ts";
 export * from "../lib/reserved-slugs.ts";

@@ -12,6 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useOwnerAiVendors } from "@/hooks/use-owner-ai-vendors";
+import { useEnabledPlatformConnections } from "@/hooks/use-enabled-platform-connections";
 import { RichPostEditor } from "./RichPostEditor";
 import { PenSquare } from "lucide-react";
 
@@ -21,6 +22,7 @@ export function ComposePost() {
   const { toast } = useToast();
   const [isExpanded, setIsExpanded] = useState(false);
   const { aiVendors } = useOwnerAiVendors();
+  const { connections: platformConnections } = useEnabledPlatformConnections();
 
   const createPost = useCreatePost({
     mutation: {
@@ -90,8 +92,11 @@ export function ComposePost() {
                 const uploaded = await uploadMedia.mutateAsync({ data: { file } });
                 return uploaded.url;
               }}
-              onSubmit={(payload) => {
-                createPost.mutate({ data: payload });
+              platformConnections={platformConnections}
+              onSubmit={({ platformIds, ...rest }) => {
+                // platformIds is passed alongside the standard body; the API route
+                // reads it from req.body before schema parsing, so extra fields are safe.
+                createPost.mutate({ data: { ...rest, platformIds } as typeof rest });
               }}
             />
           )}

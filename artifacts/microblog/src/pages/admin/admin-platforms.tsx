@@ -1,0 +1,560 @@
+import { useState } from "react";
+import { useSearch } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useListPlatformConnections,
+  getListPlatformConnectionsQueryKey,
+  useCreatePlatformConnection,
+  useUpdatePlatformConnection,
+  useDeletePlatformConnection,
+  useListPlatformOAuthApps,
+  getListPlatformOAuthAppsQueryKey,
+  useUpsertPlatformOAuthApp,
+  useGetSiteSettings,
+  type PlatformConnection,
+  type PlatformConnectionPlatform,
+} from "@workspace/api-client-react";
+import { AdminLayout } from "@/components/admin/AdminLayout";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ExternalLink, Copy, Check } from "lucide-react";
+
+// ─── Static platform definitions ─────────────────────────────────────────────
+
+type PlatformDef = {
+  id: PlatformConnectionPlatform;
+  label: string;
+  description: string;
+  setupInstruction: string;
+  setupHref: string;
+  // OAuth platforms need CLIENT_ID/SECRET saved before the Connect button.
+  oauthAppPlatform?: "wordpress_com" | "blogger";
+  // OAuth redirect platforms: clicking Connect goes to this URL.
+  oauthPath?: string;
+  // Credential-entry platforms: open the credential dialog instead.
+  credentialKind?: "wordpress_self" | "medium";
+};
+
+const PLATFORMS: PlatformDef[] = [
+  {
+    id: "wordpress_com",
+    label: "WordPress.com",
+    description: "Publish to your hosted WordPress.com blog via OAuth.",
+    setupInstruction: "Register a new OAuth app to get your Client ID and Client Secret.",
+    setupHref: "https://developer.wordpress.com/apps/new/",
+    oauthAppPlatform: "wordpress_com",
+    oauthPath: "/api/platform-oauth/wordpress-com/start",
+  },
+  {
+    id: "wordpress_self",
+    label: "WordPress (self-hosted)",
+    description: "Publish to a self-hosted WordPress site using an application password.",
+    setupInstruction: "Generate an Application Password in your WordPress dashboard under Users → Profile.",
+    setupHref: "https://wordpress.org/documentation/article/application-passwords/",
+    credentialKind: "wordpress_self",
+  },
+  {
+    id: "medium",
+    label: "Medium",
+    description: "Publish to your Medium profile using a self-integration token.",
+    setupInstruction: "Get your self-integration token from your Medium settings page.",
+    setupHref: "https://medium.com/me/settings",
+    credentialKind: "medium",
+  },
+  {
+    id: "blogger",
+    label: "Blogger",
+    description: "Publish to your Blogger blog via Google OAuth (separate project from sign-in).",
+    setupInstruction: "Create OAuth 2.0 credentials in Google Cloud Console with the Blogger API scope.",
+    setupHref: "https://console.cloud.google.com/apis/credentials",
+    oauthAppPlatform: "blogger",
+    oauthPath: "/api/platform-oauth/blogger/start",
+  },
+];
+
+// ─── Shared: copyable URL row ─────────────────────────────────────────────────
+
+function UrlRow({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="space-y-0.5">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div className="flex items-center gap-1 rounded bg-muted px-2 py-1">
+        <code className="flex-1 text-xs break-all">{value}</code>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+          aria-label={`Copy ${label}`}
+        >
+          {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── OAuth App Credentials dialog (WordPress.com / Blogger) ──────────────────
+
+function OAuthAppCredentialsDialog({
+  open,
+  onClose,
+  platform,
+  label,
+  setupHref,
+  oauthPath,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  platform: "wordpress_com" | "blogger";
+  label: string;
+  setupHref: string;
+  oauthPath: string;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [form, setForm] = useState({ clientId: "", clientSecret: "" });
+  const upsertApp = useUpsertPlatformOAuthApp();
+  const { data: siteSettings } = useGetSiteSettings();
+  const callbackSuffix = `/api/platform-oauth/${platform === "wordpress_com" ? "wordpress-com" : "blogger"}/callback`;
+
+  // Use ALLOWED_ORIGINS from server config; fall back to the current browser origin.
+  const origins: string[] =
+    siteSettings?.allowedOrigins && siteSettings.allowedOrigins.length > 0
+      ? siteSettings.allowedOrigins
+      : [window.location.origin];
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    upsertApp.mutate(
+      { platform, data: { clientId: form.clientId, clientSecret: form.clientSecret } },
+      {
+        onSuccess: () => {
+          toast({ title: "App credentials saved", description: `Connecting to ${label}…` });
+          setForm({ clientId: "", clientSecret: "" });
+          onSaved();
+          onClose();
+          window.location.href = oauthPath;
+        },
+        onError: () => {
+          toast({ title: "Error", description: "Failed to save credentials. Try again.", variant: "destructive" });
+        },
+      },
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Connect {label}</DialogTitle>
+          <DialogDescription asChild>
+            <div className="space-y-3 text-sm text-muted-foreground">
+              {platform === "wordpress_com" ? (
+                <>
+                  <p>
+                    Register a new app at{" "}
+                    <a href={setupHref} target="_blank" rel="noopener noreferrer"
+                       className="inline-flex items-center gap-0.5 text-primary hover:underline">
+                      developer.wordpress.com/apps/new <ExternalLink className="h-3 w-3" />
+                    </a>
+                    . Use these values when filling in the form:
+                  </p>
+                  <div className="space-y-2">
+                    {origins.map((o) => (
+                      <div key={o} className="space-y-2">
+                        <UrlRow label="Website URL" value={o} />
+                        <UrlRow label="Redirect URLs" value={`${o}${callbackSuffix}`} />
+                      </div>
+                    ))}
+                  </div>
+                  <p>Leave JavaScript Origins blank. After creating the app, copy the Client ID and Client Secret below.</p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    Open{" "}
+                    <a href={setupHref} target="_blank" rel="noopener noreferrer"
+                       className="inline-flex items-center gap-0.5 text-primary hover:underline">
+                      Google Cloud Console → Credentials <ExternalLink className="h-3 w-3" />
+                    </a>
+                    . Click <strong>Create Credentials → OAuth client ID</strong>, choose <strong>Web application</strong>, and use these values:
+                  </p>
+                  <div className="space-y-2">
+                    {origins.map((o) => (
+                      <div key={o} className="space-y-2">
+                        <UrlRow label="Authorized JavaScript origins" value={o} />
+                        <UrlRow label="Authorized redirect URIs" value={`${o}${callbackSuffix}`} />
+                      </div>
+                    ))}
+                  </div>
+                  <p>Make sure the <strong>Blogger API v3</strong> is enabled in your project (APIs &amp; Services → Library). Then paste the Client ID and Secret below.</p>
+                </>
+              )}
+            </div>
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSave} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor={`${platform}-client-id`}>Client ID</Label>
+            <Input
+              id={`${platform}-client-id`}
+              placeholder="your-client-id"
+              value={form.clientId}
+              onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))}
+              required
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${platform}-client-secret`}>Client Secret</Label>
+            <Input
+              id={`${platform}-client-secret`}
+              type="password"
+              placeholder="your-client-secret"
+              value={form.clientSecret}
+              onChange={(e) => setForm((f) => ({ ...f, clientSecret: e.target.value }))}
+              required
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={upsertApp.isPending}>
+              {upsertApp.isPending ? "Saving…" : "Save & connect"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── WordPress self-hosted credential dialog ──────────────────────────────────
+
+function WordPressSelfDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const createConnection = useCreatePlatformConnection({
+    mutation: {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListPlatformConnectionsQueryKey() }),
+    },
+  });
+  const [form, setForm] = useState({ siteUrl: "", username: "", appPassword: "" });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    createConnection.mutate(
+      { data: { platform: "wordpress_self", credentials: { siteUrl: form.siteUrl, username: form.username, appPassword: form.appPassword } } },
+      {
+        onSuccess: () => {
+          toast({ title: "Connected", description: "Self-hosted WordPress connected." });
+          onClose();
+          setForm({ siteUrl: "", username: "", appPassword: "" });
+        },
+        onError: () => {
+          toast({ title: "Error", description: "Failed to save credentials. Check them and try again.", variant: "destructive" });
+        },
+      },
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Connect self-hosted WordPress</DialogTitle>
+          <DialogDescription>
+            Enter your site URL and an Application Password (create one in WordPress under
+            Users → Profile → Application Passwords).
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="wp-site-url">Site URL</Label>
+            <Input id="wp-site-url" type="url" placeholder="https://yourblog.example.com" value={form.siteUrl}
+              onChange={(e) => setForm((f) => ({ ...f, siteUrl: e.target.value }))} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="wp-username">Username</Label>
+            <Input id="wp-username" placeholder="your-wp-username" value={form.username}
+              onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="wp-app-password">Application Password</Label>
+            <Input id="wp-app-password" type="password" placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
+              value={form.appPassword} onChange={(e) => setForm((f) => ({ ...f, appPassword: e.target.value }))} required />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={createConnection.isPending}>
+              {createConnection.isPending ? "Saving…" : "Save & connect"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Medium self-integration token dialog ─────────────────────────────────────
+
+function MediumTokenDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const createConnection = useCreatePlatformConnection({
+    mutation: {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListPlatformConnectionsQueryKey() }),
+    },
+  });
+  const [token, setToken] = useState("");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    createConnection.mutate(
+      { data: { platform: "medium", credentials: { token } } },
+      {
+        onSuccess: () => {
+          toast({ title: "Connected", description: "Medium connected." });
+          onClose();
+          setToken("");
+        },
+        onError: () => {
+          toast({ title: "Error", description: "Could not verify the token. Check it and try again.", variant: "destructive" });
+        },
+      },
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Connect Medium</DialogTitle>
+          <DialogDescription asChild>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>
+                Go to{" "}
+                <a href="https://medium.com/me/settings/security" target="_blank" rel="noopener noreferrer"
+                   className="inline-flex items-center gap-0.5 text-primary hover:underline">
+                  medium.com/me/settings/security <ExternalLink className="h-3 w-3" />
+                </a>{" "}
+                and scroll down to the <strong>Integration tokens</strong> section. Give the token a description, click <strong>Get integration token</strong>, then copy and paste it below.
+              </p>
+              <p>If you don't see this section, try signing in at medium.com first, then revisiting that link.</p>
+            </div>
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="medium-token">Integration token</Label>
+            <Input id="medium-token" type="password" placeholder="Paste your token here"
+              value={token} onChange={(e) => setToken(e.target.value)} required autoComplete="off" />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={createConnection.isPending}>
+              {createConnection.isPending ? "Verifying…" : "Save & connect"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Platform card ─────────────────────────────────────────────────────────────
+
+function PlatformCard({
+  platform,
+  connection,
+  appConfigured,
+  onAppSaved,
+}: {
+  platform: PlatformDef;
+  connection: PlatformConnection | undefined;
+  appConfigured: boolean;
+  onAppSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListPlatformConnectionsQueryKey() });
+
+  const toggleConnection = useUpdatePlatformConnection({ mutation: { onSuccess: invalidate } });
+  const deleteConnection = useDeletePlatformConnection({ mutation: { onSuccess: invalidate } });
+  const [showDialog, setShowDialog] = useState(false);
+
+  const isConnected = Boolean(connection?.configured);
+
+  function handleConnect() {
+    if (platform.oauthAppPlatform) {
+      if (appConfigured) {
+        // Credentials already in DB — go straight to OAuth.
+        window.location.href = platform.oauthPath!;
+      } else {
+        // Prompt for CLIENT_ID/SECRET first, then redirect.
+        setShowDialog(true);
+      }
+    } else if (platform.credentialKind) {
+      setShowDialog(true);
+    }
+  }
+
+  function handleDisconnect() {
+    if (!connection) return;
+    deleteConnection.mutate({ id: connection.id }, {
+      onSuccess: () => toast({ title: "Disconnected", description: `${platform.label} disconnected.` }),
+      onError: () => toast({ title: "Error", description: "Failed to disconnect.", variant: "destructive" }),
+    });
+  }
+
+  function handleToggle(checked: boolean) {
+    if (!connection) return;
+    toggleConnection.mutate({ id: connection.id, data: { enabled: checked } }, {
+      onError: () => toast({ title: "Error", description: "Failed to update.", variant: "destructive" }),
+    });
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-2">
+          <div>
+            <CardTitle className="text-base">{platform.label}</CardTitle>
+            <CardDescription className="mt-1">{platform.description}</CardDescription>
+          </div>
+          <Badge variant={isConnected ? "default" : "secondary"}>
+            {isConnected ? "Connected" : "Not connected"}
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            {isConnected ? (
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <Checkbox
+                  checked={connection?.enabled ?? false}
+                  onCheckedChange={(v) => handleToggle(v === true)}
+                  disabled={toggleConnection.isPending}
+                />
+                Show in post composer
+              </label>
+            ) : (
+              <span className="text-sm text-muted-foreground">Connect to use in the post composer.</span>
+            )}
+            <div className="flex gap-2">
+              {isConnected ? (
+                <Button variant="outline" size="sm" onClick={handleDisconnect} disabled={deleteConnection.isPending}>
+                  {deleteConnection.isPending ? "Removing…" : "Disconnect"}
+                </Button>
+              ) : (
+                <Button size="sm" onClick={handleConnect}>Connect</Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {platform.oauthAppPlatform && platform.oauthPath && (
+        <OAuthAppCredentialsDialog
+          open={showDialog}
+          onClose={() => setShowDialog(false)}
+          platform={platform.oauthAppPlatform}
+          label={platform.label}
+          setupHref={platform.setupHref}
+          oauthPath={platform.oauthPath}
+          onSaved={onAppSaved}
+        />
+      )}
+      {platform.credentialKind === "wordpress_self" && (
+        <WordPressSelfDialog open={showDialog} onClose={() => setShowDialog(false)} />
+      )}
+      {platform.credentialKind === "medium" && (
+        <MediumTokenDialog open={showDialog} onClose={() => setShowDialog(false)} />
+      )}
+    </>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function AdminPlatformsPage() {
+  const { isOwner } = useCurrentUser();
+  const { toast } = useToast();
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const queryClient = useQueryClient();
+
+  const connections = useListPlatformConnections({
+    query: { enabled: isOwner, queryKey: getListPlatformConnectionsQueryKey() },
+  });
+  const oauthApps = useListPlatformOAuthApps({
+    query: { enabled: isOwner, queryKey: getListPlatformOAuthAppsQueryKey() },
+  });
+
+  const [shownParam, setShownParam] = useState<string | null>(null);
+  const connectedParam = params.get("connected");
+  const errorParam = params.get("error");
+  const notifyParam = connectedParam ?? errorParam;
+
+  if (notifyParam && notifyParam !== shownParam) {
+    setShownParam(notifyParam);
+    if (connectedParam) {
+      const label = PLATFORMS.find((p) => p.id === connectedParam)?.label ?? connectedParam;
+      toast({ title: "Connected", description: `${label} connected successfully.` });
+    } else if (errorParam) {
+      toast({ title: "Connection failed", description: "The platform denied the request or an error occurred.", variant: "destructive" });
+    }
+  }
+
+  const connectionMap = new Map(
+    (connections.data?.connections ?? []).map((c) => [c.platform, c]),
+  );
+  const appConfiguredMap = new Map(
+    (oauthApps.data?.apps ?? []).map((a) => [a.platform, a.configured]),
+  );
+
+  const invalidateApps = () =>
+    queryClient.invalidateQueries({ queryKey: getListPlatformOAuthAppsQueryKey() });
+
+  return (
+    <AdminLayout
+      title="Platforms"
+      description="Connect external publishing platforms. Enabled connections appear in the post composer's Share to dropdown."
+    >
+      <div className="space-y-4">
+        {PLATFORMS.map((platform) => (
+          <PlatformCard
+            key={platform.id}
+            platform={platform}
+            connection={connectionMap.get(platform.id)}
+            appConfigured={platform.oauthAppPlatform ? (appConfiguredMap.get(platform.oauthAppPlatform) ?? false) : false}
+            onAppSaved={invalidateApps}
+          />
+        ))}
+      </div>
+    </AdminLayout>
+  );
+}

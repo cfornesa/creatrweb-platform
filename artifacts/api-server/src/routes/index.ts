@@ -12,6 +12,9 @@ import navLinksRouter from "./nav-links";
 import pagesRouter from "./pages";
 import feedsCatalogRouter from "./feeds-catalog";
 import aiRouter from "./ai";
+import platformConnectionsRouter from "./platform-connections";
+import platformOAuthRouter from "./platform-oauth";
+import platformOAuthAppsRouter from "./platform-oauth-apps";
 
 const router: IRouter = Router();
 
@@ -41,5 +44,8 @@ router.use(pagesRouter);
 // `feedSourcesRouter`. The top-level `/feeds` GET registered here
 // does not collide because feed-sources mounts only nested paths.
 router.use(feedsCatalogRouter);
+router.use(platformConnectionsRouter);
+router.use(platformOAuthRouter);
+router.use(platformOAuthAppsRouter);
 
 export default router;

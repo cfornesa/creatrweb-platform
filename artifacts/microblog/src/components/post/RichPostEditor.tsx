@@ -11,7 +11,9 @@ import { useProcessAiText, type ProcessAiTextBodyVendor } from "@workspace/api-c
 import { useToast } from "@/hooks/use-toast";
 import { IframeEmbed } from "./iframe-embed";
 import { CategoryMultiSelect } from "./CategoryMultiSelect";
+import { PlatformMultiSelect } from "./PlatformMultiSelect";
 import { getAiFailureMessage } from "./ai-error";
+import type { EnabledPlatformConnection } from "@/hooks/use-enabled-platform-connections";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,11 +37,14 @@ type RichPostEditorProps = {
    */
   showCategories?: boolean;
   aiVendors?: Array<{ id: ProcessAiTextBodyVendor; label: string }>;
+  /** Enabled platform connections to show in the "Share to:" selector. Omit to hide it. */
+  platformConnections?: EnabledPlatformConnection[];
   onCancel?: () => void;
   onSubmit: (payload: {
     content: string;
     contentFormat: "html";
     categoryIds: number[];
+    platformIds: number[];
   }) => void;
   /**
    * Optional live-content listener. Fires on every editor update so a
@@ -144,6 +149,7 @@ export function RichPostEditor({
   initialCategoryIds = [],
   showCategories = true,
   aiVendors = [],
+  platformConnections,
   onCancel,
   onSubmit,
   onContentChange,
@@ -153,6 +159,10 @@ export function RichPostEditor({
   const fileInputId = useId();
   const [textLength, setTextLength] = useState(getEditorTextLength(initialContent));
   const [categoryIds, setCategoryIds] = useState<number[]>(initialCategoryIds);
+  const [platformIds, setPlatformIds] = useState<number[]>(
+    // Default: all enabled connections are selected.
+    () => (platformConnections ?? []).map((c) => c.id),
+  );
   const [selectedAiVendor, setSelectedAiVendor] = useState<ProcessAiTextBodyVendor | "">(aiVendors[0]?.id ?? "");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const processAiText = useProcessAiText({
@@ -308,6 +318,7 @@ export function RichPostEditor({
       content: html,
       contentFormat: "html",
       categoryIds,
+      platformIds,
     });
   }
 
@@ -687,6 +698,14 @@ export function RichPostEditor({
 
       {showCategories ? (
         <CategoryMultiSelect value={categoryIds} onChange={setCategoryIds} />
+      ) : null}
+
+      {platformConnections && platformConnections.length > 0 ? (
+        <PlatformMultiSelect
+          value={platformIds}
+          onChange={setPlatformIds}
+          connections={platformConnections}
+        />
       ) : null}
 
       <input

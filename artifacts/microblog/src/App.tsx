@@ -21,6 +21,7 @@ import AdminNavigationPage from "@/pages/admin/admin-navigation";
 import AdminPagesPage from "@/pages/admin/admin-pages";
 import AdminPageEditor from "@/pages/admin/admin-page-editor";
 import AdminAiPage from "@/pages/admin/admin-ai";
+import AdminPlatformsPage from "@/pages/admin/admin-platforms";
 import SearchPage from "@/pages/search";
 import CategoryDetailPage from "@/pages/category-detail";
 import FeedsIndexPage from "@/pages/feeds";
@@ -62,6 +63,7 @@ function AppShell() {
             <Route path="/admin" component={AdminRedirect} />
             <Route path="/admin/site" component={AdminIndexPage} />
             <Route path="/admin/ai" component={AdminAiPage} />
+            <Route path="/admin/platforms" component={AdminPlatformsPage} />
             <Route path="/admin/categories" component={AdminCategoriesPage} />
             <Route path="/admin/navigation" component={AdminNavigationPage} />
             <Route path="/admin/pages" component={AdminPagesPage} />

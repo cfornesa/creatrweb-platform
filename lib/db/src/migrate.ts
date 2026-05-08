@@ -665,4 +665,72 @@ export async function ensureTables(): Promise<void> {
       UNIQUE KEY reactions_post_user_type_unique (post_id, user_id, type)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  // POSSE outbound syndication. `platform_connections` stores one OAuth
+  // or credential-based connection per (user, platform) pair; tokens are
+  // AES-256-GCM encrypted at rest using AI_SETTINGS_ENCRYPTION_KEY.
+  // Confirmed platform enum: wordpress_com | wordpress_self | medium | blogger
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS platform_connections (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      user_id VARCHAR(191) NOT NULL,
+      platform VARCHAR(32) NOT NULL,
+      encrypted_access_token TEXT NULL,
+      encrypted_refresh_token TEXT NULL,
+      expires_at DATETIME(3) NULL,
+      metadata JSON NULL,
+      enabled INT NOT NULL DEFAULT 1,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      UNIQUE KEY platform_connections_user_platform_unique (user_id, platform),
+      KEY platform_connections_user_idx (user_id),
+      CONSTRAINT platform_connections_user_id_fk
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // Tracks the result of each async syndication attempt per post+connection.
+  // Confirmed status enum: pending | success | failed
+  // The unique key on (post_id, platform_connection_id) makes the async
+  // dispatcher idempotent — INSERT … ON DUPLICATE KEY UPDATE is safe to
+  // retry if the dispatcher fires more than once for the same post.
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS post_syndications (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      post_id INT NOT NULL,
+      platform_connection_id INT NOT NULL,
+      external_id VARCHAR(512) NULL,
+      external_url VARCHAR(2048) NULL,
+      status VARCHAR(16) NOT NULL DEFAULT 'pending',
+      error_message TEXT NULL,
+      synced_at DATETIME(3) NULL,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      UNIQUE KEY post_syndications_post_connection_unique (post_id, platform_connection_id),
+      KEY post_syndications_post_idx (post_id),
+      KEY post_syndications_connection_idx (platform_connection_id),
+      CONSTRAINT post_syndications_post_id_fk
+        FOREIGN KEY (post_id) REFERENCES posts(id)
+        ON DELETE CASCADE,
+      CONSTRAINT post_syndications_connection_id_fk
+        FOREIGN KEY (platform_connection_id) REFERENCES platform_connections(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // Site-wide OAuth app credentials (CLIENT_ID + CLIENT_SECRET) for OAuth
+  // platforms. One row per platform, not per-user. Stored encrypted with
+  // AI_SETTINGS_ENCRYPTION_KEY. Survives user disconnects; separate from
+  // platform_connections which holds per-user access tokens.
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS platform_oauth_apps (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      platform VARCHAR(32) NOT NULL,
+      encrypted_client_id TEXT NULL,
+      encrypted_client_secret TEXT NULL,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      UNIQUE KEY platform_oauth_apps_platform_unique (platform)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
 }

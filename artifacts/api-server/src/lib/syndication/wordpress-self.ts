@@ -1,0 +1,43 @@
+import { decryptSecret } from "../crypto";
+import type { PlatformAdapter, SyndicationPayload, SyndicationResult } from "./types";
+import type { PlatformConnection } from "@workspace/db";
+
+type WpSelfPostResponse = { id: number; link: string };
+
+// Self-hosted WordPress uses App Passwords (username:password), not OAuth tokens.
+// The "access token" field stores base64(username:appPassword) for Basic Auth.
+// App Passwords do not expire, so no refreshToken method is needed.
+export const wordpressSelfAdapter: PlatformAdapter = {
+  async publish(connection: PlatformConnection, payload: SyndicationPayload): Promise<SyndicationResult> {
+    const meta = connection.metadata as { siteUrl?: string } | null;
+    const siteUrl = meta?.siteUrl?.replace(/\/$/, "");
+
+    if (!siteUrl) {
+      throw new Error("Self-hosted WordPress connection is missing siteUrl in metadata");
+    }
+
+    // encryptedAccessToken stores base64(username:appPassword)
+    const basicCredential = decryptSecret(connection.encryptedAccessToken!);
+
+    const res = await fetch(`${siteUrl}/wp-json/wp/v2/posts`, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${basicCredential}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: payload.title,
+        content: payload.contentHtml,
+        status: "publish",
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`WordPress self-hosted API error ${res.status}: ${body.slice(0, 500)}`);
+    }
+
+    const data = (await res.json()) as WpSelfPostResponse;
+    return { externalId: String(data.id), externalUrl: data.link };
+  },
+};

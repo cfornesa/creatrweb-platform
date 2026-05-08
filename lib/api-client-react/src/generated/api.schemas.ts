@@ -63,6 +63,25 @@ export const PostContentFormat = {
   html: 'html',
 } as const;
 
+export type PostSyndicationBadgePlatform = typeof PostSyndicationBadgePlatform[keyof typeof PostSyndicationBadgePlatform];
+
+
+export const PostSyndicationBadgePlatform = {
+  wordpress_com: 'wordpress_com',
+  wordpress_self: 'wordpress_self',
+  medium: 'medium',
+  blogger: 'blogger',
+} as const;
+
+/**
+ * Lightweight summary of a successful cross-post, embedded in post list responses.
+ */
+export interface PostSyndicationBadge {
+  platform: PostSyndicationBadgePlatform;
+  /** The post's URL on the external platform, if available. */
+  externalUrl?: string | null;
+}
+
 export interface Post {
   id: number;
   authorId: string;
@@ -79,6 +98,8 @@ export interface Post {
   sourceCanonicalUrl?: string | null;
   /** Categories this post belongs to (owner-managed taxonomy). */
   categories: Category[];
+  /** Platforms this post was successfully cross-posted to (POSSE). Omitted when none. */
+  syndications?: PostSyndicationBadge[];
   createdAt: string;
 }
 
@@ -169,6 +190,12 @@ export interface CreatePostBody {
   uncategorized.
    */
   categoryIds?: number[];
+  /** Optional list of `platform_connections.id` values to syndicate to
+  after the post is created (POSSE). Only connections owned by the
+  authenticated user and with `enabled=true` are dispatched.
+  Omitting the field (or sending an empty array) skips syndication.
+   */
+  platformIds?: number[];
 }
 
 export type UpdatePostBodyContentFormat = typeof UpdatePostBodyContentFormat[keyof typeof UpdatePostBodyContentFormat];
@@ -581,6 +608,12 @@ export interface SiteSettings {
   an extra round-trip.
    */
   ownerWebsite?: string | null;
+  /** Origins parsed from the `ALLOWED_ORIGINS` environment variable.
+  Used by the admin UI to display the exact OAuth callback URLs
+  the operator must register with each platform's developer console.
+  Empty array when the env var is not set.
+   */
+  allowedOrigins: string[];
 }
 
 export type NavLinkKind = typeof NavLinkKind[keyof typeof NavLinkKind];
@@ -1020,6 +1053,150 @@ export interface UpdateSiteSettingsBody {
   colorDestructive?: string;
   /** @maxLength 64 */
   colorDestructiveForeground?: string;
+}
+
+export type PlatformConnectionPlatform = typeof PlatformConnectionPlatform[keyof typeof PlatformConnectionPlatform];
+
+
+export const PlatformConnectionPlatform = {
+  wordpress_com: 'wordpress_com',
+  wordpress_self: 'wordpress_self',
+  medium: 'medium',
+  blogger: 'blogger',
+} as const;
+
+/**
+ * Platform-specific metadata (e.g. blogId, authorId, siteUrl).
+ */
+export type PlatformConnectionMetadata = { [key: string]: unknown } | null;
+
+/**
+ * An owner-managed connection to an external publishing platform.
+Encrypted credential fields are never returned; `configured: true`
+indicates a token/credential is stored.
+
+ */
+export interface PlatformConnection {
+  id: number;
+  platform: PlatformConnectionPlatform;
+  /** True when an encrypted access token is stored for this connection. */
+  configured: boolean;
+  /** When false, this connection is skipped during syndication dispatch. */
+  enabled: boolean;
+  /** Platform-specific metadata (e.g. blogId, authorId, siteUrl). */
+  metadata?: PlatformConnectionMetadata;
+  expiresAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlatformConnectionsList {
+  connections: PlatformConnection[];
+}
+
+export type CreatePlatformConnectionBodyPlatform = typeof CreatePlatformConnectionBodyPlatform[keyof typeof CreatePlatformConnectionBodyPlatform];
+
+
+export const CreatePlatformConnectionBodyPlatform = {
+  wordpress_self: 'wordpress_self',
+  medium: 'medium',
+} as const;
+
+/**
+ * Credentials for the target platform.
+ */
+export type CreatePlatformConnectionBodyCredentials = {
+  siteUrl?: string;
+  username?: string;
+  appPassword?: string;
+  /** Self-integration token (Medium only). */
+  token?: string;
+};
+
+/**
+ * Body for credential-based platform connections (`wordpress_self`, `medium`).
+OAuth-based platforms use the `/api/platform-oauth/{platform}/start`
+redirect flow instead.
+
+ */
+export interface CreatePlatformConnectionBody {
+  platform: CreatePlatformConnectionBodyPlatform;
+  /** Credentials for the target platform. */
+  credentials?: CreatePlatformConnectionBodyCredentials;
+}
+
+export interface PatchPlatformConnectionBody {
+  /** Set to false to pause syndication to this platform without disconnecting. */
+  enabled?: boolean;
+}
+
+export type PostSyndicationStatus = typeof PostSyndicationStatus[keyof typeof PostSyndicationStatus];
+
+
+export const PostSyndicationStatus = {
+  pending: 'pending',
+  success: 'success',
+  failed: 'failed',
+} as const;
+
+/**
+ * Result of one syndication attempt for a single post + platform pair.
+ */
+export interface PostSyndication {
+  id: number;
+  postId: number;
+  platformConnectionId: number;
+  status: PostSyndicationStatus;
+  /** The post's ID on the external platform (when available). */
+  externalId?: string | null;
+  /** The post's canonical URL on the external platform. */
+  externalUrl?: string | null;
+  errorMessage?: string | null;
+  syncedAt?: string | null;
+  createdAt: string;
+}
+
+export interface PostSyndicationsList {
+  syndications: PostSyndication[];
+}
+
+export type PlatformOAuthAppPlatform = typeof PlatformOAuthAppPlatform[keyof typeof PlatformOAuthAppPlatform];
+
+
+export const PlatformOAuthAppPlatform = {
+  wordpress_com: 'wordpress_com',
+  blogger: 'blogger',
+} as const;
+
+/**
+ * Site-wide OAuth application credentials for a POSSE platform.
+CLIENT_ID and CLIENT_SECRET are stored encrypted and never returned;
+`configured: true` means both are saved and the OAuth flow can proceed.
+
+ */
+export interface PlatformOAuthApp {
+  platform: PlatformOAuthAppPlatform;
+  configured: boolean;
+}
+
+export interface PlatformOAuthAppsList {
+  apps: PlatformOAuthApp[];
+}
+
+/**
+ * CLIENT_ID and CLIENT_SECRET for an OAuth platform's developer app registration.
+ */
+export interface UpsertPlatformOAuthAppBody {
+  /**
+     * @minLength 1
+     * @maxLength 512
+     */
+  clientId: string;
+  /**
+     * @minLength 1
+     * @maxLength 512
+     */
+  clientSecret: string;
 }
 
 export type ListPostsParams = {

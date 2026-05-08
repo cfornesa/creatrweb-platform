@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, useLocation, useRoute, Redirect } from "wouter";
-import { Settings, Tags, Link2, FileText, Rss, Inbox, ShieldCheck, ChevronLeft, Sparkles } from "lucide-react";
+import { Settings, Tags, Link2, FileText, Rss, Inbox, ShieldCheck, ChevronLeft, Sparkles, Share2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { cn } from "@/lib/utils";
@@ -11,7 +11,7 @@ const NAV: Array<{
   href: string;
   label: string;
   icon: typeof Settings;
-  group: "site" | "feeds";
+  group: "site" | "feeds" | "outbound";
 }> = [
   { href: "/admin", label: "Site", icon: Settings, group: "site" },
   { href: "/admin/ai", label: "AI", icon: Sparkles, group: "site" },
@@ -20,6 +20,7 @@ const NAV: Array<{
   { href: "/admin/pages", label: "Pages", icon: FileText, group: "site" },
   { href: "/admin/feeds", label: "Feed sources", icon: Rss, group: "feeds" },
   { href: "/admin/pending", label: "Review queue", icon: Inbox, group: "feeds" },
+  { href: "/admin/platforms", label: "Platforms", icon: Share2, group: "outbound" },
 ];
 
 type Props = {
@@ -45,6 +46,7 @@ export function AdminLayout({ title, description, children }: Props) {
 
   const siteItems = NAV.filter((n) => n.group === "site");
   const feedItems = NAV.filter((n) => n.group === "feeds");
+  const outboundItems = NAV.filter((n) => n.group === "outbound");
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-6">
@@ -65,6 +67,8 @@ export function AdminLayout({ title, description, children }: Props) {
           <Section title="Site" items={siteItems} location={location} />
           <hr className="my-2 border-border" />
           <Section title="Inbound feeds" items={feedItems} location={location} />
+          <hr className="my-2 border-border" />
+          <Section title="Outbound" items={outboundItems} location={location} />
         </Card>
         <div className="min-w-0">
           <div className="mb-4">

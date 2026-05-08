@@ -2,11 +2,11 @@
 
 CreatrWeb is an author-owned microblogging application built for publishing short-form posts on a personal site while still allowing lightweight community interaction. The product is centered on one canonical publisher, with authenticated visitors participating through comments and reactions rather than publishing their own primary posts.
 
-The application is split into a React frontend and an Express API, with authentication handled in-app through Auth.js and persistence managed through Drizzle ORM on top of MySQL. It is designed to support direct publishing on your own domain, standardized public feeds, and a clear separation between publishing authority and member participation.
+The application is split into a React frontend and an Express API, with authentication handled in-app through Auth.js and persistence managed through Drizzle ORM on top of MySQL. It supports direct publishing on your own domain, standardized public feeds, POSSE outbound syndication to external platforms, inbound feed aggregation, and a clear separation between publishing authority and member participation.
 
 ## Overview
 
-This repository contains a TypeScript monorepo with three main layers:
+This repository is a TypeScript monorepo with three main layers:
 
 - `artifacts/microblog`: the Vite + React frontend
 - `artifacts/api-server`: the Express 5 backend
@@ -14,24 +14,21 @@ This repository contains a TypeScript monorepo with three main layers:
 
 At a high level, the app provides:
 
-- owner-only post publishing and editing
+- owner-only post publishing and editing with a rich WYSIWYG editor
+- POSSE outbound syndication to WordPress.com, self-hosted WordPress, Medium, and Blogger, with per-post syndication badges on post cards
+- inbound feed aggregation (PESOS) — subscribe to external RSS/Atom feeds and import posts for review
 - authenticated member comments and reactions
-- owner-managed post categories with public `/categories/:slug` archive pages and search filter
-- owner-managed external navigation links and a sitewide footer that surfaces the owner's social profiles
-- rich post authoring with sanitized HTML storage
-- standardized public feeds and export endpoints, plus public `/feeds` and `/categories` index pages auto-linked from the navbar
-- shared publishing through a single canonical MySQL database
-- local and deployed app instances operating on the same authoritative content store
+- owner-managed post categories with public archive pages and search filtering
+- owner-managed external navigation links and a sitewide footer surfacing the owner's social profiles
+- standardized public feeds (Atom, JSON Feed, mf2-JSON) and per-category/per-page feed variants
+- AI-assisted post rewriting (optional, owner-configured) via OpenRouter, OpenCode Zen, OpenCode Go, or Google Gemini
+- a single canonical MySQL database shared by local and deployed app instances
 
-## Product-First
-
-### What The App Does
-
-CreatrWeb behaves like a single-author social publishing site. The owner can publish canonical posts, while visitors can sign in and participate around those posts. The site is meant to live on the author's own domain and act as the primary home for published content.
+## Product
 
 ### Roles And Permissions
 
-- `owner`: can create, edit, and delete posts; can upload media; can moderate comments
+- `owner`: can create, edit, and delete posts; upload media; moderate comments; manage categories, nav links, feeds, and platform connections
 - `member`: can sign in, comment, and edit their own comments
 - unauthenticated visitors: can read the public site and consume its feeds
 
@@ -39,7 +36,7 @@ Publishing authority is intentionally separate from authentication. Logging in d
 
 ### Post Authoring
 
-The owner can create posts in two formats:
+The owner creates posts in two formats:
 
 - legacy plain-text posts
 - rich posts stored as sanitized HTML
@@ -49,102 +46,96 @@ Rich posts support:
 - formatting through a compact WYSIWYG-style toolbar with square controls
 - heading levels `H1` through `H6`
 - local image uploads
-- direct YouTube URL insertion that converts a normal watch/share link into an embedded video
+- direct YouTube URL insertion that converts a watch/share link into an embedded video
 - owner-trusted `https:` iframe embeds
-- optional AI-assisted rewrite from the post composer and post edit flow once the owner explicitly configures vendors in `/admin/ai`
+- optional AI-assisted rewrite from the composer and edit flow, once the owner configures vendors in `/admin/ai`
 
-HTML is sanitized on the server before it is stored, and the frontend renders rich content after that sanitization step.
+HTML is sanitized on the server before storage. The frontend renders rich content after that sanitization step.
 
-### Conversation And Interaction
+### Outbound Syndication (POSSE)
 
-Members can:
+The owner can cross-post to external platforms from the post composer. Supported targets:
 
-- comment on posts
-- edit their own comments after posting
-- react to content
+| Platform | Auth method |
+|---|---|
+| WordPress.com | OAuth 2.0 (CLIENT_ID + CLIENT_SECRET stored in DB) |
+| WordPress (self-hosted) | Application password |
+| Medium | Self-integration token |
+| Blogger | Google OAuth 2.0 (CLIENT_ID + CLIENT_SECRET stored in DB) |
 
-Comments currently remain plain text even though posts support rich formatting.
+OAuth app credentials (CLIENT_ID + CLIENT_SECRET) are stored encrypted in the database via `/admin/platforms` — no server-side environment variable required. The encryption key is `AI_SETTINGS_ENCRYPTION_KEY`.
 
-### Profiles And Public Names
+After a post is cross-posted successfully, its card on the home feed shows platform badges ("Also on Medium", "Also on WordPress.com", etc.) linking to the syndicated copy.
 
-Every signed-in account has two distinct identity fields:
+### Inbound Feed Aggregation (PESOS)
 
-- `username`: the stable `@handle` used in profile URLs such as `/users/@chris`
-- `name`: the required public display name shown in profile UI, session UI, and newly-authored post/comment bylines
-
-The display name is user-editable from `/settings`, but it cannot be cleared to blank. Accounts must always keep a non-empty public display name. Changing it via `/settings` cascades immediately to all existing owner-authored posts — their stored `author_name` is updated so every post on the timeline shows the current name.
+The owner can subscribe to external RSS or Atom feeds from `/admin/feeds`. Imported items appear in a pending queue for review before publication. The scheduled refresh runs hourly via the included GitHub Actions workflow.
 
 ### Reading Experience
 
-The homepage acts as the main feed of posts. Four browsing controls sit above the post list: **Sort** (newest / oldest / most-commented), **Filter** (has comments / has media / rich posts), **Category** (All Categories, Uncategorized, or any named category), and **Source** (All Sources, Original, or any named feed source). Category and Source filtering is server-side — selecting a value queries the full post archive rather than a fixed in-memory window — so no matching post is ever hidden by a pagination limit. The "Original" source covers both natively authored posts and any posts whose external feed source has since been deleted. The controls bar is permanently visible once the page loads, even when the current filter returns zero posts. The owner-facing composer is collapsed by default and only expands when the owner chooses to start a post.
+The homepage is the main post feed. Four browsing controls sit above the post list: **Sort** (newest / oldest / most-commented), **Filter** (has comments / has media / rich posts), **Category** (All Categories, Uncategorized, or any named category), and **Source** (All Sources, Original, or any named feed source). Category and Source filtering is server-side — selecting a value queries the full post archive rather than a fixed in-memory window — so no matching post is ever hidden by a pagination limit.
 
-The post composer and post edit flow intentionally use a denser editor toolbar than the rest of the site UI. This is a local editor treatment only: it is meant to feel closer to a conventional document editor without redesigning the global site theme.
+The owner-facing composer is collapsed by default and only expands when the owner starts a post.
 
 ### Feeds And Export
 
-The site publishes public machine-readable outputs so content remains accessible outside the main web UI.
+Primary endpoints (proxy-safe, under `/api`):
 
-Primary (proxy-safe, under `/api`):
-
-- `GET /api/feeds/atom`: Atom feed
-- `GET /api/feeds/json`: JSON Feed 1.1
-- `GET /api/feeds/mf2`: mf2-JSON export
-- `GET /api/categories/:slug/feeds/atom`: per-category Atom feed
-- `GET /api/categories/:slug/feeds/json`: per-category JSON Feed 1.1
-- `GET /api/p/:slug/feeds/atom`: per-page Atom feed
-- `GET /api/p/:slug/feeds/json`: per-page JSON Feed 1.1
+- `GET /api/feeds/atom` — Atom feed
+- `GET /api/feeds/json` — JSON Feed 1.1
+- `GET /api/feeds/mf2` — mf2-JSON export
+- `GET /api/categories/:slug/feeds/atom` — per-category Atom
+- `GET /api/categories/:slug/feeds/json` — per-category JSON Feed
+- `GET /api/p/:slug/feeds/atom` — per-page Atom
+- `GET /api/p/:slug/feeds/json` — per-page JSON Feed
 
 Backward-compatible aliases (retained for stability):
 
-- `GET /atom` → same as `/api/feeds/atom`
-- `GET /jsonfeed` → same as `/api/feeds/json`
-- `GET /export/json` → same as `/api/feeds/mf2`
-- `GET /feed.xml` → same as `/api/feeds/atom`
-- `GET /feed.json` → same as `/api/feeds/json`
-- `GET /export.json` → same as `/api/feeds/mf2`
-- `GET /categories/:slug/atom` → same as `/api/categories/:slug/feeds/atom`
-- `GET /categories/:slug/jsonfeed` → same as `/api/categories/:slug/feeds/json`
-- `GET /p/:slug/atom` → same as `/api/p/:slug/feeds/atom`
-- `GET /p/:slug/jsonfeed` → same as `/api/p/:slug/feeds/json`
+- `GET /atom`, `/feed.xml` → Atom feed
+- `GET /jsonfeed`, `/feed.json` → JSON Feed
+- `GET /export/json`, `/export.json` → mf2-JSON
+- `GET /categories/:slug/atom`, `/categories/:slug/jsonfeed` → per-category feeds
+- `GET /p/:slug/atom`, `/p/:slug/jsonfeed` → per-page feeds
 
-Each post in every feed surface carries its categories: Atom emits one `<category term="<slug>" label="<name>"/>` per category, JSON Feed sets `tags: [<name>, ...]`, and the mf2-JSON export sets `properties.category: [<name>, ...]` on each `h-entry`. Posts with no categories simply omit the field. These endpoints are part of the app’s long-term public surface and are intended to remain stable.
+These endpoints are part of the app's long-term stable surface.
 
-The human-facing `/feeds` index page groups all subscribable feeds into sections — a "Site Feeds" section for the three standard formats, then one section per category (alphabetical). The catalog is live: adding a category causes its feeds to appear on the next page load; deleting one removes them. Feed URLs are host-agnostic: the origin is derived from the request, not from any environment variable.
+### Pages
 
-### Authentication Model
+The owner can create static pages at `/admin/pages`. Published pages are available at `/p/:slug` and can optionally appear in the navigation.
 
-Authentication is handled by Auth.js in the Express server. The current provider set is:
+### Authentication
+
+Authentication is handled by Auth.js. Supported sign-in providers:
 
 - GitHub OAuth
 - Google OAuth
 
-The first owner account is established by signing in once and then promoting that user in the local database.
+The first owner account is established by signing in once and then promoting that user with the bootstrap script.
 
 ### Optional AI Writing Assistant
 
-The owner can optionally enable AI writing assistance from `/admin/ai`.
+Configured per vendor from `/admin/ai`. Supported vendors:
 
-- AI is owner-only and disabled per vendor by default.
-- Supported vendors are `OpenRouter`, `OpenCode Zen`, `OpenCode Go`, and `Google`.
-- Configuration is intentional and per vendor: one saved model slug and one saved API key for each supported vendor.
-- `OpenRouter` expects a provider-prefixed model slug such as `anthropic/...` or `openai/...`; the other vendors use their own documented model strings directly.
-- Once one or more vendors are enabled and configured, the owner-facing post composer and post edit flow show an AI vendor dropdown plus an `AI` action.
-- Turning a vendor off hides it from the editor dropdown but preserves its saved model slug and encrypted API key for later reuse.
-- Saved API keys are encrypted at rest using `AI_SETTINGS_ENCRYPTION_KEY`.
-- Before treating any vendor as production-ready, run the verification checklist in [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md).
+- OpenRouter (provider-prefixed model slug, e.g. `anthropic/...`)
+- OpenCode Zen
+- OpenCode Go
+- Google Gemini
 
-### Data Model In Practice
+AI is owner-only and disabled per vendor by default. Saved API keys are encrypted at rest using `AI_SETTINGS_ENCRYPTION_KEY`. See [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md) before treating any vendor as production-ready.
 
-The app stores:
+### Admin Pages
 
-- users and local roles
-- Auth.js accounts and sessions
-- posts and comments
-- reactions
+| Path | Purpose |
+|---|---|
+| `/admin/posts` | Manage posts and pending feed imports |
+| `/admin/categories` | Create and manage post categories |
+| `/admin/platforms` | Connect and configure outbound syndication platforms |
+| `/admin/feeds` | Manage inbound feed subscriptions |
+| `/admin/ai` | Configure AI writing assistant vendors |
+| `/admin/pages` | Create and manage static pages |
+| `/settings` | Site customization (theme, palette, colors, site copy) |
 
-The app now treats one MySQL database as the authoritative store for posts, comments, reactions, users, and Auth.js session data across both local and deployed runtimes.
-
-## Developer-First
+## Developer
 
 ### Stack
 
@@ -153,8 +144,8 @@ The app now treats one MySQL database as the authoritative store for posts, comm
 - React 19 + Vite frontend
 - Express 5 backend
 - Auth.js for authentication
-- Drizzle ORM for persistence
-- MySQL for storage
+- Drizzle ORM + MySQL for persistence
+- Orval for OpenAPI → React Query + Zod codegen
 
 ### Repository Layout
 
@@ -163,9 +154,9 @@ artifacts/
   api-server/        Express API and auth runtime
   microblog/         React frontend
 lib/
-  db/                Shared schema and Drizzle config
-  api-spec/          OpenAPI source
-  api-client-react/  Generated React client
+  db/                Shared schema, Drizzle config, and migration runner
+  api-spec/          OpenAPI 3.1 source (openapi.yaml)
+  api-client-react/  Generated React Query hooks
   api-zod/           Generated Zod schemas
 scripts/             Admin and maintenance scripts
 docs/                Setup and dependency notes
@@ -179,151 +170,114 @@ Run the one-port development server from the repository root:
 npm run dev
 ```
 
-The frontend is built first, then the Express server serves the built frontend and all API/Auth routes from one origin. The active origin is shown by the startup log:
+The frontend is built first, then Express serves both the built frontend and all API/Auth routes from one origin. For the default local `.env` (`PORT=4000`), the app runs at `http://localhost:4000`.
 
-```text
-Server listening
-port: <PORT>
-```
+> macOS's AirPlay Receiver occupies port 5000, so the default local port is 4000.
 
-For the default local `.env` (where `PORT=4000`), the app runs at `http://localhost:4000`. If you set a different `PORT`, use that value. Note: macOS's AirPlay Receiver occupies port 5000, so the default local port is 4000; Replit overrides this to 5000 via the workflow.
-
-For active frontend work with Vite hot reload, use the optional two-port mode:
+For active frontend work with Vite hot reload:
 
 ```bash
 npm run dev:hot
 ```
 
-The lower-level `npm run dev:api` and `npm run dev:web` commands remain available for debugging.
-
 ### Environment Variables
 
-Core local variables are documented in [docs/auth-setup.md](./docs/auth-setup.md) and [`.env.example`](./.env.example). The main ones are:
+| Variable | Required | Notes |
+|---|---|---|
+| `PORT` | Yes | API server port. Default `4000` locally. |
+| `ALLOWED_ORIGINS` | Yes | Comma-separated origins allowed for CORS and used to generate OAuth callback URLs in the admin UI. |
+| `AUTH_SECRET` | Yes | Long random string for Auth.js session signing. |
+| `GITHUB_ID` / `GITHUB_SECRET` | One provider required | GitHub OAuth sign-in. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | One provider required | Google OAuth sign-in (for Auth.js login, separate from Blogger syndication). |
+| `DB_HOST` | Yes | MySQL host. |
+| `DB_PORT` | No | MySQL port. Default `3306`. |
+| `DB_NAME` | Yes | MySQL database name. |
+| `DB_USER` | Yes | MySQL user. |
+| `DB_PASS` | Yes | MySQL password. |
+| `DB_SSL` | No | Set to `true` to enable SSL for the MySQL connection (required for most hosted MySQL providers). |
+| `AI_SETTINGS_ENCRYPTION_KEY` | Yes | 32-byte secret used to encrypt AI API keys **and** platform OAuth app credentials at rest. |
+| `CRON_SECRET` | For scheduled feeds | Must match the GitHub Actions secret of the same name. |
+| `SESSION_SECRET` | Yes | Session signing secret. |
 
-- `PORT`
-- `FRONTEND_PORT`
-- `API_ORIGIN`
-- `ALLOWED_ORIGINS`
-- `AUTH_SECRET`
-- `GITHUB_ID`
-- `GITHUB_SECRET`
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
-- `DB_HOST`
-- `DB_PORT`
-- `DB_NAME`
-- `DB_USER`
-- `DB_PASS`
-- `AI_SETTINGS_ENCRYPTION_KEY` for encrypting user-saved AI vendor keys at rest
-- `SQLITE_IMPORT_PATH` for the one-time SQLite import source
-
-Generate `AI_SETTINGS_ENCRYPTION_KEY` with:
+Generate `AI_SETTINGS_ENCRYPTION_KEY`:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-Do not set `AUTH_URL` for this Express app. Auth.js derives the request origin from the incoming host and derives `/api/auth` from the Express mount point.
+> Do not set `AUTH_URL`. Auth.js derives the request origin from the incoming host and the Express mount point.
+
+### Schema Changes
+
+The API server runs `ensureTables()` automatically on every startup via `lib/db/src/migrate.ts`. New tables and columns are applied with `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` — no manual migration step is required after a code pull.
+
+For interactive schema inspection during development:
+
+```bash
+DB_HOST=... DB_USER=... DB_PASS=... DB_NAME=... DB_SSL=true npm run push-force --workspace=lib/db
+```
+
+After any change to `lib/api-spec/openapi.yaml`, regenerate API clients:
+
+```bash
+npm run codegen --workspace=lib/api-spec
+```
 
 ### Scheduled Feed Refresh With GitHub Actions
 
-If you use the included GitHub Actions scheduler for inbound feed refreshes, the workflow lives at `.github/workflows/feed-refresh.yml` and runs `bash scripts/scheduled-feed-refresh.sh` hourly.
+The workflow at `.github/workflows/feed-refresh.yml` runs `bash scripts/scheduled-feed-refresh.sh` hourly. Two GitHub Actions secrets are required:
 
-The repository needs exactly two GitHub Actions secrets for that workflow:
-
-- `CRON_SECRET`
-- `PUBLIC_SITE_URL`
-
-Important wiring details:
-
-- `CRON_SECRET` in GitHub Actions must exactly match the deployed app server's `CRON_SECRET`.
-- `PUBLIC_SITE_URL` must be the fully-qualified deployed site origin, for example `https://localhost.com`.
-- Use only the origin: include `https://`, omit any path, and omit a trailing slash.
-- GitHub Actions does not read your local `.env`; repository secrets and deployed runtime env vars are separate systems.
-
-What success looks like in the workflow logs:
-
-- `scheduled-feed-refresh: ok` means the script ran successfully and the server accepted the request.
-- A JSON payload with `attempted: 0` means the scheduler is healthy but no subscribed feed source was due for refresh at that moment.
-- `scheduled-feed-refresh: CRON_SECRET is not set` means the GitHub repository secret is missing or empty; it does not mean the deployed app rejected the request.
-
-### Database Behavior
-
-The runtime expects MySQL connection settings and uses one canonical database for both local and deployed app sessions. Local edits and deployed edits are expected to land in the same datastore when they share the same environment configuration.
-
-This means:
-
-- local and deployed app instances can read and write the same canonical content store
-- the old SQLite content exists only as migration/recovery material rather than as the intended runtime database
-- app-managed MySQL `DATETIME(3)` writes are stored as naive local timestamps rather than ISO UTC strings, so newly created posts/comments/settings updates render the correct relative time in the UI without timezone-offset drift
+- `CRON_SECRET` — must exactly match the deployed app's `CRON_SECRET`
+- `PUBLIC_SITE_URL` — fully-qualified deployed site origin, e.g. `https://yourdomain.com` (no trailing slash)
 
 ### Owner Bootstrap
 
-After the first successful sign-in, promote the intended site owner using the helper script:
+After the first successful sign-in, promote the intended site owner:
 
 ```bash
 npm run list-users --workspace=@workspace/scripts
 npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com
 ```
 
-You can also promote by user ID instead of email.
-
 ### Build And Typecheck
 
-Useful root commands:
-
 ```bash
-npm run typecheck
-npm run build
-npm run start
+npm run typecheck   # type-check all packages
+npm run build       # build all packages
+npm run start       # start the built API server
 ```
 
-Legacy SQLite import command:
+## Forking And Self-Hosting
 
-```bash
-npm run import-sqlite-to-mysql --workspace=@workspace/scripts
-```
+1. **Database** — stand up a MySQL 8.0+ or MariaDB 10.5+ database. The API server's `ensureTables()` builds the full schema on first boot.
 
-### Key Runtime Notes
+2. **Environment variables** — at minimum: `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSL` (if your host requires it), `ALLOWED_ORIGINS` (set to your production domain), `AUTH_SECRET`, `AI_SETTINGS_ENCRYPTION_KEY`, and at least one OAuth sign-in provider. See the table above.
 
-- Auth.js is mounted under `/auth`
-- the backend is the source of truth for authorization
-- rich post HTML is sanitized on the server before persistence
-- `PATCH /api/users/me` treats `name` as a first-class editable profile field; the display name must be non-empty, and updating it cascades to all existing owner-authored posts so `author_name` stays in sync
-- the owner-facing "Reset to Bauhaus defaults" action on `/settings` resets only theme/palette/color values and intentionally preserves site copy and links
-- public feed and export routes are part of the stable site surface
+3. **Username** — the handle your profile page lives at, e.g. `chris` → `/users/@chris`. Set it in two places:
+   - `site_settings.cta_href` — edit via `/settings` after you've promoted yourself to owner
+   - `users.username` — run `UPDATE users SET username = '<your-username>' WHERE email = '<your-email>'` after signing in, or use `/settings`
 
-## Forking This Repo
+4. **Sign in and promote** — sign in once via OAuth, then promote yourself:
 
-If you cloned this repo to run your own microblog, the high-level path is:
+   ```bash
+   npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com
+   ```
 
-1. Stand up a fresh MySQL 8.0+ or MariaDB 10.5+ database. On Replit (or any Node host) the API server's `ensureTables()` builds the schema on first boot. On shared hosts (e.g. Hostinger), import `lib/db/install.sql` via phpMyAdmin — it carries its own step-by-step header comments.
-2. Configure environment variables in `.env` (or your host's secrets panel). At minimum: MySQL connection (`DB_HOST`/`DB_NAME`/`DB_USER`/`DB_PASS`), `AUTH_SECRET`, `AI_SETTINGS_ENCRYPTION_KEY`, and one OAuth provider (`GITHUB_ID`/`GITHUB_SECRET` or `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`). Generate `AI_SETTINGS_ENCRYPTION_KEY` with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. If you want unattended inbound feed refreshes through the included GitHub Actions workflow, also set `CRON_SECRET` on the deployed app and add two GitHub repository secrets: `CRON_SECRET` and `PUBLIC_SITE_URL` (deployed origin only, e.g. `https://yourdomain.com`). If you plan to use AI rewriting, also make sure your database schema includes `user_ai_vendor_settings`.
-3. **Pick a username** — the handle your profile page will live at, e.g. `chris` → `/users/@chris`. The same chosen string must appear in **two places that match exactly**:
-   - `site_settings.cta_href` — substitute the `<<YOUR_USERNAME>>` placeholder in `lib/db/install.sql` *before* importing, or edit `cta_href` in the `/settings` UI after you've completed step 4 below (the `/settings` page is owner-gated, so first sign-in alone isn't enough — you must also promote your row to `owner`).
-   - `users.username` — set it with `UPDATE users SET username = '<your-username>' WHERE email = '<your-email>'` *after* you've signed in once via OAuth.
+5. **Platform syndication** — visit `/admin/platforms` to connect external publishing targets. WordPress.com and Blogger require an OAuth app registered in their respective developer consoles. The admin UI generates the exact redirect URIs to register, derived from your `ALLOWED_ORIGINS` value. Medium requires a self-integration token from your Medium account settings.
 
-   Both values must be the same literal string. Until the `UPDATE` runs, no user row carries that username yet, so the hero CTA link will 404 — this is expected on a freshly-imported install and resolves the moment you set the username on your row.
-4. Sign in once via OAuth, then set your username AND promote yourself to the `owner` role (the role that unlocks `/settings` and `/admin`, including `/admin/ai`). You can use `npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com` for the promotion.
+### Optional Creatrweb Framework Files
 
-User-facing seed copy in both SQL files (`install.sql` and the narrow `site_settings_install.sql`) uses a `<<PLACEHOLDER>>` convention — double angle brackets, ALL CAPS (e.g. `<<YOUR_USERNAME>>`, `<<YOUR_NAME>>`, `<<SITE_TITLE>>`) — so a fresh fork visibly says "edit me" instead of shipping someone else's identity. Find-and-replace these in your editor before importing, or accept the placeholders and edit them via `/settings` once you've signed in and promoted yourself to the owner role (step 4).
+Several top-level files in this repo are part of the **Creatrweb framework** — conventions for working with AI coding tools (Claude Code, Gemini CLI, GitHub Copilot, Replit Agent). They are not runtime dependencies. Forks that don't use those tools can safely delete:
 
-The full step-by-step (every environment variable, the maintenance-query catalog, scheduled-feed-refresh setup, etc.) lives in [`replit.md`](./replit.md) under "Forking & Self-Hosting".
+- `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` — agent rule sets
+- `MEMORY.md`, `DECISIONS.md`, `CONSTRAINTS.md`, `DESIGN.md`, `EVAL_PROMPT.md` — long-term memory and evaluation files
+- `.agents/`, `.claude/`, `.gemini/` — per-tool skill directories
 
-### Optional Creatrweb framework files
+`.github/` is not safe to delete if you want the scheduled feed refresh workflow. `README.md`, `replit.md`, `docs/`, `artifacts/`, `lib/`, and `scripts/` are all app-essential.
 
-Several top-level folders and markdown files in this repo are part of the **Creatrweb framework** (https://github.com/cfornesa/creatrweb) — a convention for working with AI coding tools (Claude Code, Gemini CLI, GitHub Copilot, Replit Agent, etc.). They are **not runtime dependencies of the application**. Forks that don't use those AI tools can safely delete:
+## Related Docs
 
-- `.agents/`, `.claude/`, `.gemini/` — per-tool skill / instruction directories
-- `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` — agent rule sets (`CLAUDE.md` and `GEMINI.md` primarily point at `AGENTS.md` with small tool-specific additions)
-- `MEMORY.md`, `DECISIONS.md`, `CONSTRAINTS.md`, `DESIGN.md`, `EVAL_PROMPT.md` — Creatrweb's long-term-memory and evaluation files
-
-`.github/` is no longer just Copilot metadata in this repo: it also contains the scheduled feed refresh workflow. Keep it if you want the GitHub Actions scheduler path. `README.md` and `replit.md` are **not** in the safe-to-delete list — `README.md` is the standard repo front page; `replit.md` is the Replit-specific working memory and is required if you continue developing on Replit. The `docs/`, `artifacts/`, `lib/`, `scripts/`, and `data/` directories are all app-essential. See `replit.md`'s "Optional Creatrweb Framework Files" section for the full table.
-
-### Related Docs
-
-- [docs/auth-setup.md](./docs/auth-setup.md)
-- [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md)
-- [docs/dependencies.md](./docs/dependencies.md)
-- [DECISIONS.md](./DECISIONS.md)
-- [MEMORY.md](./MEMORY.md)
+- [docs/auth-setup.md](./docs/auth-setup.md) — OAuth callback setup and first-boot walkthrough
+- [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md) — AI vendor verification checklist
+- [docs/dependencies.md](./docs/dependencies.md) — runtime dependency registry
+- [DECISIONS.md](./DECISIONS.md) — architecture decision log
