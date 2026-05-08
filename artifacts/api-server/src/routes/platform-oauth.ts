@@ -16,29 +16,24 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
-// State cookie name — httpOnly, sameSite=lax, 10-minute TTL.
-const STATE_COOKIE = "__po_state";
+// Server-side OAuth state store. Keyed by the random state token; value is
+// the expiry timestamp. Consumed on first use so each token is one-shot.
+const oauthStateStore = new Map<string, number>();
 const STATE_TTL_MS = 10 * 60 * 1000;
 
 function generateState(): string {
-  return crypto.randomBytes(16).toString("hex");
+  const state = crypto.randomBytes(16).toString("hex");
+  oauthStateStore.set(state, Date.now() + STATE_TTL_MS);
+  setTimeout(() => oauthStateStore.delete(state), STATE_TTL_MS);
+  return state;
 }
 
-function setStateCookie(res: Response, state: string): void {
-  res.cookie(STATE_COOKIE, state, {
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: STATE_TTL_MS,
-    path: "/",
-  });
-}
-
-function verifyState(req: Request, res: Response): boolean {
-  const cookieState = req.cookies?.[STATE_COOKIE] as string | undefined;
+function verifyState(req: Request): boolean {
   const paramState = req.query.state as string | undefined;
-  res.clearCookie(STATE_COOKIE, { path: "/" });
-  if (!cookieState || !paramState || cookieState !== paramState) return false;
-  return true;
+  if (!paramState) return false;
+  const expiry = oauthStateStore.get(paramState);
+  oauthStateStore.delete(paramState);
+  return expiry !== undefined && Date.now() <= expiry;
 }
 
 // Resolve OAuth app credentials: env var takes priority, then DB.
@@ -102,7 +97,6 @@ router.get("/platform-oauth/wordpress-com/start", requireAuth, requireOwner, asy
   const origin = getOrigin(req);
   const redirectUri = `${origin}/api/platform-oauth/wordpress-com/callback`;
   const state = generateState();
-  setStateCookie(res, state);
 
   const url = new URL("https://public-api.wordpress.com/oauth2/authorize");
   url.searchParams.set("client_id", creds.clientId);
@@ -116,7 +110,7 @@ router.get("/platform-oauth/wordpress-com/start", requireAuth, requireOwner, asy
 
 // GET /platform-oauth/wordpress-com/callback
 router.get("/platform-oauth/wordpress-com/callback", requireAuth, requireOwner, async (req: Request, res: Response) => {
-  if (!verifyState(req, res)) {
+  if (!verifyState(req)) {
     return res.status(400).send("Invalid OAuth state. Please try connecting again.");
   }
 
@@ -205,7 +199,6 @@ router.get("/platform-oauth/blogger/start", requireAuth, requireOwner, async (re
   const origin = getOrigin(req);
   const redirectUri = `${origin}/api/platform-oauth/blogger/callback`;
   const state = generateState();
-  setStateCookie(res, state);
 
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", creds.clientId);
@@ -221,7 +214,7 @@ router.get("/platform-oauth/blogger/start", requireAuth, requireOwner, async (re
 
 // GET /platform-oauth/blogger/callback
 router.get("/platform-oauth/blogger/callback", requireAuth, requireOwner, async (req: Request, res: Response) => {
-  if (!verifyState(req, res)) {
+  if (!verifyState(req)) {
     return res.status(400).send("Invalid OAuth state. Please try connecting again.");
   }
 
