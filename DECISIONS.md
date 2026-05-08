@@ -83,6 +83,41 @@ Posts had no title column anywhere in the stack, forcing syndication `buildPaylo
 
 ---
 
+## 2026-05-08 — Blogger HTML Discovery + Admin Platforms UI Refinements
+
+### Trigger
+After implementing blog URL scoping, Blogger connection still failed with HTTP 403 on both `blogs/byurl` and `users/self/blogs`. Root cause: the Blogger API was not enabled in the Google Cloud project and/or the `https://www.googleapis.com/auth/blogger` scope was not added to the OAuth consent screen. Additionally, the admin Platforms page had two UI issues: "Update app settings" showed for unconfigured platforms (creating confusion), and the Blogger setup dialog lacked enough guidance about the scope requirement and Testing vs. Production mode. Medium was also removed from the available platform list because its API restrictions make it unreliable.
+
+### Decisions Confirmed
+
+**Blogger blog ID discovery via public HTML (no API required):**
+- Primary blog ID discovery now fetches the blog's public HTML and extracts the numeric blog ID from the Atom feed link embedded in every Blogger page's `<head>`: `href="https://www.blogger.com/feeds/{blogId}/posts/default"`. This works for custom-domain Blogger blogs and requires no Google API access at all.
+- `extractBloggerBlogIdFromHtml(blogUrl)` is a module-level helper in `platform-oauth.ts`. On success it logs `"Blogger blog ID extracted from public HTML"`.
+- The prior `blogs/byurl` API call is kept as fallback 1, `users/self/blogs` as fallback 2. Both now log the full response body on non-2xx responses so the exact Google error message (e.g. "API has not been used in project…") is visible in server logs.
+- Posting to Blogger still requires the Blogger API to be enabled and the scope on the consent screen — that is a Google constraint, not a code constraint.
+
+**"Update app settings" visibility:**
+- The condition was `platform.oauthAppPlatform && appConfigured`. Changed to `platform.oauthAppPlatform && isConnected`. The button now appears only when the platform has an active connection, not merely when OAuth app credentials have been saved. This prevents the button from appearing on platforms that have credentials stored but have never completed the OAuth flow.
+
+**Blogger `OAuthAppCredentialsDialog` — expanded setup instructions:**
+- Added: enable Blogger API v3 in the library (`APIs & Services → Library`).
+- Added: add the `https://www.googleapis.com/auth/blogger` scope to the consent screen (`OAuth consent screen → Scopes → Add or remove scopes`). If this scope is absent, Google issues a token that lacks Blogger access and all API calls fail with 403.
+- Added amber callout distinguishing Testing mode (only listed test users can authorize; add your Gmail under `OAuth consent screen → Test users`) from Production mode (no test-user restriction; publishing the app requires Google verification but the Blogger scope is non-sensitive and typically passes without a review).
+
+**Medium removed from the admin Platforms UI:**
+- The `medium` entry was removed from the `PLATFORMS` constant, the `MediumTokenDialog` component was deleted, and the `"medium"` literal was dropped from the `credentialKind` union type in `PlatformDef`.
+- Reason: Medium's API restrictions (integration tokens unavailable to most account types, write API severely limited) make reliable cross-posting impossible in practice.
+- The backend Medium syndication adapter (`syndication/medium.ts`) and the `medium` value in `platform_connections.platform` remain in the codebase. Existing Medium connections are not deleted. The platform is simply no longer offered as a new connection option in the UI.
+- This is not treated as an irreversible decision at the data layer: the UI entry can be restored by adding it back to `PLATFORMS` if Medium improves its API access model.
+
+### Outcome
+- Blogger connection now succeeds even when the Blogger API is not enabled in Google Cloud, because blog ID discovery reads the public HTML.
+- "Update app settings" is no longer visible on platforms that have app credentials but are not yet connected.
+- The Blogger credentials dialog is now a complete setup guide: covers credential creation, API enablement, scope configuration, and the Testing/Production mode distinction.
+- Medium no longer appears in the post composer's platform selector or in the admin Platforms page.
+
+---
+
 ## 2026-05-06 — Feed Routes Moved Under `/api` + Local Port Change to 4000
 
 ### Trigger

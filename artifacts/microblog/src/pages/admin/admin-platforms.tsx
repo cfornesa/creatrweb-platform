@@ -46,7 +46,7 @@ type PlatformDef = {
   // OAuth redirect platforms: clicking Connect goes to this URL.
   oauthPath?: string;
   // Credential-entry platforms: open the credential dialog instead.
-  credentialKind?: "wordpress_self" | "medium";
+  credentialKind?: "wordpress_self";
 };
 
 const PLATFORMS: PlatformDef[] = [
@@ -66,14 +66,6 @@ const PLATFORMS: PlatformDef[] = [
     setupInstruction: "Generate an Application Password in your WordPress dashboard under Users → Profile.",
     setupHref: "https://wordpress.org/documentation/article/application-passwords/",
     credentialKind: "wordpress_self",
-  },
-  {
-    id: "medium",
-    label: "Medium",
-    description: "Publish to your Medium profile using a self-integration token.",
-    setupInstruction: "Get your self-integration token from your Medium settings page.",
-    setupHref: "https://medium.com/me/settings",
-    credentialKind: "medium",
   },
   {
     id: "blogger",
@@ -217,9 +209,14 @@ function OAuthAppCredentialsDialog({
                       </div>
                     ))}
                   </div>
-                  <p>Make sure the <strong>Blogger API v3</strong> is enabled in your project (APIs &amp; Services → Library).</p>
-                  <p>Because the app is in Testing mode, you must also add your Google account as a test user: go to <strong>APIs &amp; Services → OAuth consent screen → Test users</strong> and add your Gmail address. Without this step Google will block the OAuth flow with a 403 error.</p>
-                  <p>Once the test user is added, paste the Client ID and Secret below.</p>
+                  <p>In the same project, go to <strong>APIs &amp; Services → Library</strong> and enable the <strong>Blogger API v3</strong>. Without this step publishing will fail with a 403 error even after a successful connection.</p>
+                  <p>Go to <strong>APIs &amp; Services → OAuth consent screen → Scopes → Add or remove scopes</strong> and add <code className="rounded bg-muted px-1 py-0.5 text-xs">https://www.googleapis.com/auth/blogger</code>. If this scope is missing, Google will issue a token without Blogger access and all API calls will fail.</p>
+                  <div className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-700 dark:text-amber-400 space-y-1.5">
+                    <p className="font-medium">Testing mode vs. Production mode</p>
+                    <p>New Google Cloud projects start in <strong>Testing</strong> mode. In this mode only accounts you explicitly add as test users can complete the OAuth flow. Go to <strong>OAuth consent screen → Test users</strong> and add the Gmail address you will use to connect. Without this, Google will block the flow regardless of any other setting.</p>
+                    <p>To remove the test-user restriction entirely, publish your app to <strong>Production</strong> mode on the consent screen. Production mode requires Google verification for sensitive scopes, but Blogger is a non-sensitive scope and can usually be published without a review.</p>
+                  </div>
+                  <p>Once all of the above are in place, paste the Client ID and Secret below.</p>
                 </>
               )}
             </div>
@@ -346,74 +343,6 @@ function WordPressSelfDialog({ open, onClose }: { open: boolean; onClose: () => 
   );
 }
 
-// ─── Medium self-integration token dialog ─────────────────────────────────────
-
-function MediumTokenDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const createConnection = useCreatePlatformConnection({
-    mutation: {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListPlatformConnectionsQueryKey() }),
-    },
-  });
-  const [token, setToken] = useState("");
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    createConnection.mutate(
-      { data: { platform: "medium", credentials: { token } } },
-      {
-        onSuccess: () => {
-          toast({ title: "Connected", description: "Medium connected." });
-          onClose();
-          setToken("");
-        },
-        onError: () => {
-          toast({ title: "Error", description: "Could not verify the token. Check it and try again.", variant: "destructive" });
-        },
-      },
-    );
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Connect Medium</DialogTitle>
-          <DialogDescription asChild>
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <p>
-                Sign in to Medium, then go to{" "}
-                <a href="https://medium.com/me/settings" target="_blank" rel="noopener noreferrer"
-                   className="inline-flex items-center gap-0.5 text-primary hover:underline">
-                  medium.com/me/settings <ExternalLink className="h-3 w-3" />
-                </a>
-                {" "}and look for an <strong>Integration tokens</strong> section. Enter a description, click <strong>Get integration token</strong>, then paste the token below.
-              </p>
-              <p className="rounded bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-amber-700 dark:text-amber-400">
-                Medium has significantly restricted API access. The Integration tokens section may not appear for all account types. If you do not see it, your Medium account may not support self-integration tokens.
-              </p>
-            </div>
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="medium-token">Integration token</Label>
-            <Input id="medium-token" type="password" placeholder="Paste your token here"
-              value={token} onChange={(e) => setToken(e.target.value)} required autoComplete="off" />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={createConnection.isPending}>
-              {createConnection.isPending ? "Verifying…" : "Save & connect"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ─── Platform card ─────────────────────────────────────────────────────────────
 
 function PlatformCard({
@@ -495,7 +424,7 @@ function PlatformCard({
               <span className="text-sm text-muted-foreground">Connect to use in the post composer.</span>
             )}
             <div className="flex gap-2">
-              {platform.oauthAppPlatform && appConfigured ? (
+              {platform.oauthAppPlatform && isConnected ? (
                 <Button variant="ghost" size="sm" onClick={() => setShowDialog(true)}>
                   Update app settings
                 </Button>
@@ -526,9 +455,6 @@ function PlatformCard({
       )}
       {platform.credentialKind === "wordpress_self" && (
         <WordPressSelfDialog open={showDialog} onClose={() => setShowDialog(false)} />
-      )}
-      {platform.credentialKind === "medium" && (
-        <MediumTokenDialog open={showDialog} onClose={() => setShowDialog(false)} />
       )}
     </>
   );
