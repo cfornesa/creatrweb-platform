@@ -32,6 +32,28 @@ function verifyState(req: Request): { ok: boolean; blogUrl?: string } {
 }
 
 
+// Extracts the Blogger blog ID from the public HTML of a Blogger blog.
+// Every Blogger blog embeds the Atom feed URL in a <link> element in the <head>:
+//   href="https://www.blogger.com/feeds/{blogId}/posts/default"
+// This works for custom-domain Blogger blogs and requires no API access.
+async function extractBloggerBlogIdFromHtml(
+  blogUrl: string,
+): Promise<{ blogId: string; blogUrl: string } | null> {
+  try {
+    const res = await fetch(blogUrl, {
+      headers: { "User-Agent": "CreatrWebSyndication/1.0" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const match = html.match(/blogger\.com\/feeds\/(\d+)\/posts\/default/);
+    if (!match) return null;
+    return { blogId: match[1], blogUrl };
+  } catch {
+    return null;
+  }
+}
+
 async function upsertConnection(
   userId: string,
   platform: string,
@@ -260,9 +282,21 @@ router.get("/platform-oauth/blogger/callback", requireAuth, requireOwner, async 
     let blogId: string | null = null;
     let blogUrl: string | null = null;
 
-    // Prefer blogs/byurl when the owner supplied their blog URL — this
-    // bypasses users/self/blogs which can fail (403/empty) in testing mode.
+    // Primary: parse the blog ID from the public HTML — works even when the
+    // Blogger API is not enabled or the scope wasn't granted on the consent screen.
+    // Blogger embeds the feed URL (which contains the numeric blog ID) in every page.
     if (stateResult.blogUrl) {
+      const extracted = await extractBloggerBlogIdFromHtml(stateResult.blogUrl);
+      if (extracted) {
+        blogId = extracted.blogId;
+        blogUrl = extracted.blogUrl;
+        logger.info({ blogId, blogUrl }, "Blogger blog ID extracted from public HTML");
+      }
+    }
+
+    // Fallback 1: blogs/byurl API (works when the Blogger API is enabled and
+    // the scope is on the consent screen).
+    if (!blogId && stateResult.blogUrl) {
       const byUrlRes = await fetch(
         `https://www.googleapis.com/blogger/v3/blogs/byurl?url=${encodeURIComponent(stateResult.blogUrl)}`,
         { headers: { Authorization: `Bearer ${tokens.access_token}` } },
@@ -272,11 +306,15 @@ router.get("/platform-oauth/blogger/callback", requireAuth, requireOwner, async 
         blogId = blog.id;
         blogUrl = blog.url;
       } else {
-        logger.warn({ status: byUrlRes.status, blogUrl: stateResult.blogUrl }, "Blogger blogs/byurl fetch failed");
+        const errBody = await byUrlRes.text().catch(() => "");
+        logger.warn(
+          { status: byUrlRes.status, blogUrl: stateResult.blogUrl, errBody: errBody.slice(0, 500) },
+          "Blogger blogs/byurl fetch failed",
+        );
       }
     }
 
-    // Fallback: discover via users/self/blogs when byurl wasn't available.
+    // Fallback 2: users/self/blogs API.
     if (!blogId) {
       const blogsRes = await fetch(
         "https://www.googleapis.com/blogger/v3/users/self/blogs",
@@ -292,7 +330,11 @@ router.get("/platform-oauth/blogger/callback", requireAuth, requireOwner, async 
           blogUrl = first.url;
         }
       } else {
-        logger.warn({ status: blogsRes.status }, "Blogger users/self/blogs fetch failed");
+        const errBody = await blogsRes.text().catch(() => "");
+        logger.warn(
+          { status: blogsRes.status, errBody: errBody.slice(0, 500) },
+          "Blogger users/self/blogs fetch failed",
+        );
       }
     }
 
