@@ -211,7 +211,9 @@ function OAuthAppCredentialsDialog({
                       </div>
                     ))}
                   </div>
-                  <p>Make sure the <strong>Blogger API v3</strong> is enabled in your project (APIs &amp; Services → Library). Then paste the Client ID and Secret below.</p>
+                  <p>Make sure the <strong>Blogger API v3</strong> is enabled in your project (APIs &amp; Services → Library).</p>
+                  <p>Because the app is in Testing mode, you must also add your Google account as a test user: go to <strong>APIs &amp; Services → OAuth consent screen → Test users</strong> and add your Gmail address. Without this step Google will block the OAuth flow with a 403 error.</p>
+                  <p>Once the test user is added, paste the Client ID and Secret below.</p>
                 </>
               )}
             </div>
@@ -357,14 +359,16 @@ function MediumTokenDialog({ open, onClose }: { open: boolean; onClose: () => vo
           <DialogDescription asChild>
             <div className="space-y-2 text-sm text-muted-foreground">
               <p>
-                Go to{" "}
-                <a href="https://medium.com/me/settings/security" target="_blank" rel="noopener noreferrer"
+                Sign in to Medium, then go to{" "}
+                <a href="https://medium.com/me/settings" target="_blank" rel="noopener noreferrer"
                    className="inline-flex items-center gap-0.5 text-primary hover:underline">
-                  medium.com/me/settings/security <ExternalLink className="h-3 w-3" />
-                </a>{" "}
-                and scroll down to the <strong>Integration tokens</strong> section. Give the token a description, click <strong>Get integration token</strong>, then copy and paste it below.
+                  medium.com/me/settings <ExternalLink className="h-3 w-3" />
+                </a>
+                {" "}and look for an <strong>Integration tokens</strong> section. Enter a description, click <strong>Get integration token</strong>, then paste the token below.
               </p>
-              <p>If you don't see this section, try signing in at medium.com first, then revisiting that link.</p>
+              <p className="rounded bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-amber-700 dark:text-amber-400">
+                Medium has significantly restricted API access. The Integration tokens section may not appear for all account types. If you do not see it, your Medium account may not support self-integration tokens.
+              </p>
             </div>
           </DialogDescription>
         </DialogHeader>
