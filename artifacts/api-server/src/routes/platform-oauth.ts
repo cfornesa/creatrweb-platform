@@ -126,14 +126,24 @@ router.get("/platform-oauth/wordpress-com/callback", requireAuth, requireOwner, 
     let blogUrl: string | null = null;
 
     if (!blogId) {
-      const meRes = await fetch("https://public-api.wordpress.com/rest/v1.1/sites/mine", {
+      const sitesRes = await fetch("https://public-api.wordpress.com/rest/v1.1/me/sites", {
         headers: { Authorization: `Bearer ${tokens.access_token}` },
       });
-      if (meRes.ok) {
-        const me = (await meRes.json()) as { ID?: number; URL?: string };
-        blogId = me.ID ? String(me.ID) : null;
-        blogUrl = me.URL ?? null;
+      if (sitesRes.ok) {
+        const data = (await sitesRes.json()) as { sites?: Array<{ ID: number; URL: string }> };
+        const first = data.sites?.[0];
+        if (first) {
+          blogId = String(first.ID);
+          blogUrl = first.URL;
+        }
+      } else {
+        logger.warn({ status: sitesRes.status }, "WordPress.com me/sites fetch failed");
       }
+    }
+
+    if (!blogId) {
+      logger.error({}, "WordPress.com OAuth: could not determine blog ID — no sites on account");
+      return res.redirect("/admin/platforms?error=wordpress_com_no_blog");
     }
 
     const expiresAt = tokens.expires_in
@@ -242,6 +252,13 @@ router.get("/platform-oauth/blogger/callback", requireAuth, requireOwner, async 
         blogId = first.id;
         blogUrl = first.url;
       }
+    } else {
+      logger.warn({ status: blogsRes.status }, "Blogger blogs fetch failed");
+    }
+
+    if (!blogId) {
+      logger.error({}, "Blogger OAuth: could not determine blog ID — no blogs on account or access denied");
+      return res.redirect("/admin/platforms?error=blogger_no_blog");
     }
 
     const expiresAt = tokens.expires_in

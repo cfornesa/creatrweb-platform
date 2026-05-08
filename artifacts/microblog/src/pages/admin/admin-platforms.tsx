@@ -277,8 +277,10 @@ function WordPressSelfDialog({ open, onClose }: { open: boolean; onClose: () => 
           onClose();
           setForm({ siteUrl: "", username: "", appPassword: "" });
         },
-        onError: () => {
-          toast({ title: "Error", description: "Failed to save credentials. Check them and try again.", variant: "destructive" });
+        onError: (err) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const msg = (err as any)?.response?.data?.error ?? "Failed to save credentials. Check them and try again.";
+          toast({ title: "Error", description: msg, variant: "destructive" });
         },
       },
     );
@@ -529,7 +531,18 @@ export default function AdminPlatformsPage() {
       const label = PLATFORMS.find((p) => p.id === connectedParam)?.label ?? connectedParam;
       toast({ title: "Connected", description: `${label} connected successfully.` });
     } else if (errorParam) {
-      toast({ title: "Connection failed", description: "The platform denied the request or an error occurred.", variant: "destructive" });
+      const ERROR_MESSAGES: Record<string, string> = {
+        wordpress_com_denied: "WordPress.com authorization was cancelled.",
+        wordpress_com_not_configured: "WordPress.com app credentials not configured.",
+        wordpress_com_failed: "WordPress.com connection failed. Check the server logs.",
+        wordpress_com_no_blog: "Connected to WordPress.com but no blog was found on this account. Make sure your account has at least one WordPress.com site, then try again.",
+        blogger_denied: "Blogger authorization was cancelled.",
+        blogger_not_configured: "Blogger app credentials not configured.",
+        blogger_failed: "Blogger connection failed. Check the server logs.",
+        blogger_no_blog: "Connected to Google but no Blogger blog was found. Make sure your account has a Blogger blog and that your Google account is added as a test user in the OAuth consent screen, then try again.",
+      };
+      const msg = ERROR_MESSAGES[errorParam] ?? "The platform denied the request or an error occurred.";
+      toast({ title: "Connection failed", description: msg, variant: "destructive" });
     }
   }
 

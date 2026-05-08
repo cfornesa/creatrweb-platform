@@ -117,10 +117,14 @@ router.post("/platform-connections", requireAuth, requireOwner, async (req: Requ
 
     if (platform === "wordpress_self") {
       const { siteUrl, username, appPassword } = credentials ?? {};
-      if (!siteUrl || !username || !appPassword) {
-        return res.status(400).json({
-          error: "wordpress_self requires credentials.siteUrl, credentials.username, and credentials.appPassword",
-        });
+      if (!siteUrl) {
+        return res.status(400).json({ error: "Site URL is required (must start with https:// or http://)" });
+      }
+      if (!username) {
+        return res.status(400).json({ error: "Username is required" });
+      }
+      if (!appPassword) {
+        return res.status(400).json({ error: "Application Password is required" });
       }
 
       const basicCredential = Buffer.from(`${username}:${appPassword}`).toString("base64");
