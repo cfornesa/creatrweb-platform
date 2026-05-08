@@ -34,6 +34,55 @@ options regardless of session context. -->
 
 ---
 
+## 2026-05-08 — Blog URL Scoping for OAuth Platforms + Optional Post Title Field
+
+### Workstream A — Blog URL per OAuth Platform
+
+#### Trigger
+WordPress.com `me/sites` returned the wrong blog ID (the first site on the account, not `fornesus.blog`). Blogger `users/self/blogs` returned empty/403 for accounts in Google Testing mode. Neither platform could reliably discover the correct blog without the owner specifying their blog URL explicitly.
+
+#### Decisions Confirmed
+- `platform_oauth_apps` gains a `blog_url VARCHAR(500) NULL` column (additive, provisioned via `ensureColumn` in `lib/db/src/migrate.ts`).
+- The `PUT /api/platform-oauth-apps/:platform` endpoint now accepts `blogUrl?: string`. The `GET /api/platform-oauth-apps` list includes `blogUrl` in each row.
+- `lib/api-spec/openapi.yaml`: `PlatformOAuthApp` schema has `blogUrl: { type: string, nullable: true }`; `UpsertPlatformOAuthAppBody` has optional `blogUrl`. Codegen re-ran (orval).
+- OAuth state store changed from `Map<string, number>` to `Map<string, { expiry: number; blogUrl?: string }>`. `generateState(blogUrl?)` stores the URL alongside the expiry; `verifyState(req)` returns `{ ok, blogUrl }` so callbacks can read it without a second DB query.
+- WordPress.com start route: queries `platform_oauth_apps.blogUrl`, passes it to `generateState()`, and adds `url.searchParams.set("blog", blogUrl)` to the authorize URL. This scopes the token to that blog and causes `blog_id` to appear directly in the token response (no `me/sites` fallback needed when `blogUrl` is set; fallback kept as safety net).
+- Blogger start route: same DB query + `generateState(blogUrl)`. Blogger callback: primary blog ID lookup via `GET /blogger/v3/blogs/byurl?url=${encodeURIComponent(blogUrl)}` using the access token; falls back to `users/self/blogs` when no `blogUrl` is set.
+- `OAuthAppCredentialsDialog` in `/admin/platforms` gains a third input (type="url") for blog URL, with per-platform placeholder text. Pre-populated from the saved row. An "Update app settings" button is added when credentials are already configured, so the dialog can be re-opened even after OAuth has been connected (previously there was no UI path to update `blogUrl` post-connection).
+- `adminPlatformsPage` was refactored from an `appConfiguredMap` boolean to an `appMap` full-object map so `blogUrl` is available to each `PlatformCard`.
+
+#### Outcome
+- Reconnecting WordPress.com with a saved blog URL routes the token to the correct blog; `blogId` in the connection row is now the blog-scoped ID.
+- Blogger now resolves its blog ID via `blogs/byurl` even in Google Testing mode where `users/self/blogs` fails.
+- Owner can update blog URL post-hoc without fully disconnecting the platform.
+
+---
+
+### Workstream B — Optional Post Title Field
+
+#### Trigger
+Posts had no title column anywhere in the stack, forcing syndication `buildPayload` to use the first 100 characters of content as a title. This caused the same text to appear as an H1 heading + the first line of the post body on WordPress and Blogger. Additionally, owners had no way to write clearly-delineated long-form posts with titles alongside title-less microblog posts.
+
+#### Decisions Confirmed
+- `posts` gains a `title VARCHAR(500) NULL` column (additive, provisioned via `ensureColumn`, no default — existing rows get `NULL`).
+- `lib/api-spec/openapi.yaml`: `Post` schema has `title: { type: string, nullable: true }`; `CreatePostBody` and `UpdatePostBody` have optional `title: { type: string, maxLength: 500 }`. Codegen re-ran (orval).
+- All three GET selects in `artifacts/api-server/src/routes/posts.ts` (`/posts/user/:userId`, `/posts`, `/posts/:id`) now project `title: postsTable.title`.
+- `POST /posts`: stores `title?.trim() || null`; empty string → null.
+- `PATCH /posts/:id`: if `title` key is present in body, overwrites with trimmed value or null; absent key leaves the column unchanged.
+- `RichPostEditor`: added `initialTitle?: string` prop and local `title` state; a native `<input>` above the TipTap editor area (not part of TipTap) shows "Title (optional)" placeholder; `handleSubmit` includes `title: title.trim()` in the payload. `onSubmit` prop type updated to include `title: string`.
+- `ComposePost`: destructures `{ title, platformIds, ...rest }` from `onSubmit` payload; passes `title: title || undefined` to `useCreatePost`.
+- `PostCard` edit flow: passes `initialTitle` to `RichPostEditor` and includes `title: title || undefined` in `useUpdatePost` mutation payload.
+- `PostCard` display: renders `<h2 className="text-lg font-semibold leading-snug mb-1">` above `<PostContent>` when `post.title` is truthy; nothing rendered when title is null.
+- Feed generation (`feeds.ts`): `buildAtom` and `buildJsonFeed` now use `post.title?.trim() || summary || \`Post ${post.id}\`` for the feed item `<title>` / `title` field.
+- Syndication `buildPayload` (`syndication/index.ts`): returns `title: post.title?.trim() ?? ""`. Empty string means no H1 on WordPress/Blogger — content body appears on its own. The content-derived `stripHtmlToText` import was removed (was only used to fabricate a title from body content, now unused).
+
+#### Outcome
+- Owner can write titled long-form posts and title-less microblog posts; the distinction is preserved across all views, feeds, and syndication targets.
+- Existing posts continue to render without a title heading (null column → no `<h2>`).
+- WordPress and Blogger syndication no longer duplicates the opening body text as a page heading.
+
+---
+
 ## 2026-05-06 — Feed Routes Moved Under `/api` + Local Port Change to 4000
 
 ### Trigger
