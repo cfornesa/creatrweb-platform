@@ -29,12 +29,17 @@ export const ListPostsQueryParams = zod.object({
   "source": zod.coerce.string().optional().describe('Filter by source. \"original\" for posts with no feed source (native + deleted-source posts), or a numeric feed source ID. Omit or pass \"all\" for no filter.')
 })
 
+export const listPostsResponsePostsItemTitleMax = 500;
+
+
+
 export const ListPostsResponse = zod.object({
   "posts": zod.array(zod.object({
   "id": zod.number(),
   "authorId": zod.string(),
   "authorName": zod.string(),
   "authorImageUrl": zod.string().nullish(),
+  "title": zod.string().max(listPostsResponsePostsItemTitleMax).nullish().describe('Optional post title. Null for title-less microblog posts.'),
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
@@ -64,6 +69,8 @@ export const ListPostsResponse = zod.object({
 /**
  * @summary Create a new post
  */
+export const createPostBodyTitleMax = 500;
+
 export const createPostBodyContentMax = 40000;
 
 
@@ -71,6 +78,7 @@ export const createPostBodyContentMax = 40000;
 
 
 export const CreatePostBody = zod.object({
+  "title": zod.string().max(createPostBodyTitleMax).optional().describe('Optional post title. Omit or send empty string for title-less microblog posts.'),
   "content": zod.string().max(createPostBodyContentMax),
   "contentFormat": zod.enum(['plain', 'html']),
   "categoryIds": zod.array(zod.number().min(1)).optional().describe('Optional list of `categories.id` values to attach to the new post.\nEvery id must be a positive integer; any unknown or malformed id\ncauses the request to fail with 400 and no post is created.\nOmitting the field (or sending an empty array) leaves the post\nuncategorized.\n'),
@@ -85,12 +93,17 @@ export const GetPostParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getPostResponsePostTitleMax = 500;
+
+
+
 export const GetPostResponse = zod.object({
   "post": zod.object({
   "id": zod.number(),
   "authorId": zod.string(),
   "authorName": zod.string(),
   "authorImageUrl": zod.string().nullish(),
+  "title": zod.string().max(getPostResponsePostTitleMax).nullish().describe('Optional post title. Null for title-less microblog posts.'),
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
@@ -130,22 +143,30 @@ export const UpdatePostParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const updatePostBodyTitleMax = 500;
+
 export const updatePostBodyContentMax = 40000;
 
 
 
 
 export const UpdatePostBody = zod.object({
+  "title": zod.string().max(updatePostBodyTitleMax).optional().describe('Optional post title. Omit to leave unchanged; send empty string to clear.'),
   "content": zod.string().max(updatePostBodyContentMax),
   "contentFormat": zod.enum(['plain', 'html']),
   "categoryIds": zod.array(zod.number().min(1)).optional().describe('Replaces the post\'s category set. Sending an empty array clears all\ncategories; omitting the field leaves the existing set untouched.\nEvery id must be a positive integer; any unknown or malformed id\ncauses the request to fail with 400 and the post stays unchanged.\n')
 })
+
+export const updatePostResponseTitleMax = 500;
+
+
 
 export const UpdatePostResponse = zod.object({
   "id": zod.number(),
   "authorId": zod.string(),
   "authorName": zod.string(),
   "authorImageUrl": zod.string().nullish(),
+  "title": zod.string().max(updatePostResponseTitleMax).nullish().describe('Optional post title. Null for title-less microblog posts.'),
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
@@ -247,12 +268,17 @@ export const GetPostsByUserQueryParams = zod.object({
   "limit": zod.coerce.number().default(getPostsByUserQueryLimitDefault)
 })
 
+export const getPostsByUserResponsePostsItemTitleMax = 500;
+
+
+
 export const GetPostsByUserResponse = zod.object({
   "posts": zod.array(zod.object({
   "id": zod.number(),
   "authorId": zod.string(),
   "authorName": zod.string(),
   "authorImageUrl": zod.string().nullish(),
+  "title": zod.string().max(getPostsByUserResponsePostsItemTitleMax).nullish().describe('Optional post title. Null for title-less microblog posts.'),
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
@@ -1108,12 +1134,17 @@ export const GetCategoryPostsQueryParams = zod.object({
   "limit": zod.coerce.number().default(getCategoryPostsQueryLimitDefault)
 })
 
+export const getCategoryPostsResponsePostsItemTitleMax = 500;
+
+
+
 export const GetCategoryPostsResponse = zod.object({
   "posts": zod.array(zod.object({
   "id": zod.number(),
   "authorId": zod.string(),
   "authorName": zod.string(),
   "authorImageUrl": zod.string().nullish(),
+  "title": zod.string().max(getCategoryPostsResponsePostsItemTitleMax).nullish().describe('Optional post title. Null for title-less microblog posts.'),
   "content": zod.string(),
   "contentFormat": zod.enum(['plain', 'html']),
   "commentCount": zod.number(),
@@ -1445,7 +1476,8 @@ export const GetMediaParams = zod.object({
 export const ListPlatformOAuthAppsResponse = zod.object({
   "apps": zod.array(zod.object({
   "platform": zod.enum(['wordpress_com', 'blogger']),
-  "configured": zod.boolean()
+  "configured": zod.boolean(),
+  "blogUrl": zod.string().nullish().describe('Blog URL used to scope the OAuth token (e.g. https:\/\/yourblog.wordpress.com).')
 }).describe('Site-wide OAuth application credentials for a POSSE platform.\nCLIENT_ID and CLIENT_SECRET are stored encrypted and never returned;\n`configured: true` means both are saved and the OAuth flow can proceed.\n'))
 })
 
@@ -1461,16 +1493,20 @@ export const upsertPlatformOAuthAppBodyClientIdMax = 512;
 
 export const upsertPlatformOAuthAppBodyClientSecretMax = 512;
 
+export const upsertPlatformOAuthAppBodyBlogUrlMax = 500;
+
 
 
 export const UpsertPlatformOAuthAppBody = zod.object({
   "clientId": zod.string().min(1).max(upsertPlatformOAuthAppBodyClientIdMax),
-  "clientSecret": zod.string().min(1).max(upsertPlatformOAuthAppBodyClientSecretMax)
+  "clientSecret": zod.string().min(1).max(upsertPlatformOAuthAppBodyClientSecretMax),
+  "blogUrl": zod.string().max(upsertPlatformOAuthAppBodyBlogUrlMax).optional().describe('Your blog URL (e.g. https:\/\/yourblog.wordpress.com). Used to scope the OAuth token to the correct blog.')
 }).describe('CLIENT_ID and CLIENT_SECRET for an OAuth platform\'s developer app registration.')
 
 export const UpsertPlatformOAuthAppResponse = zod.object({
   "platform": zod.enum(['wordpress_com', 'blogger']),
-  "configured": zod.boolean()
+  "configured": zod.boolean(),
+  "blogUrl": zod.string().nullish().describe('Blog URL used to scope the OAuth token (e.g. https:\/\/yourblog.wordpress.com).')
 }).describe('Site-wide OAuth application credentials for a POSSE platform.\nCLIENT_ID and CLIENT_SECRET are stored encrypted and never returned;\n`configured: true` means both are saved and the OAuth flow can proceed.\n')
 
 

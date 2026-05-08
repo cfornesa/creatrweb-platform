@@ -12,7 +12,6 @@ import {
 } from "@workspace/db";
 import { encryptSecret } from "../crypto";
 import { logger } from "../logger";
-import { stripHtmlToText } from "../html";
 import type { PlatformAdapter, SyndicationPayload, TokenRefreshResult } from "./types";
 import { wordpressComAdapter } from "./wordpress-com";
 import { wordpressSelfAdapter } from "./wordpress-self";
@@ -33,10 +32,8 @@ export function getAdapter(platform: string): PlatformAdapter {
 }
 
 function buildPayload(post: Post, origin: string): SyndicationPayload {
-  const text = stripHtmlToText(post.content);
-  const title = text.slice(0, 100).trim() || "Untitled post";
   return {
-    title,
+    title: (post as Post & { title?: string | null }).title?.trim() ?? "",
     contentHtml: post.content,
     canonicalUrl: `${origin}/posts/${post.id}`,
   };

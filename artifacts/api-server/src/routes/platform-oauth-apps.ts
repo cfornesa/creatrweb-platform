@@ -11,10 +11,11 @@ const router: IRouter = Router();
 // Medium is excluded — it uses self-integration tokens, not OAuth apps.
 const OAUTH_APP_PLATFORMS = new Set(["wordpress_com", "blogger"]);
 
-function serializeApp(row: { platform: string; encryptedClientId: string | null; encryptedClientSecret: string | null }) {
+function serializeApp(row: { platform: string; encryptedClientId: string | null; encryptedClientSecret: string | null; blogUrl?: string | null }) {
   return {
     platform: row.platform,
     configured: Boolean(row.encryptedClientId && row.encryptedClientSecret),
+    blogUrl: row.blogUrl ?? null,
   };
 }
 
@@ -30,6 +31,7 @@ router.get("/platform-oauth-apps", requireAuth, requireOwner, async (_req: Reque
       return {
         platform,
         configured: Boolean(row?.encryptedClientId && row?.encryptedClientSecret),
+        blogUrl: row?.blogUrl ?? null,
       };
     });
 
@@ -43,6 +45,7 @@ router.get("/platform-oauth-apps", requireAuth, requireOwner, async (_req: Reque
 const UpsertOAuthAppBody = z.object({
   clientId: z.string().min(1).max(512),
   clientSecret: z.string().min(1).max(512),
+  blogUrl: z.string().max(500).optional(),
 });
 
 // PUT /platform-oauth-apps/:platform — save CLIENT_ID + CLIENT_SECRET
@@ -58,10 +61,11 @@ router.put("/platform-oauth-apps/:platform", requireAuth, requireOwner, async (r
       return res.status(400).json({ error: "Invalid request body", details: parsed.error.format() });
     }
 
-    const { clientId, clientSecret } = parsed.data;
+    const { clientId, clientSecret, blogUrl } = parsed.data;
     const now = formatMysqlDateTime(new Date());
     const encId = encryptSecret(clientId);
     const encSecret = encryptSecret(clientSecret);
+    const normalizedBlogUrl = blogUrl?.trim() || null;
 
     const existing = await db
       .select()
@@ -72,19 +76,20 @@ router.put("/platform-oauth-apps/:platform", requireAuth, requireOwner, async (r
     if (existing.length > 0) {
       await db
         .update(platformOAuthAppsTable)
-        .set({ encryptedClientId: encId, encryptedClientSecret: encSecret, updatedAt: now })
+        .set({ encryptedClientId: encId, encryptedClientSecret: encSecret, blogUrl: normalizedBlogUrl, updatedAt: now })
         .where(eq(platformOAuthAppsTable.platform, platform));
     } else {
       await db.insert(platformOAuthAppsTable).values({
         platform,
         encryptedClientId: encId,
         encryptedClientSecret: encSecret,
+        blogUrl: normalizedBlogUrl,
         createdAt: now,
         updatedAt: now,
       });
     }
 
-    return res.json({ platform, configured: true });
+    return res.json({ platform, configured: true, blogUrl: normalizedBlogUrl });
   } catch (err) {
     logger.error({ err }, "PUT /platform-oauth-apps/:platform error");
     return res.status(500).json({ error: "Server error" });

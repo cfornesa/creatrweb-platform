@@ -24,6 +24,7 @@ import {
 
 type RichPostEditorProps = {
   initialContent: string;
+  initialTitle?: string;
   placeholder?: string;
   submitLabel: string;
   cancelLabel?: string;
@@ -41,6 +42,7 @@ type RichPostEditorProps = {
   platformConnections?: EnabledPlatformConnection[];
   onCancel?: () => void;
   onSubmit: (payload: {
+    title: string;
     content: string;
     contentFormat: "html";
     categoryIds: number[];
@@ -142,6 +144,7 @@ function parseYouTubeUrl(input: string) {
 
 export function RichPostEditor({
   initialContent,
+  initialTitle = "",
   placeholder = "Write something worth lingering on...",
   submitLabel,
   cancelLabel = "Cancel",
@@ -157,6 +160,7 @@ export function RichPostEditor({
 }: RichPostEditorProps) {
   const { toast } = useToast();
   const fileInputId = useId();
+  const [title, setTitle] = useState(initialTitle);
   const [textLength, setTextLength] = useState(getEditorTextLength(initialContent));
   const [categoryIds, setCategoryIds] = useState<number[]>(initialCategoryIds);
   const [platformIds, setPlatformIds] = useState<number[]>(
@@ -315,6 +319,7 @@ export function RichPostEditor({
     }
 
     onSubmit({
+      title: title.trim(),
       content: html,
       contentFormat: "html",
       categoryIds,
@@ -380,6 +385,13 @@ export function RichPostEditor({
 
   return (
     <div className="space-y-3">
+      <input
+        type="text"
+        placeholder="Title (optional)"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        className="w-full border-b border-border bg-transparent text-lg font-semibold placeholder:text-muted-foreground/60 focus:outline-none pb-2"
+      />
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         <div className="wysiwyg-toolbar flex flex-wrap items-center gap-1 border-b border-border/70 bg-muted/20 px-2 py-2">
           <div className="flex items-center gap-1 border-r border-border/70 pr-2">

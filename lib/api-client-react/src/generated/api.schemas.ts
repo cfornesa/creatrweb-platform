@@ -87,6 +87,11 @@ export interface Post {
   authorId: string;
   authorName: string;
   authorImageUrl?: string | null;
+  /**
+     * Optional post title. Null for title-less microblog posts.
+     * @maxLength 500
+     */
+  title?: string | null;
   content: string;
   contentFormat: PostContentFormat;
   commentCount: number;
@@ -180,6 +185,11 @@ export const CreatePostBodyContentFormat = {
 } as const;
 
 export interface CreatePostBody {
+  /**
+     * Optional post title. Omit or send empty string for title-less microblog posts.
+     * @maxLength 500
+     */
+  title?: string;
   /** @maxLength 40000 */
   content: string;
   contentFormat: CreatePostBodyContentFormat;
@@ -207,6 +217,11 @@ export const UpdatePostBodyContentFormat = {
 } as const;
 
 export interface UpdatePostBody {
+  /**
+     * Optional post title. Omit to leave unchanged; send empty string to clear.
+     * @maxLength 500
+     */
+  title?: string;
   /** @maxLength 40000 */
   content: string;
   contentFormat: UpdatePostBodyContentFormat;
@@ -1177,6 +1192,8 @@ CLIENT_ID and CLIENT_SECRET are stored encrypted and never returned;
 export interface PlatformOAuthApp {
   platform: PlatformOAuthAppPlatform;
   configured: boolean;
+  /** Blog URL used to scope the OAuth token (e.g. https://yourblog.wordpress.com). */
+  blogUrl?: string | null;
 }
 
 export interface PlatformOAuthAppsList {
@@ -1197,6 +1214,11 @@ export interface UpsertPlatformOAuthAppBody {
      * @maxLength 512
      */
   clientSecret: string;
+  /**
+     * Your blog URL (e.g. https://yourblog.wordpress.com). Used to scope the OAuth token to the correct blog.
+     * @maxLength 500
+     */
+  blogUrl?: string;
 }
 
 export type ListPostsParams = {

@@ -247,6 +247,11 @@ export async function ensureTables(): Promise<void> {
     "source_canonical_url VARCHAR(2048) NULL",
   );
 
+  // Optional post title. Null for title-less microblog posts (existing
+  // behavior preserved). Set when owner writes a long-form post or
+  // retroactively titles an existing post via the edit flow.
+  await ensureColumn("posts", "title", "title VARCHAR(500) NULL");
+
   // Plain-text shadow of `content`, populated by every write path that
   // touches `content`. Backs the FULLTEXT index that powers
   // `/api/posts/search`. Nullable so adding the column on an existing
@@ -733,4 +738,13 @@ export async function ensureTables(): Promise<void> {
       UNIQUE KEY platform_oauth_apps_platform_unique (platform)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  // Blog URL entered by the owner in the credentials dialog. Used to scope
+  // the WordPress.com OAuth token (blog= parameter) and to look up the
+  // Blogger blog ID via blogs/byurl instead of users/self/blogs.
+  await ensureColumn(
+    "platform_oauth_apps",
+    "blog_url",
+    "blog_url VARCHAR(500) NULL",
+  );
 }

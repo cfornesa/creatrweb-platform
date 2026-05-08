@@ -1568,6 +1568,11 @@ components:
         authorImageUrl:
           type: string
           nullable: true
+        title:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: Optional post title. Null for title-less microblog posts.
         content:
           type: string
         contentFormat:
@@ -1756,6 +1761,10 @@ components:
     CreatePostBody:
       type: object
       properties:
+        title:
+          type: string
+          maxLength: 500
+          description: Optional post title. Omit or send empty string for title-less microblog posts.
         content:
           type: string
           maxLength: 40000
@@ -1790,6 +1799,10 @@ components:
     UpdatePostBody:
       type: object
       properties:
+        title:
+          type: string
+          maxLength: 500
+          description: Optional post title. Omit to leave unchanged; send empty string to clear.
         content:
           type: string
           maxLength: 40000
@@ -3136,6 +3149,10 @@ components:
           enum: [wordpress_com, blogger]
         configured:
           type: boolean
+        blogUrl:
+          type: string
+          nullable: true
+          description: Blog URL used to scope the OAuth token (e.g. https://yourblog.wordpress.com).
       required:
         - platform
         - configured
@@ -3162,6 +3179,10 @@ components:
           type: string
           minLength: 1
           maxLength: 512
+        blogUrl:
+          type: string
+          maxLength: 500
+          description: Your blog URL (e.g. https://yourblog.wordpress.com). Used to scope the OAuth token to the correct blog.
       required:
         - clientId
         - clientSecret

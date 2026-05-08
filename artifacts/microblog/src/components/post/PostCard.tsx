@@ -362,6 +362,7 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
           <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
             <RichPostEditor
               initialContent={draftContent}
+              initialTitle={(displayPost as Post & { title?: string | null }).title ?? ""}
               initialCategoryIds={(displayPost as Post & { categories?: { id: number }[] }).categories?.map((c) => c.id) ?? []}
               submitLabel="Save"
               cancelLabel="Cancel"
@@ -372,21 +373,28 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
                 const uploaded = await uploadMedia.mutateAsync({ data: { file } });
                 return uploaded.url;
               }}
-              onSubmit={(payload) => {
+              onSubmit={({ title, ...payload }) => {
                 setDraftContent(payload.content);
                 updatePost.mutate({
                   id: displayPost.id,
-                  data: payload,
+                  data: { ...payload, title: title || undefined },
                 });
               }}
             />
           </div>
         ) : (
-          <PostContent
-            content={displayPost.content}
-            contentFormat={displayPost.contentFormat}
-            highlightQuery={highlightQuery}
-          />
+          <>
+            {(displayPost as Post & { title?: string | null }).title ? (
+              <h2 className="text-lg font-semibold leading-snug mb-1">
+                {(displayPost as Post & { title?: string | null }).title}
+              </h2>
+            ) : null}
+            <PostContent
+              content={displayPost.content}
+              contentFormat={displayPost.contentFormat}
+              highlightQuery={highlightQuery}
+            />
+          </>
         )}
 
         <div className="flex items-center gap-2 pt-2">

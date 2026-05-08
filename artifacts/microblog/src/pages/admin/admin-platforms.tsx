@@ -125,6 +125,7 @@ function OAuthAppCredentialsDialog({
   label,
   setupHref,
   oauthPath,
+  initialBlogUrl,
   onSaved,
 }: {
   open: boolean;
@@ -133,10 +134,11 @@ function OAuthAppCredentialsDialog({
   label: string;
   setupHref: string;
   oauthPath: string;
+  initialBlogUrl?: string | null;
   onSaved: () => void;
 }) {
   const { toast } = useToast();
-  const [form, setForm] = useState({ clientId: "", clientSecret: "" });
+  const [form, setForm] = useState({ clientId: "", clientSecret: "", blogUrl: initialBlogUrl ?? "" });
   const upsertApp = useUpsertPlatformOAuthApp();
   const { data: siteSettings } = useGetSiteSettings();
   const callbackSuffix = `/api/platform-oauth/${platform === "wordpress_com" ? "wordpress-com" : "blogger"}/callback`;
@@ -147,14 +149,18 @@ function OAuthAppCredentialsDialog({
       ? siteSettings.allowedOrigins
       : [window.location.origin];
 
+  const blogUrlPlaceholder = platform === "wordpress_com"
+    ? "https://yourblog.wordpress.com"
+    : "https://yourblog.blogspot.com";
+
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
     upsertApp.mutate(
-      { platform, data: { clientId: form.clientId, clientSecret: form.clientSecret } },
+      { platform, data: { clientId: form.clientId, clientSecret: form.clientSecret, blogUrl: form.blogUrl || undefined } },
       {
         onSuccess: () => {
           toast({ title: "App credentials saved", description: `Connecting to ${label}…` });
-          setForm({ clientId: "", clientSecret: "" });
+          setForm({ clientId: "", clientSecret: "", blogUrl: "" });
           onSaved();
           onClose();
           window.location.href = oauthPath;
@@ -242,6 +248,22 @@ function OAuthAppCredentialsDialog({
               required
               autoComplete="off"
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${platform}-blog-url`}>Your blog URL</Label>
+            <Input
+              id={`${platform}-blog-url`}
+              type="url"
+              placeholder={blogUrlPlaceholder}
+              value={form.blogUrl}
+              onChange={(e) => setForm((f) => ({ ...f, blogUrl: e.target.value }))}
+              autoComplete="off"
+            />
+            <p className="text-xs text-muted-foreground">
+              {platform === "wordpress_com"
+                ? "Scopes the OAuth token to this blog, so the correct blog ID is used when posting."
+                : "Used to look up your Blogger blog ID directly, bypassing the account-level discovery that can fail in testing mode."}
+            </p>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
@@ -398,11 +420,13 @@ function PlatformCard({
   platform,
   connection,
   appConfigured,
+  appBlogUrl,
   onAppSaved,
 }: {
   platform: PlatformDef;
   connection: PlatformConnection | undefined;
   appConfigured: boolean;
+  appBlogUrl?: string | null;
   onAppSaved: () => void;
 }) {
   const { toast } = useToast();
@@ -471,6 +495,11 @@ function PlatformCard({
               <span className="text-sm text-muted-foreground">Connect to use in the post composer.</span>
             )}
             <div className="flex gap-2">
+              {platform.oauthAppPlatform && appConfigured ? (
+                <Button variant="ghost" size="sm" onClick={() => setShowDialog(true)}>
+                  Update app settings
+                </Button>
+              ) : null}
               {isConnected ? (
                 <Button variant="outline" size="sm" onClick={handleDisconnect} disabled={deleteConnection.isPending}>
                   {deleteConnection.isPending ? "Removing…" : "Disconnect"}
@@ -491,6 +520,7 @@ function PlatformCard({
           label={platform.label}
           setupHref={platform.setupHref}
           oauthPath={platform.oauthPath}
+          initialBlogUrl={appBlogUrl}
           onSaved={onAppSaved}
         />
       )}
@@ -549,8 +579,8 @@ export default function AdminPlatformsPage() {
   const connectionMap = new Map(
     (connections.data?.connections ?? []).map((c) => [c.platform, c]),
   );
-  const appConfiguredMap = new Map(
-    (oauthApps.data?.apps ?? []).map((a) => [a.platform, a.configured]),
+  const appMap = new Map(
+    (oauthApps.data?.apps ?? []).map((a) => [a.platform, a]),
   );
 
   const invalidateApps = () =>
@@ -567,7 +597,8 @@ export default function AdminPlatformsPage() {
             key={platform.id}
             platform={platform}
             connection={connectionMap.get(platform.id)}
-            appConfigured={platform.oauthAppPlatform ? (appConfiguredMap.get(platform.oauthAppPlatform) ?? false) : false}
+            appConfigured={platform.oauthAppPlatform ? (appMap.get(platform.oauthAppPlatform)?.configured ?? false) : false}
+            appBlogUrl={platform.oauthAppPlatform ? (appMap.get(platform.oauthAppPlatform)?.blogUrl ?? null) : null}
             onAppSaved={invalidateApps}
           />
         ))}

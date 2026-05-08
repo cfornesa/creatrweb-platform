@@ -118,6 +118,7 @@ router.get("/posts/user/:userId", async (req: Request, res: Response) => {
         authorId: postsTable.authorId,
         authorName: postsTable.authorName,
         authorImageUrl: postsTable.authorImageUrl,
+        title: postsTable.title,
         content: postsTable.content,
         contentFormat: postsTable.contentFormat,
         sourceFeedId: postsTable.sourceFeedId,
@@ -452,6 +453,7 @@ router.get("/posts", async (req: Request, res: Response) => {
         authorId: postsTable.authorId,
         authorName: postsTable.authorName,
         authorImageUrl: postsTable.authorImageUrl,
+        title: postsTable.title,
         content: postsTable.content,
         contentFormat: postsTable.contentFormat,
         sourceFeedId: postsTable.sourceFeedId,
@@ -526,6 +528,7 @@ router.post("/posts", requireAuth, requireOwner, async (req: Request, res: Respo
           authorUserId: currentUser.id,
           authorName,
           authorImageUrl: currentUser.image,
+          title: (body as { title?: string }).title?.trim() || null,
           content: normalizedContent,
           // Shadow column for FULLTEXT search; derived from the same
           // normalized body so search hits the words a reader actually
@@ -577,6 +580,7 @@ router.get("/posts/:id", async (req: Request, res: Response) => {
         authorId: postsTable.authorId,
         authorName: postsTable.authorName,
         authorImageUrl: postsTable.authorImageUrl,
+        title: postsTable.title,
         content: postsTable.content,
         contentFormat: postsTable.contentFormat,
         status: postsTable.status,
@@ -656,9 +660,13 @@ router.patch("/posts/:id", requireAuth, requireOwner, async (req: Request, res: 
     // single transaction so a mid-flight failure can't leave the post
     // and its category links in inconsistent states.
     await db.transaction(async (tx) => {
+      const titlePatch = (body as { title?: string }).title !== undefined
+        ? { title: (body as { title?: string }).title?.trim() || null }
+        : {};
       await tx
         .update(postsTable)
         .set({
+          ...titlePatch,
           content: normalizedContent,
           // Recompute the search shadow column in the same statement so
           // `posts.content` and `posts.content_text` cannot drift.

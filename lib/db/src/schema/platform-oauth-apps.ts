@@ -15,6 +15,7 @@ export const platformOAuthAppsTable = mysqlTable(
     // AES-256-GCM encrypted CLIENT_ID and CLIENT_SECRET
     encryptedClientId: text("encrypted_client_id"),
     encryptedClientSecret: text("encrypted_client_secret"),
+    blogUrl: varchar("blog_url", { length: 500 }),
     createdAt: datetime("created_at", { mode: "string", fsp: 3 })
       .notNull()
       .default(sql`CURRENT_TIMESTAMP(3)`),

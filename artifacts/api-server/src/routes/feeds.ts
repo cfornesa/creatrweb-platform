@@ -15,6 +15,7 @@ import { attachCategoriesToPosts, type HydratedCategory } from "../lib/post-cate
 export type FeedPost = {
   id: number;
   authorName: string;
+  title?: string | null;
   content: string;
   contentFormat: "plain" | "html";
   createdAt: string;
@@ -128,6 +129,7 @@ export async function loadPosts(opts: { categoryId?: number } = {}): Promise<Fee
   const baseSelect = {
     id: postsTable.id,
     authorName: postsTable.authorName,
+    title: postsTable.title,
     content: postsTable.content,
     contentFormat: postsTable.contentFormat,
     createdAt: postsTable.createdAt,
@@ -179,10 +181,11 @@ export function buildAtom(origin: string, scope: FeedScope, posts: FeedPost[]): 
         )
         .join("\n");
 
+      const feedTitle = post.title?.trim() || summary || `Post ${post.id}`;
       return `
   <entry>
     <id>${xmlEscape(canonicalUrl)}</id>
-    <title>${xmlEscape(summary || `Post ${post.id}`)}</title>
+    <title>${xmlEscape(feedTitle)}</title>
     <link href="${xmlEscape(canonicalUrl)}" />
     <updated>${xmlEscape(post.createdAt)}</updated>
     <published>${xmlEscape(post.createdAt)}</published>
@@ -224,7 +227,7 @@ export function buildJsonFeed(origin: string, scope: FeedScope, posts: FeedPost[
       return {
         id: canonicalUrl,
         url: canonicalUrl,
-        title: summary || `Post ${post.id}`,
+        title: post.title?.trim() || summary || `Post ${post.id}`,
         summary,
         content_html:
           post.contentFormat === "html" ? post.content : `<p>${xmlEscape(post.content)}</p>`,

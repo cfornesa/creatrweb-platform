@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import crypto from "node:crypto";
-import { mysqlPool, formatMysqlDateTime } from "@workspace/db";
+import { db, mysqlPool, platformOAuthAppsTable, eq, formatMysqlDateTime } from "@workspace/db";
 import { requireAuth, requireOwner } from "../middlewares/auth";
 import { encryptSecret } from "../lib/crypto";
 import { getOrigin } from "./feeds";
@@ -9,24 +9,26 @@ import { getOAuthAppCredentials } from "../lib/oauth-app-credentials";
 
 const router: IRouter = Router();
 
-// Server-side OAuth state store. Keyed by the random state token; value is
-// the expiry timestamp. Consumed on first use so each token is one-shot.
-const oauthStateStore = new Map<string, number>();
+// Server-side OAuth state store. Keyed by the random state token; value holds
+// the expiry timestamp and the optional blog URL from the credentials dialog.
+// Consumed on first use so each token is one-shot.
+const oauthStateStore = new Map<string, { expiry: number; blogUrl?: string }>();
 const STATE_TTL_MS = 10 * 60 * 1000;
 
-function generateState(): string {
+function generateState(blogUrl?: string): string {
   const state = crypto.randomBytes(16).toString("hex");
-  oauthStateStore.set(state, Date.now() + STATE_TTL_MS);
+  oauthStateStore.set(state, { expiry: Date.now() + STATE_TTL_MS, blogUrl });
   setTimeout(() => oauthStateStore.delete(state), STATE_TTL_MS);
   return state;
 }
 
-function verifyState(req: Request): boolean {
+function verifyState(req: Request): { ok: boolean; blogUrl?: string } {
   const paramState = req.query.state as string | undefined;
-  if (!paramState) return false;
-  const expiry = oauthStateStore.get(paramState);
+  if (!paramState) return { ok: false };
+  const entry = oauthStateStore.get(paramState);
   oauthStateStore.delete(paramState);
-  return expiry !== undefined && Date.now() <= expiry;
+  if (!entry || Date.now() > entry.expiry) return { ok: false };
+  return { ok: true, blogUrl: entry.blogUrl };
 }
 
 
@@ -65,9 +67,17 @@ router.get("/platform-oauth/wordpress-com/start", requireAuth, requireOwner, asy
     });
   }
 
+  // Fetch the saved blog URL so the OAuth token is scoped to the right blog.
+  const appRows = await db
+    .select({ blogUrl: platformOAuthAppsTable.blogUrl })
+    .from(platformOAuthAppsTable)
+    .where(eq(platformOAuthAppsTable.platform, "wordpress_com"))
+    .limit(1);
+  const savedBlogUrl = appRows[0]?.blogUrl ?? undefined;
+
   const origin = getOrigin(req);
   const redirectUri = `${origin}/api/platform-oauth/wordpress-com/callback`;
-  const state = generateState();
+  const state = generateState(savedBlogUrl);
 
   const url = new URL("https://public-api.wordpress.com/oauth2/authorize");
   url.searchParams.set("client_id", creds.clientId);
@@ -75,13 +85,17 @@ router.get("/platform-oauth/wordpress-com/start", requireAuth, requireOwner, asy
   url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", "global");
   url.searchParams.set("state", state);
+  if (savedBlogUrl) {
+    url.searchParams.set("blog", savedBlogUrl);
+  }
 
   return res.redirect(url.toString());
 });
 
 // GET /platform-oauth/wordpress-com/callback
 router.get("/platform-oauth/wordpress-com/callback", requireAuth, requireOwner, async (req: Request, res: Response) => {
-  if (!verifyState(req)) {
+  const stateResult = verifyState(req);
+  if (!stateResult.ok) {
     return res.status(400).send("Invalid OAuth state. Please try connecting again.");
   }
 
@@ -177,9 +191,16 @@ router.get("/platform-oauth/blogger/start", requireAuth, requireOwner, async (re
     });
   }
 
+  const appRows = await db
+    .select({ blogUrl: platformOAuthAppsTable.blogUrl })
+    .from(platformOAuthAppsTable)
+    .where(eq(platformOAuthAppsTable.platform, "blogger"))
+    .limit(1);
+  const savedBlogUrl = appRows[0]?.blogUrl ?? undefined;
+
   const origin = getOrigin(req);
   const redirectUri = `${origin}/api/platform-oauth/blogger/callback`;
-  const state = generateState();
+  const state = generateState(savedBlogUrl);
 
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", creds.clientId);
@@ -195,7 +216,8 @@ router.get("/platform-oauth/blogger/start", requireAuth, requireOwner, async (re
 
 // GET /platform-oauth/blogger/callback
 router.get("/platform-oauth/blogger/callback", requireAuth, requireOwner, async (req: Request, res: Response) => {
-  if (!verifyState(req)) {
+  const stateResult = verifyState(req);
+  if (!stateResult.ok) {
     return res.status(400).send("Invalid OAuth state. Please try connecting again.");
   }
 
@@ -235,25 +257,43 @@ router.get("/platform-oauth/blogger/callback", requireAuth, requireOwner, async 
       expires_in?: number;
     };
 
-    const blogsRes = await fetch(
-      "https://www.googleapis.com/blogger/v3/users/self/blogs",
-      { headers: { Authorization: `Bearer ${tokens.access_token}` } },
-    );
-
     let blogId: string | null = null;
     let blogUrl: string | null = null;
 
-    if (blogsRes.ok) {
-      const blogs = (await blogsRes.json()) as {
-        items?: Array<{ id: string; url: string; name: string }>;
-      };
-      const first = blogs.items?.[0];
-      if (first) {
-        blogId = first.id;
-        blogUrl = first.url;
+    // Prefer blogs/byurl when the owner supplied their blog URL — this
+    // bypasses users/self/blogs which can fail (403/empty) in testing mode.
+    if (stateResult.blogUrl) {
+      const byUrlRes = await fetch(
+        `https://www.googleapis.com/blogger/v3/blogs/byurl?url=${encodeURIComponent(stateResult.blogUrl)}`,
+        { headers: { Authorization: `Bearer ${tokens.access_token}` } },
+      );
+      if (byUrlRes.ok) {
+        const blog = (await byUrlRes.json()) as { id: string; url: string };
+        blogId = blog.id;
+        blogUrl = blog.url;
+      } else {
+        logger.warn({ status: byUrlRes.status, blogUrl: stateResult.blogUrl }, "Blogger blogs/byurl fetch failed");
       }
-    } else {
-      logger.warn({ status: blogsRes.status }, "Blogger blogs fetch failed");
+    }
+
+    // Fallback: discover via users/self/blogs when byurl wasn't available.
+    if (!blogId) {
+      const blogsRes = await fetch(
+        "https://www.googleapis.com/blogger/v3/users/self/blogs",
+        { headers: { Authorization: `Bearer ${tokens.access_token}` } },
+      );
+      if (blogsRes.ok) {
+        const blogs = (await blogsRes.json()) as {
+          items?: Array<{ id: string; url: string; name: string }>;
+        };
+        const first = blogs.items?.[0];
+        if (first) {
+          blogId = first.id;
+          blogUrl = first.url;
+        }
+      } else {
+        logger.warn({ status: blogsRes.status }, "Blogger users/self/blogs fetch failed");
+      }
     }
 
     if (!blogId) {
