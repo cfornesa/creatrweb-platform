@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -118,6 +118,7 @@ function OAuthAppCredentialsDialog({
   setupHref,
   oauthPath,
   initialBlogUrl,
+  hasSavedCredentials,
   onSaved,
 }: {
   open: boolean;
@@ -127,6 +128,7 @@ function OAuthAppCredentialsDialog({
   setupHref: string;
   oauthPath: string;
   initialBlogUrl?: string | null;
+  hasSavedCredentials: boolean;
   onSaved: () => void;
 }) {
   const { toast } = useToast();
@@ -144,6 +146,11 @@ function OAuthAppCredentialsDialog({
   const blogUrlPlaceholder = platform === "wordpress_com"
     ? "https://yourblog.wordpress.com"
     : "https://yourblog.blogspot.com";
+
+  useEffect(() => {
+    if (!open) return;
+    setForm({ clientId: "", clientSecret: "", blogUrl: initialBlogUrl ?? "" });
+  }, [initialBlogUrl, open]);
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -171,6 +178,11 @@ function OAuthAppCredentialsDialog({
           <DialogTitle>Connect {label}</DialogTitle>
           <DialogDescription asChild>
             <div className="space-y-3 text-sm text-muted-foreground">
+              {hasSavedCredentials ? (
+                <div className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-700 dark:text-amber-400">
+                  Saved app credentials already exist for this platform. If autofill saved the wrong values, replace them here before continuing the connection.
+                </div>
+              ) : null}
               {platform === "wordpress_com" ? (
                 <>
                   <p>
@@ -227,34 +239,41 @@ function OAuthAppCredentialsDialog({
             <Label htmlFor={`${platform}-client-id`}>Client ID</Label>
             <Input
               id={`${platform}-client-id`}
+              name={`${platform}-oauth-client-id`}
               placeholder="your-client-id"
               value={form.clientId}
               onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))}
               required
-              autoComplete="off"
+              autoComplete="new-password"
+              data-1p-ignore="true"
+              data-lpignore="true"
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor={`${platform}-client-secret`}>Client Secret</Label>
             <Input
               id={`${platform}-client-secret`}
+              name={`${platform}-oauth-client-secret`}
               type="password"
               placeholder="your-client-secret"
               value={form.clientSecret}
               onChange={(e) => setForm((f) => ({ ...f, clientSecret: e.target.value }))}
               required
-              autoComplete="off"
+              autoComplete="new-password"
+              data-1p-ignore="true"
+              data-lpignore="true"
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor={`${platform}-blog-url`}>Your blog URL</Label>
             <Input
               id={`${platform}-blog-url`}
+              name={`${platform}-oauth-blog-url`}
               type="url"
               placeholder={blogUrlPlaceholder}
               value={form.blogUrl}
               onChange={(e) => setForm((f) => ({ ...f, blogUrl: e.target.value }))}
-              autoComplete="off"
+              autoComplete="url"
             />
             <p className="text-xs text-muted-foreground">
               {platform === "wordpress_com"
@@ -265,7 +284,7 @@ function OAuthAppCredentialsDialog({
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={upsertApp.isPending}>
-              {upsertApp.isPending ? "Saving…" : "Save & connect"}
+              {upsertApp.isPending ? "Saving…" : hasSavedCredentials ? "Replace saved credentials & connect" : "Save & connect"}
             </Button>
           </DialogFooter>
         </form>
@@ -367,6 +386,7 @@ function PlatformCard({
   const [showDialog, setShowDialog] = useState(false);
 
   const isConnected = Boolean(connection?.configured);
+  const hasSavedAppOnly = Boolean(platform.oauthAppPlatform && appConfigured && !isConnected);
 
   function handleConnect() {
     if (platform.oauthAppPlatform) {
@@ -406,7 +426,7 @@ function PlatformCard({
             <CardDescription className="mt-1">{platform.description}</CardDescription>
           </div>
           <Badge variant={isConnected ? "default" : "secondary"}>
-            {isConnected ? "Connected" : "Not connected"}
+            {isConnected ? "Connected" : hasSavedAppOnly ? "App saved" : "Not connected"}
           </Badge>
         </CardHeader>
         <CardContent>
@@ -420,13 +440,15 @@ function PlatformCard({
                 />
                 Show in post composer
               </label>
+            ) : hasSavedAppOnly ? (
+              <span className="text-sm text-muted-foreground">Saved app settings found. Review or replace them before reconnecting.</span>
             ) : (
               <span className="text-sm text-muted-foreground">Connect to use in the post composer.</span>
             )}
             <div className="flex gap-2">
-              {platform.oauthAppPlatform && isConnected ? (
+              {platform.oauthAppPlatform && appConfigured ? (
                 <Button variant="ghost" size="sm" onClick={() => setShowDialog(true)}>
-                  Update app settings
+                  {isConnected ? "Update app settings" : "Edit saved app settings"}
                 </Button>
               ) : null}
               {platform.credentialKind && isConnected ? (
@@ -455,6 +477,7 @@ function PlatformCard({
           setupHref={platform.setupHref}
           oauthPath={platform.oauthPath}
           initialBlogUrl={appBlogUrl}
+          hasSavedCredentials={appConfigured}
           onSaved={onAppSaved}
         />
       )}
