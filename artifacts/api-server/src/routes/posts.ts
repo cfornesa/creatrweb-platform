@@ -556,7 +556,9 @@ router.post("/posts", requireAuth, requireOwner, async (req: Request, res: Respo
     // Dispatch async syndication after the response is ready.
     // Non-blocking: errors are logged but do not affect the 201 response.
     if (rawPlatformIds.length > 0) {
-      enqueueSyndication(insertedId, rawPlatformIds, currentUser.id, getOrigin(req));
+      enqueueSyndication(insertedId, rawPlatformIds, currentUser.id, getOrigin(req), {
+        substackSendNewsletter: body.substackSendNewsletter === true,
+      });
     }
 
     return res.status(201).json({

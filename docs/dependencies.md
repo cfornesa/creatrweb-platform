@@ -127,6 +127,14 @@
 - **What breaks if it changes or is removed:** Syndication to Blogger stops working or requires adapter updates; posts already published there remain, local content and all other syndication targets are unaffected.
 - **Self-hosting alternative:** None. Blogger is a Google-hosted platform.
 
+## Substack Shadow API
+
+- **Purpose:** POSSE syndication — publishing owner-authored posts directly to a connected Substack publication using the owner's stored session cookie value, publication ID, and publication hostname. The same adapter now supports publish-only web posts and optional publish-and-send newsletter delivery when the Substack composer toggle is selected.
+- **Sends data off-domain:** Yes, to `substack.com` when the owner publishes a post with Substack selected as a syndication target.
+- **What breaks if it changes or is removed:** Syndication to Substack stops working or requires adapter updates; posts already published there remain, local content and all other syndication targets are unaffected.
+- **Self-hosting alternative:** None. Substack is a closed hosted platform and this integration uses an unofficial API surface.
+- **Operational note:** This is an unofficial cookie-authenticated integration. The current adapter performs publication-scoped draft and publish writes against the publication hostname and bootstraps publication auth from the saved session before creating drafts. If Substack changes its internal API shape or invalidates the stored session, the app marks the connection as expired and the owner must update credentials in Admin → Platforms.
+
 ## turndown
 
 - **Purpose:** Converting rich-post HTML to Markdown before submitting to the Medium API, which accepts Markdown more cleanly than raw HTML.

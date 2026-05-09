@@ -38,6 +38,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   wordpress_self: "WordPress",
   medium: "Medium",
   blogger: "Blogger",
+  substack: "Substack",
 };
 
 interface PostCardProps {

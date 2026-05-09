@@ -7,6 +7,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   wordpress_self: "WordPress",
   medium: "Medium",
   blogger: "Blogger",
+  substack: "Substack",
 };
 
 type PlatformMultiSelectProps = {

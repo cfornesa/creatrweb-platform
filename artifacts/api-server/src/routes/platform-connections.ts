@@ -19,7 +19,7 @@ const router: IRouter = Router();
 const OAUTH_PLATFORMS = new Set(["wordpress_com", "blogger"]);
 // Platforms that store credentials submitted via this endpoint.
 // Medium uses a self-integration token (OAuth API deprecated for new apps).
-const CREDENTIAL_PLATFORMS = new Set(["wordpress_self", "medium"]);
+const CREDENTIAL_PLATFORMS = new Set(["wordpress_self", "medium", "substack"]);
 const ALL_PLATFORMS = new Set([...OAUTH_PLATFORMS, ...CREDENTIAL_PLATFORMS]);
 
 function serializeConnection(row: PlatformConnection) {
@@ -87,6 +87,9 @@ const CreatePlatformConnectionBodySchema = z.object({
     username: z.string().optional(),
     appPassword: z.string().optional(),
     token: z.string().optional(),
+    sessionCookie: z.string().optional(),
+    publicationId: z.string().optional(),
+    publicationHost: z.string().optional(),
   }).optional(),
 });
 
@@ -166,6 +169,39 @@ router.post("/platform-connections", requireAuth, requireOwner, async (req: Requ
 
       const encryptedAccessToken = encryptSecret(token);
       const metadata = { authorId };
+
+      await mysqlPool.query(
+        `INSERT INTO platform_connections
+           (user_id, platform, encrypted_access_token, metadata, enabled, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 1, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           encrypted_access_token = VALUES(encrypted_access_token),
+           metadata = VALUES(metadata),
+           updated_at = VALUES(updated_at)`,
+        [req.currentUser!.id, platform, encryptedAccessToken, JSON.stringify(metadata), now, now],
+      );
+    }
+
+    if (platform === "substack") {
+      const { sessionCookie, publicationId, publicationHost } = credentials ?? {};
+      if (!sessionCookie?.trim()) {
+        return res.status(400).json({ error: "substack requires credentials.sessionCookie (connect.sid value)" });
+      }
+      if (!publicationId?.trim()) {
+        return res.status(400).json({ error: "substack requires credentials.publicationId" });
+      }
+      if (!publicationHost?.trim()) {
+        return res.status(400).json({ error: "substack requires credentials.publicationHost" });
+      }
+
+      const encryptedAccessToken = encryptSecret(sessionCookie.trim());
+      const metadata = {
+        publicationId: publicationId.trim(),
+        publicationHost: publicationHost.trim(),
+        authStatus: "connected",
+        statusMessage: null,
+        lastAuthFailureAt: null,
+      };
 
       await mysqlPool.query(
         `INSERT INTO platform_connections
@@ -273,14 +309,19 @@ router.delete("/platform-connections/:id", requireAuth, requireOwner, async (req
 
     if (!conn) return res.status(404).json({ error: "Not found" });
 
+    const patch: Partial<typeof platformConnectionsTable.$inferInsert> = {
+      encryptedAccessToken: null,
+      encryptedRefreshToken: null,
+      expiresAt: null,
+      updatedAt: formatMysqlDateTime(new Date()),
+    };
+    if (conn.platform === "substack") {
+      patch.metadata = null;
+    }
+
     await db
       .update(platformConnectionsTable)
-      .set({
-        encryptedAccessToken: null,
-        encryptedRefreshToken: null,
-        expiresAt: null,
-        updatedAt: formatMysqlDateTime(new Date()),
-      })
+      .set(patch)
       .where(eq(platformConnectionsTable.id, connectionId));
 
     return res.status(204).send();

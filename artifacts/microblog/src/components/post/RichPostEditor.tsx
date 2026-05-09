@@ -6,6 +6,7 @@ import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
 import Underline from "@tiptap/extension-underline";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, ImagePlus, Link2, MoreHorizontal, Pilcrow, Redo2, Sparkles, Undo2, Youtube } from "lucide-react";
 import { useProcessAiText, type ProcessAiTextBodyVendor } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -47,6 +48,7 @@ type RichPostEditorProps = {
     contentFormat: "html";
     categoryIds: number[];
     platformIds: number[];
+    substackSendNewsletter: boolean;
   }) => void;
   /**
    * Optional live-content listener. Fires on every editor update so a
@@ -167,6 +169,7 @@ export function RichPostEditor({
     // Default: all enabled connections are selected.
     () => (platformConnections ?? []).map((c) => c.id),
   );
+  const [substackSendNewsletter, setSubstackSendNewsletter] = useState(false);
   const [selectedAiVendor, setSelectedAiVendor] = useState<ProcessAiTextBodyVendor | "">(aiVendors[0]?.id ?? "");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const processAiText = useProcessAiText({
@@ -231,6 +234,15 @@ export function RichPostEditor({
       setSelectedAiVendor(aiVendors[0]!.id);
     }
   }, [aiVendors, selectedAiVendor]);
+
+  const substackConnection = (platformConnections ?? []).find((connection) => connection.platform === "substack");
+  const isSubstackSelected = substackConnection ? platformIds.includes(substackConnection.id) : false;
+
+  useEffect(() => {
+    if (!isSubstackSelected && substackSendNewsletter) {
+      setSubstackSendNewsletter(false);
+    }
+  }, [isSubstackSelected, substackSendNewsletter]);
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -324,6 +336,7 @@ export function RichPostEditor({
       contentFormat: "html",
       categoryIds,
       platformIds,
+      substackSendNewsletter,
     });
   }
 
@@ -713,11 +726,30 @@ export function RichPostEditor({
       ) : null}
 
       {platformConnections && platformConnections.length > 0 ? (
-        <PlatformMultiSelect
-          value={platformIds}
-          onChange={setPlatformIds}
-          connections={platformConnections}
-        />
+        <div className="space-y-3">
+          <PlatformMultiSelect
+            value={platformIds}
+            onChange={setPlatformIds}
+            connections={platformConnections}
+          />
+          {substackConnection && isSubstackSelected ? (
+            <label className="flex items-start gap-3 rounded-xl border border-border/70 bg-muted/20 px-3 py-3">
+              <Checkbox
+                checked={substackSendNewsletter}
+                onCheckedChange={(checked) => setSubstackSendNewsletter(checked === true)}
+                aria-label="Send as newsletter"
+              />
+              <span className="space-y-1">
+                <span className="block text-sm font-medium text-foreground">
+                  Send as newsletter
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  Publish to Substack as usual, and email it to subscribers only when this is selected.
+                </span>
+              </span>
+            </label>
+          ) : null}
+        </div>
       ) : null}
 
       <input

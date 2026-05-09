@@ -46,7 +46,7 @@ type PlatformDef = {
   // OAuth redirect platforms: clicking Connect goes to this URL.
   oauthPath?: string;
   // Credential-entry platforms: open the credential dialog instead.
-  credentialKind?: "wordpress_self";
+  credentialKind?: "wordpress_self" | "substack";
 };
 
 const PLATFORMS: PlatformDef[] = [
@@ -76,7 +76,30 @@ const PLATFORMS: PlatformDef[] = [
     oauthAppPlatform: "blogger",
     oauthPath: "/api/platform-oauth/blogger/start",
   },
+  {
+    id: "substack",
+    label: "Substack",
+    description: "Publish directly to your Substack publication using your stored session cookie.",
+    setupInstruction: "Copy your Substack connect.sid cookie and publication ID from your own account.",
+    setupHref: "https://substack.com/",
+    credentialKind: "substack",
+  },
 ];
+
+function parseConnectionMeta(raw: PlatformConnection["metadata"]): Record<string, unknown> {
+  if (!raw) return {};
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  }
+  if (typeof raw === "object") {
+    return raw as Record<string, unknown>;
+  }
+  return {};
+}
 
 // ─── Shared: copyable URL row ─────────────────────────────────────────────────
 
@@ -362,6 +385,139 @@ function WordPressSelfDialog({ open, onClose }: { open: boolean; onClose: () => 
   );
 }
 
+function SubstackDialog({
+  open,
+  onClose,
+  initialPublicationId,
+  initialPublicationHost,
+}: {
+  open: boolean;
+  onClose: () => void;
+  initialPublicationId?: string | null;
+  initialPublicationHost?: string | null;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const createConnection = useCreatePlatformConnection({
+    mutation: {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListPlatformConnectionsQueryKey() }),
+    },
+  });
+  const [form, setForm] = useState({
+    sessionCookie: "",
+    publicationId: initialPublicationId ?? "",
+    publicationHost: initialPublicationHost ?? "",
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    setForm({
+      sessionCookie: "",
+      publicationId: initialPublicationId ?? "",
+      publicationHost: initialPublicationHost ?? "",
+    });
+  }, [initialPublicationHost, initialPublicationId, open]);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    createConnection.mutate(
+      {
+        data: {
+          platform: "substack",
+          credentials: {
+            sessionCookie: form.sessionCookie,
+            publicationId: form.publicationId,
+            publicationHost: form.publicationHost,
+          },
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Connected", description: "Substack connected." });
+          onClose();
+          setForm({ sessionCookie: "", publicationId: "", publicationHost: "" });
+        },
+        onError: (err) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const msg = (err as any)?.response?.data?.error ?? "Failed to save credentials. Check them and try again.";
+          toast({ title: "Error", description: msg, variant: "destructive" });
+        },
+      },
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Connect Substack</DialogTitle>
+          <DialogDescription asChild>
+            <div className="space-y-3 text-sm text-muted-foreground">
+              <div className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-700 dark:text-amber-400">
+                WARNING: Unofficial API. Credentials stored in the MySQL platform connections record.
+              </div>
+              <p>
+                Enter your Substack <code className="rounded bg-muted px-1 py-0.5 text-xs">connect.sid</code> session cookie
+                , publication ID, and publication hostname for the newsletter you want to publish to.
+              </p>
+            </div>
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="substack-session-cookie">Session cookie</Label>
+            <Input
+              id="substack-session-cookie"
+              name="substack-session-cookie"
+              type="password"
+              placeholder="connect.sid value"
+              value={form.sessionCookie}
+              onChange={(e) => setForm((f) => ({ ...f, sessionCookie: e.target.value }))}
+              required
+              autoComplete="new-password"
+              data-1p-ignore="true"
+              data-lpignore="true"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="substack-publication-id">Publication ID</Label>
+            <Input
+              id="substack-publication-id"
+              name="substack-publication-id"
+              placeholder="123456"
+              value={form.publicationId}
+              onChange={(e) => setForm((f) => ({ ...f, publicationId: e.target.value }))}
+              required
+              inputMode="numeric"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="substack-publication-host">Publication hostname</Label>
+            <Input
+              id="substack-publication-host"
+              name="substack-publication-host"
+              placeholder="yourpublication.substack.com"
+              value={form.publicationHost}
+              onChange={(e) => setForm((f) => ({ ...f, publicationHost: e.target.value }))}
+              required
+              autoComplete="url"
+            />
+            <p className="text-xs text-muted-foreground">
+              Used for Substack&apos;s publication-scoped draft and publish endpoints. You can update this later from the same card.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={createConnection.isPending}>
+              {createConnection.isPending ? "Saving…" : "Save & connect"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Platform card ─────────────────────────────────────────────────────────────
 
 function PlatformCard({
@@ -387,6 +543,15 @@ function PlatformCard({
 
   const isConnected = Boolean(connection?.configured);
   const hasSavedAppOnly = Boolean(platform.oauthAppPlatform && appConfigured && !isConnected);
+  const meta = parseConnectionMeta(connection?.metadata);
+  const substackAuthExpired =
+    platform.id === "substack" && meta.authStatus === "expired";
+  const substackStatusMessage =
+    typeof meta.statusMessage === "string" ? meta.statusMessage : "";
+  const substackPublicationId =
+    typeof meta.publicationId === "string" ? meta.publicationId : null;
+  const substackPublicationHost =
+    typeof meta.publicationHost === "string" ? meta.publicationHost : null;
 
   function handleConnect() {
     if (platform.oauthAppPlatform) {
@@ -430,6 +595,11 @@ function PlatformCard({
           </Badge>
         </CardHeader>
         <CardContent>
+          {substackAuthExpired ? (
+            <div className="mb-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+              {substackStatusMessage || "Substack session expired. Update your credentials to reconnect."}
+            </div>
+          ) : null}
           <div className="flex items-center justify-between gap-4">
             {isConnected ? (
               <label className="flex cursor-pointer items-center gap-2 text-sm">
@@ -483,6 +653,14 @@ function PlatformCard({
       )}
       {platform.credentialKind === "wordpress_self" && (
         <WordPressSelfDialog open={showDialog} onClose={() => setShowDialog(false)} />
+      )}
+      {platform.credentialKind === "substack" && (
+        <SubstackDialog
+          open={showDialog}
+          onClose={() => setShowDialog(false)}
+          initialPublicationId={substackPublicationId}
+          initialPublicationHost={substackPublicationHost}
+        />
       )}
     </>
   );

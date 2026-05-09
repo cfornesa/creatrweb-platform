@@ -7,6 +7,8 @@ import { ComposePost } from "@/components/post/ComposePost";
 const mockAiSettings = {
   settings: [],
 };
+const createPostMutate = vi.fn();
+const richEditorProps = vi.fn();
 
 vi.mock("@/hooks/use-current-user", () => ({
   useCurrentUser: () => ({
@@ -21,7 +23,7 @@ vi.mock("@/hooks/use-toast", () => ({
 
 vi.mock("@workspace/api-client-react", () => ({
   useCreatePost: () => ({
-    mutate: vi.fn(),
+    mutate: createPostMutate,
     isPending: false,
   }),
   useUploadMedia: () => ({
@@ -37,10 +39,17 @@ vi.mock("@workspace/api-client-react", () => ({
   getGetFeedStatsQueryKey: () => ["feed-stats"],
 }));
 
+vi.mock("@/hooks/use-enabled-platform-connections", () => ({
+  useEnabledPlatformConnections: () => ({
+    connections: [{ id: 8, platform: "substack", displayName: "Substack" }],
+  }),
+}));
+
 vi.mock("@/components/post/RichPostEditor", () => ({
-  RichPostEditor: ({ aiVendors }: { aiVendors?: Array<{ id: string }> }) => (
-    <div data-testid="rich-editor">{aiVendors?.length ? "ai-on" : "ai-off"}</div>
-  ),
+  RichPostEditor: (props: { aiVendors?: Array<{ id: string }>; onSubmit: (payload: any) => void }) => {
+    richEditorProps(props);
+    return <div data-testid="rich-editor">{props.aiVendors?.length ? "ai-on" : "ai-off"}</div>;
+  },
 }));
 
 function renderComposePost() {
@@ -57,6 +66,8 @@ function renderComposePost() {
 describe("ComposePost AI gating", () => {
   beforeEach(() => {
     mockAiSettings.settings = [];
+    createPostMutate.mockReset();
+    richEditorProps.mockReset();
   });
 
   it("keeps AI unavailable when settings are disabled or incomplete", async () => {
@@ -82,5 +93,35 @@ describe("ComposePost AI gating", () => {
 
     await user.click(screen.getByRole("button", { name: /Start a post/i }));
     expect(screen.getByTestId("rich-editor").textContent).toBe("ai-on");
+  });
+
+  it("forwards the Substack newsletter flag in the create-post payload", async () => {
+    const user = userEvent.setup();
+    renderComposePost();
+
+    await user.click(screen.getByRole("button", { name: /Start a post/i }));
+
+    const props = richEditorProps.mock.calls.at(-1)?.[0];
+    expect(props).toBeTruthy();
+
+    props.onSubmit({
+      title: "Newsletter",
+      content: "<p>Hello</p>",
+      contentFormat: "html",
+      categoryIds: [],
+      platformIds: [8],
+      substackSendNewsletter: true,
+    });
+
+    expect(createPostMutate).toHaveBeenCalledWith({
+      data: {
+        title: "Newsletter",
+        content: "<p>Hello</p>",
+        contentFormat: "html",
+        categoryIds: [],
+        platformIds: [8],
+        substackSendNewsletter: true,
+      },
+    });
   });
 });

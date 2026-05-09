@@ -55,7 +55,7 @@ export const ListPostsResponse = zod.object({
   "updatedAt": zod.coerce.date()
 }).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
   "syndications": zod.array(zod.object({
-  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger', 'substack']),
   "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')
 }).describe('Lightweight summary of a successful cross-post, embedded in post list responses.')).optional().describe('Platforms this post was successfully cross-posted to (POSSE). Omitted when none.'),
   "createdAt": zod.coerce.date()
@@ -82,7 +82,8 @@ export const CreatePostBody = zod.object({
   "content": zod.string().max(createPostBodyContentMax),
   "contentFormat": zod.enum(['plain', 'html']),
   "categoryIds": zod.array(zod.number().min(1)).optional().describe('Optional list of `categories.id` values to attach to the new post.\nEvery id must be a positive integer; any unknown or malformed id\ncauses the request to fail with 400 and no post is created.\nOmitting the field (or sending an empty array) leaves the post\nuncategorized.\n'),
-  "platformIds": zod.array(zod.number().min(1)).optional().describe('Optional list of `platform_connections.id` values to syndicate to\nafter the post is created (POSSE). Only connections owned by the\nauthenticated user and with `enabled=true` are dispatched.\nOmitting the field (or sending an empty array) skips syndication.\n')
+  "platformIds": zod.array(zod.number().min(1)).optional().describe('Optional list of `platform_connections.id` values to syndicate to\nafter the post is created (POSSE). Only connections owned by the\nauthenticated user and with `enabled=true` are dispatched.\nOmitting the field (or sending an empty array) skips syndication.\n'),
+  "substackSendNewsletter": zod.boolean().optional().describe('Optional Substack-only delivery mode. When true and a selected\nSubstack connection is included in `platformIds`, the post is both\npublished on Substack and sent as a newsletter. Defaults to false.\n')
 })
 
 
@@ -119,7 +120,7 @@ export const GetPostResponse = zod.object({
   "updatedAt": zod.coerce.date()
 }).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
   "syndications": zod.array(zod.object({
-  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger', 'substack']),
   "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')
 }).describe('Lightweight summary of a successful cross-post, embedded in post list responses.')).optional().describe('Platforms this post was successfully cross-posted to (POSSE). Omitted when none.'),
   "createdAt": zod.coerce.date()
@@ -182,7 +183,7 @@ export const UpdatePostResponse = zod.object({
   "updatedAt": zod.coerce.date()
 }).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
   "syndications": zod.array(zod.object({
-  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger', 'substack']),
   "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')
 }).describe('Lightweight summary of a successful cross-post, embedded in post list responses.')).optional().describe('Platforms this post was successfully cross-posted to (POSSE). Omitted when none.'),
   "createdAt": zod.coerce.date()
@@ -294,7 +295,7 @@ export const GetPostsByUserResponse = zod.object({
   "updatedAt": zod.coerce.date()
 }).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
   "syndications": zod.array(zod.object({
-  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger', 'substack']),
   "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')
 }).describe('Lightweight summary of a successful cross-post, embedded in post list responses.')).optional().describe('Platforms this post was successfully cross-posted to (POSSE). Omitted when none.'),
   "createdAt": zod.coerce.date()
@@ -1160,7 +1161,7 @@ export const GetCategoryPostsResponse = zod.object({
   "updatedAt": zod.coerce.date()
 }).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
   "syndications": zod.array(zod.object({
-  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger', 'substack']),
   "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')
 }).describe('Lightweight summary of a successful cross-post, embedded in post list responses.')).optional().describe('Platforms this post was successfully cross-posted to (POSSE). Omitted when none.'),
   "createdAt": zod.coerce.date()
@@ -1516,10 +1517,10 @@ export const UpsertPlatformOAuthAppResponse = zod.object({
 export const ListPlatformConnectionsResponse = zod.object({
   "connections": zod.array(zod.object({
   "id": zod.number(),
-  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger', 'substack']),
   "configured": zod.boolean().describe('True when an encrypted access token is stored for this connection.'),
   "enabled": zod.boolean().describe('When false, this connection is skipped during syndication dispatch.'),
-  "metadata": zod.record(zod.string(), zod.unknown()).nullish().describe('Platform-specific metadata (e.g. blogId, authorId, siteUrl).'),
+  "metadata": zod.record(zod.string(), zod.unknown()).nullish().describe('Platform-specific metadata (e.g. blogId, authorId, siteUrl, publicationId, authStatus).'),
   "expiresAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1536,21 +1537,24 @@ connection via the OAuth callback route at
  * @summary Create or update a credential-based platform connection (owner only)
  */
 export const CreatePlatformConnectionBody = zod.object({
-  "platform": zod.enum(['wordpress_self', 'medium']),
+  "platform": zod.enum(['wordpress_self', 'medium', 'substack']),
   "credentials": zod.object({
   "siteUrl": zod.string().url().optional(),
   "username": zod.string().optional(),
   "appPassword": zod.string().optional(),
-  "token": zod.string().optional().describe('Self-integration token (Medium only).')
+  "token": zod.string().optional().describe('Self-integration token (Medium only).'),
+  "sessionCookie": zod.string().optional().describe('Substack `connect.sid` session cookie value.'),
+  "publicationId": zod.string().optional().describe('Numeric Substack publication ID to target when publishing.'),
+  "publicationHost": zod.string().optional().describe('Substack publication hostname used for publication-scoped draft and publish writes.')
 }).optional().describe('Credentials for the target platform.')
-}).describe('Body for credential-based platform connections (`wordpress_self`, `medium`).\nOAuth-based platforms use the `\/api\/platform-oauth\/{platform}\/start`\nredirect flow instead.\n')
+}).describe('Body for credential-based platform connections (`wordpress_self`, `medium`, `substack`).\nOAuth-based platforms use the `\/api\/platform-oauth\/{platform}\/start`\nredirect flow instead.\n')
 
 export const CreatePlatformConnectionResponse = zod.object({
   "id": zod.number(),
-  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger', 'substack']),
   "configured": zod.boolean().describe('True when an encrypted access token is stored for this connection.'),
   "enabled": zod.boolean().describe('When false, this connection is skipped during syndication dispatch.'),
-  "metadata": zod.record(zod.string(), zod.unknown()).nullish().describe('Platform-specific metadata (e.g. blogId, authorId, siteUrl).'),
+  "metadata": zod.record(zod.string(), zod.unknown()).nullish().describe('Platform-specific metadata (e.g. blogId, authorId, siteUrl, publicationId, authStatus).'),
   "expiresAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1570,10 +1574,10 @@ export const UpdatePlatformConnectionBody = zod.object({
 
 export const UpdatePlatformConnectionResponse = zod.object({
   "id": zod.number(),
-  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger']),
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger', 'substack']),
   "configured": zod.boolean().describe('True when an encrypted access token is stored for this connection.'),
   "enabled": zod.boolean().describe('When false, this connection is skipped during syndication dispatch.'),
-  "metadata": zod.record(zod.string(), zod.unknown()).nullish().describe('Platform-specific metadata (e.g. blogId, authorId, siteUrl).'),
+  "metadata": zod.record(zod.string(), zod.unknown()).nullish().describe('Platform-specific metadata (e.g. blogId, authorId, siteUrl, publicationId, authStatus).'),
   "expiresAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()

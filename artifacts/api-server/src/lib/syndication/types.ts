@@ -24,6 +24,10 @@ export type SyndicationPayload = {
   canonicalUrl: string;
 };
 
+export type SyndicationDispatchOptions = {
+  substackSendNewsletter?: boolean;
+};
+
 export type SyndicationResult = {
   externalId: string;
   externalUrl: string;
@@ -36,8 +40,26 @@ export type TokenRefreshResult = {
   expiresAt?: string;
 };
 
+export class SyndicationConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SyndicationConfigurationError";
+  }
+}
+
+export class SyndicationAuthExpiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SyndicationAuthExpiredError";
+  }
+}
+
 export interface PlatformAdapter {
-  publish(connection: PlatformConnection, payload: SyndicationPayload): Promise<SyndicationResult>;
+  publish(
+    connection: PlatformConnection,
+    payload: SyndicationPayload,
+    options?: SyndicationDispatchOptions,
+  ): Promise<SyndicationResult>;
   /** Optional — only adapters whose platform issues expiring tokens implement this. */
   refreshToken?(connection: PlatformConnection): Promise<TokenRefreshResult>;
 }

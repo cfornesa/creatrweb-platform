@@ -12,17 +12,24 @@ import {
 } from "@workspace/db";
 import { encryptSecret } from "../crypto";
 import { logger } from "../logger";
-import type { PlatformAdapter, SyndicationPayload, TokenRefreshResult } from "./types";
+import type {
+  PlatformAdapter,
+  SyndicationDispatchOptions,
+  SyndicationPayload,
+  TokenRefreshResult,
+} from "./types";
 import { wordpressComAdapter } from "./wordpress-com";
 import { wordpressSelfAdapter } from "./wordpress-self";
 import { mediumAdapter } from "./medium";
 import { bloggerAdapter } from "./blogger";
+import { substackAdapter } from "./substack";
 
 const ADAPTERS: Record<string, PlatformAdapter> = {
   wordpress_com: wordpressComAdapter,
   wordpress_self: wordpressSelfAdapter,
   medium: mediumAdapter,
   blogger: bloggerAdapter,
+  substack: substackAdapter,
 };
 
 export function getAdapter(platform: string): PlatformAdapter {
@@ -86,6 +93,7 @@ async function runSyndication(
   connectionIds: number[],
   userId: string,
   origin: string,
+  options: SyndicationDispatchOptions,
 ): Promise<void> {
   const [post] = await db
     .select()
@@ -123,7 +131,7 @@ async function runSyndication(
     try {
       const adapter = getAdapter(conn.platform);
       const refreshedConn = await maybeRefreshToken(conn, adapter);
-      const result = await adapter.publish(refreshedConn, payload);
+      const result = await adapter.publish(refreshedConn, payload, options);
 
       await db
         .update(postSyndicationsTable)
@@ -170,9 +178,10 @@ export function enqueueSyndication(
   connectionIds: number[],
   userId: string,
   origin: string,
+  options: SyndicationDispatchOptions = {},
 ): void {
   if (connectionIds.length === 0) return;
   void Promise.resolve()
-    .then(() => runSyndication(postId, connectionIds, userId, origin))
+    .then(() => runSyndication(postId, connectionIds, userId, origin, options))
     .catch((err) => logger.error({ err, postId }, "Syndication dispatcher threw unexpectedly"));
 }

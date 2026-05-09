@@ -71,6 +71,7 @@ export const PostSyndicationBadgePlatform = {
   wordpress_self: 'wordpress_self',
   medium: 'medium',
   blogger: 'blogger',
+  substack: 'substack',
 } as const;
 
 /**
@@ -206,6 +207,11 @@ export interface CreatePostBody {
   Omitting the field (or sending an empty array) skips syndication.
    */
   platformIds?: number[];
+  /** Optional Substack-only delivery mode. When true and a selected
+  Substack connection is included in `platformIds`, the post is both
+  published on Substack and sent as a newsletter. Defaults to false.
+   */
+  substackSendNewsletter?: boolean;
 }
 
 export type UpdatePostBodyContentFormat = typeof UpdatePostBodyContentFormat[keyof typeof UpdatePostBodyContentFormat];
@@ -1078,10 +1084,11 @@ export const PlatformConnectionPlatform = {
   wordpress_self: 'wordpress_self',
   medium: 'medium',
   blogger: 'blogger',
+  substack: 'substack',
 } as const;
 
 /**
- * Platform-specific metadata (e.g. blogId, authorId, siteUrl).
+ * Platform-specific metadata (e.g. blogId, authorId, siteUrl, publicationId, authStatus).
  */
 export type PlatformConnectionMetadata = { [key: string]: unknown } | null;
 
@@ -1098,7 +1105,7 @@ export interface PlatformConnection {
   configured: boolean;
   /** When false, this connection is skipped during syndication dispatch. */
   enabled: boolean;
-  /** Platform-specific metadata (e.g. blogId, authorId, siteUrl). */
+  /** Platform-specific metadata (e.g. blogId, authorId, siteUrl, publicationId, authStatus). */
   metadata?: PlatformConnectionMetadata;
   expiresAt?: string | null;
   createdAt: string;
@@ -1115,6 +1122,7 @@ export type CreatePlatformConnectionBodyPlatform = typeof CreatePlatformConnecti
 export const CreatePlatformConnectionBodyPlatform = {
   wordpress_self: 'wordpress_self',
   medium: 'medium',
+  substack: 'substack',
 } as const;
 
 /**
@@ -1126,10 +1134,16 @@ export type CreatePlatformConnectionBodyCredentials = {
   appPassword?: string;
   /** Self-integration token (Medium only). */
   token?: string;
+  /** Substack `connect.sid` session cookie value. */
+  sessionCookie?: string;
+  /** Numeric Substack publication ID to target when publishing. */
+  publicationId?: string;
+  /** Substack publication hostname used for publication-scoped draft and publish writes. */
+  publicationHost?: string;
 };
 
 /**
- * Body for credential-based platform connections (`wordpress_self`, `medium`).
+ * Body for credential-based platform connections (`wordpress_self`, `medium`, `substack`).
 OAuth-based platforms use the `/api/platform-oauth/{platform}/start`
 redirect flow instead.
 

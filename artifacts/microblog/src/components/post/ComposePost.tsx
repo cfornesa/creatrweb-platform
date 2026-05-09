@@ -93,10 +93,17 @@ export function ComposePost() {
                 return uploaded.url;
               }}
               platformConnections={platformConnections}
-              onSubmit={({ platformIds, title, ...rest }) => {
+              onSubmit={({ platformIds, substackSendNewsletter, title, ...rest }) => {
                 // platformIds and title are passed alongside the standard body; the API
                 // route reads platformIds from req.body before schema parsing.
-                createPost.mutate({ data: { ...rest, platformIds, title: title || undefined } as typeof rest });
+                createPost.mutate({
+                  data: {
+                    ...rest,
+                    platformIds,
+                    title: title || undefined,
+                    substackSendNewsletter,
+                  } as typeof rest,
+                });
               }}
             />
           )}

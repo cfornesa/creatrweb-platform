@@ -1792,6 +1792,12 @@ components:
           items:
             type: integer
             minimum: 1
+        substackSendNewsletter:
+          type: boolean
+          description: |
+            Optional Substack-only delivery mode. When true and a selected
+            Substack connection is included in `platformIds`, the post is both
+            published on Substack and sent as a newsletter. Defaults to false.
       required:
         - content
         - contentFormat
@@ -3001,7 +3007,7 @@ components:
           type: integer
         platform:
           type: string
-          enum: [wordpress_com, wordpress_self, medium, blogger]
+          enum: [wordpress_com, wordpress_self, medium, blogger, substack]
         configured:
           type: boolean
           description: True when an encrypted access token is stored for this connection.
@@ -3012,7 +3018,7 @@ components:
           type: object
           additionalProperties: true
           nullable: true
-          description: Platform-specific metadata (e.g. blogId, authorId, siteUrl).
+          description: Platform-specific metadata (e.g. blogId, authorId, siteUrl, publicationId, authStatus).
         expiresAt:
           type: string
           format: date-time
@@ -3044,13 +3050,13 @@ components:
     CreatePlatformConnectionBody:
       type: object
       description: |
-        Body for credential-based platform connections (`wordpress_self`, `medium`).
+        Body for credential-based platform connections (`wordpress_self`, `medium`, `substack`).
         OAuth-based platforms use the `/api/platform-oauth/{platform}/start`
         redirect flow instead.
       properties:
         platform:
           type: string
-          enum: [wordpress_self, medium]
+          enum: [wordpress_self, medium, substack]
         credentials:
           type: object
           description: Credentials for the target platform.
@@ -3065,6 +3071,15 @@ components:
             token:
               type: string
               description: Self-integration token (Medium only).
+            sessionCookie:
+              type: string
+              description: Substack `connect.sid` session cookie value.
+            publicationId:
+              type: string
+              description: Numeric Substack publication ID to target when publishing.
+            publicationHost:
+              type: string
+              description: Substack publication hostname used for publication-scoped draft and publish writes.
       required:
         - platform
 
@@ -3129,7 +3144,7 @@ components:
       properties:
         platform:
           type: string
-          enum: [wordpress_com, wordpress_self, medium, blogger]
+          enum: [wordpress_com, wordpress_self, medium, blogger, substack]
         externalUrl:
           type: string
           nullable: true

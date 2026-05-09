@@ -98,6 +98,40 @@ vi.mock("../CategoryMultiSelect", () => ({
   CategoryMultiSelect: () => <div data-testid="category-multiselect" />,
 }));
 
+vi.mock("../PlatformMultiSelect", () => ({
+  PlatformMultiSelect: ({
+    value,
+    onChange,
+    connections,
+  }: {
+    value: number[];
+    onChange: (next: number[]) => void;
+    connections: Array<{ id: number; platform: string }>;
+  }) => (
+    <div>
+      {connections.map((connection) => {
+        const selected = value.includes(connection.id);
+        return (
+          <button
+            key={connection.id}
+            type="button"
+            aria-label={connection.platform}
+            onClick={() =>
+              onChange(
+                selected
+                  ? value.filter((id) => id !== connection.id)
+                  : [...value, connection.id],
+              )
+            }
+          >
+            {connection.platform}
+          </button>
+        );
+      })}
+    </div>
+  ),
+}));
+
 vi.mock("@tiptap/starter-kit", () => ({
   default: {
     configure: () => ({}),
@@ -139,6 +173,28 @@ function renderEditor(aiVendors: Array<{ id: string; label: string }>) {
       />
     </QueryClientProvider>,
   );
+}
+
+function renderEditorWithPlatforms() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const onSubmit = vi.fn();
+  render(
+    <QueryClientProvider client={queryClient}>
+      <RichPostEditor
+        initialContent={editorState.html}
+        submitLabel="Post"
+        onUpload={async () => "/api/media/image.jpg"}
+        onSubmit={onSubmit}
+        platformConnections={[
+          { id: 1, platform: "substack", displayName: "Substack" } as never,
+          { id: 2, platform: "blogger", displayName: "Blogger" } as never,
+        ]}
+      />
+    </QueryClientProvider>,
+  );
+  return { onSubmit };
 }
 
 describe("RichPostEditor AI action", () => {
@@ -304,5 +360,28 @@ describe("RichPostEditor AI action", () => {
     expect(insertIframeRun).toHaveBeenCalled();
     expect(promptSpy).toHaveBeenCalled();
     promptSpy.mockRestore();
+  });
+
+  it("shows the newsletter toggle only when Substack is selected and clears it when Substack is deselected", async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = renderEditorWithPlatforms();
+
+    const checkbox = screen.getByRole("checkbox", { name: /Send as newsletter/i });
+    expect(checkbox).toBeInTheDocument();
+
+    await user.click(checkbox);
+    expect(checkbox).toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: "substack" }));
+    expect(screen.queryByRole("checkbox", { name: /Send as newsletter/i })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "substack" }));
+    const visibleAgain = screen.getByRole("checkbox", { name: /Send as newsletter/i });
+    expect(visibleAgain).not.toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: /Post/i }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      substackSendNewsletter: false,
+    }));
   });
 });

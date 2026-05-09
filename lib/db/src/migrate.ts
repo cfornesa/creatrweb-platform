@@ -674,7 +674,7 @@ export async function ensureTables(): Promise<void> {
   // POSSE outbound syndication. `platform_connections` stores one OAuth
   // or credential-based connection per (user, platform) pair; tokens are
   // AES-256-GCM encrypted at rest using AI_SETTINGS_ENCRYPTION_KEY.
-  // Confirmed platform enum: wordpress_com | wordpress_self | medium | blogger
+  // Confirmed platform enum: wordpress_com | wordpress_self | medium | blogger | substack
   await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS platform_connections (
       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
