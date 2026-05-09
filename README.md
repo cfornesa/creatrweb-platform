@@ -65,6 +65,8 @@ The owner can cross-post to external platforms from the post composer. Supported
 
 OAuth app credentials (CLIENT_ID + CLIENT_SECRET) are stored encrypted in the database via `/admin/platforms` — no server-side environment variable required. The encryption key is `AI_SETTINGS_ENCRYPTION_KEY`.
 
+Every outbound share from a post authored on this application appends a reader-visible canonical source line to the syndicated copy in the form `Original source at {Site Title}: {Canonical URL}`. Where a target also supports native canonical/source metadata, the app sends that too.
+
 After a post is cross-posted successfully, its card on the home feed shows platform badges ("Also on Medium", "Also on WordPress.com", etc.) linking to the syndicated copy.
 
 ### Inbound Feed Aggregation (PESOS)
@@ -263,7 +265,7 @@ npm run start       # start the built API server
    npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com
    ```
 
-5. **Platform syndication** — visit `/admin/platforms` to connect external publishing targets. WordPress.com and Blogger require an OAuth app registered in their respective developer consoles. The admin UI generates the exact redirect URIs to register, derived from your `ALLOWED_ORIGINS` value. Medium requires a self-integration token from your Medium account settings.
+5. **Platform syndication** — visit `/admin/platforms` to connect external publishing targets. WordPress.com and Blogger require an OAuth app registered in their respective developer consoles. The admin UI generates the exact redirect URIs to register, derived from your `ALLOWED_ORIGINS` value. Medium requires a self-integration token from your Medium account settings. New outbound shares append a visible `Original source at {Site Title}: {Canonical URL}` line to the syndicated copy.
 
 ### Optional Creatrweb Framework Files
 

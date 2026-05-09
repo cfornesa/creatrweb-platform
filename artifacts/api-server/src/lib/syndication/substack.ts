@@ -17,6 +17,7 @@ import type {
   SyndicationResult,
 } from "./types";
 import { parseMeta, SyndicationAuthExpiredError, SyndicationConfigurationError } from "./types";
+import { buildSyndicatedContent } from "./content";
 
 type SubstackDraftResponse = {
   id?: string | number;
@@ -518,7 +519,7 @@ export const substackAdapter: PlatformAdapter = {
     }
 
     const title = payload.title.trim() || "Untitled";
-    const draftBody = buildSubstackDraftBodyDocument(payload.contentHtml);
+    const draftBody = buildSubstackDraftBodyDocument(buildSyndicatedContent(payload));
     const publicationOrigin = `https://${publicationHost}`;
     const publicationReferer = `${publicationOrigin}/publish/post`;
 

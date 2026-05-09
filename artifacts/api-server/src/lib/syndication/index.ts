@@ -3,6 +3,7 @@ import {
   platformConnectionsTable,
   postSyndicationsTable,
   postsTable,
+  siteSettingsTable,
   eq,
   and,
   inArray,
@@ -23,6 +24,7 @@ import { wordpressSelfAdapter } from "./wordpress-self";
 import { mediumAdapter } from "./medium";
 import { bloggerAdapter } from "./blogger";
 import { substackAdapter } from "./substack";
+import { buildSourceFooter, shouldAppendSourceFooter } from "./content";
 
 const ADAPTERS: Record<string, PlatformAdapter> = {
   wordpress_com: wordpressComAdapter,
@@ -38,11 +40,32 @@ export function getAdapter(platform: string): PlatformAdapter {
   return adapter;
 }
 
-function buildPayload(post: Post, origin: string): SyndicationPayload {
+async function loadSiteTitle(): Promise<string | null> {
+  try {
+    const rows = await db
+      .select({ siteTitle: siteSettingsTable.siteTitle })
+      .from(siteSettingsTable)
+      .where(eq(siteSettingsTable.id, 1))
+      .limit(1);
+    return rows[0]?.siteTitle?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+async function buildPayload(post: Post, origin: string): Promise<SyndicationPayload> {
+  const canonicalUrl = `${origin}/posts/${post.id}`;
+  const sourceFooter = shouldAppendSourceFooter(post)
+    ? buildSourceFooter(await loadSiteTitle(), canonicalUrl)
+    : { html: "", text: "" };
+
   return {
     title: (post as Post & { title?: string | null }).title?.trim() ?? "",
     contentHtml: post.content,
-    canonicalUrl: `${origin}/posts/${post.id}`,
+    contentFormat: post.contentFormat === "plain" ? "plain" : "html",
+    canonicalUrl,
+    sourceFooterHtml: sourceFooter.html,
+    sourceFooterText: sourceFooter.text,
   };
 }
 
@@ -119,7 +142,7 @@ async function runSyndication(
 
   if (connections.length === 0) return;
 
-  const payload = buildPayload(post, origin);
+  const payload = await buildPayload(post, origin);
 
   for (const conn of connections) {
     // Insert a pending row first; idempotent via ON DUPLICATE KEY UPDATE.

@@ -2,6 +2,7 @@ import TurndownService from "turndown";
 import { decryptSecret } from "../crypto";
 import type { PlatformAdapter, SyndicationPayload, SyndicationResult } from "./types";
 import type { PlatformConnection } from "@workspace/db";
+import { buildSyndicatedContent } from "./content";
 
 type MediumPostResponse = { data: { id: string; url: string } };
 
@@ -23,7 +24,7 @@ export const mediumAdapter: PlatformAdapter = {
       throw new Error("Medium connection is missing authorId in metadata");
     }
 
-    const markdown = turndown.turndown(payload.contentHtml);
+    const markdown = turndown.turndown(buildSyndicatedContent(payload));
 
     const res = await fetch(`https://api.medium.com/v1/users/${authorId}/posts`, {
       method: "POST",

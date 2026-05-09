@@ -3,6 +3,7 @@ import { getOAuthAppCredentials } from "../oauth-app-credentials";
 import type { PlatformAdapter, SyndicationPayload, SyndicationResult, TokenRefreshResult } from "./types";
 import { parseMeta } from "./types";
 import type { PlatformConnection } from "@workspace/db";
+import { buildSyndicatedContent } from "./content";
 
 type WpComPostResponse = { ID: number; URL: string };
 type WpComTokenResponse = { access_token: string; refresh_token?: string; expires_in?: number };
@@ -40,7 +41,7 @@ export const wordpressComAdapter: PlatformAdapter = {
         },
         body: JSON.stringify({
           title: payload.title,
-          content: payload.contentHtml,
+          content: buildSyndicatedContent(payload),
           status: "publish",
           format: "standard",
         }),

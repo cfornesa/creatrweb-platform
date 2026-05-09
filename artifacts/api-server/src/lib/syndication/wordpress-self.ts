@@ -2,6 +2,7 @@ import { decryptSecret } from "../crypto";
 import type { PlatformAdapter, SyndicationPayload, SyndicationResult } from "./types";
 import { parseMeta } from "./types";
 import type { PlatformConnection } from "@workspace/db";
+import { buildSyndicatedContent } from "./content";
 
 type WpSelfPostResponse = { id: number; link: string };
 
@@ -28,7 +29,7 @@ export const wordpressSelfAdapter: PlatformAdapter = {
       },
       body: JSON.stringify({
         title: payload.title,
-        content: payload.contentHtml,
+        content: buildSyndicatedContent(payload),
         status: "publish",
       }),
     });

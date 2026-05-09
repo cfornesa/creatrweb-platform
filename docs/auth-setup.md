@@ -117,6 +117,7 @@ npm run promote-owner --workspace=@workspace/scripts -- --id your-user-id
 - The promoted owner can create, edit, and delete posts; manage categories, platforms, and feeds; and access all `/admin/*` routes.
 - The owner's post composer uses the rich editor with sanitized HTML storage, compact WYSIWYG controls, heading levels `H1`–`H6`, local image uploads, YouTube URL insertion, and owner-trusted `https:` iframe embeds.
 - Platform connections configured in `/admin/platforms` appear in the post composer's syndication target selector.
+- When the owner syndicates a post authored on this application, the external copy includes a visible canonical source line: `Original source at {Site Title}: {Canonical URL}`. Targets that support native canonical/source metadata also receive that canonical URL in structured form.
 
 ## Public Feed Endpoints
 

@@ -35,8 +35,29 @@ vi.mock("../logger", () => ({
   },
 }));
 
+import { buildSourceFooter } from "./content";
 import { buildSubstackDraftBodyDocument, substackAdapter } from "./substack";
 import { SyndicationAuthExpiredError, SyndicationConfigurationError } from "./types";
+
+function buildPayload(
+  overrides: Partial<{
+    title: string;
+    contentHtml: string;
+    canonicalUrl: string;
+    contentFormat: "plain" | "html";
+  }> = {},
+) {
+  const canonicalUrl = overrides.canonicalUrl ?? "https://platform.example.com/posts/1";
+  const footer = buildSourceFooter("My Site", canonicalUrl);
+  return {
+    title: overrides.title ?? "Hello",
+    contentHtml: overrides.contentHtml ?? "<p>world</p>",
+    contentFormat: overrides.contentFormat ?? "html",
+    canonicalUrl,
+    sourceFooterHtml: footer.html,
+    sourceFooterText: footer.text,
+  };
+}
 
 describe("substackAdapter", () => {
   beforeEach(() => {
@@ -106,11 +127,7 @@ describe("substackAdapter", () => {
         encryptedAccessToken: "cookie-value",
         metadata: { publicationId: "123", publicationHost: "writer.substack.com" },
       } as never,
-      {
-        title: "Hello",
-        contentHtml: "<p>world</p>",
-        canonicalUrl: "https://platform.example.com/posts/1",
-      },
+      buildPayload(),
       {},
     );
 
@@ -181,6 +198,24 @@ describe("substackAdapter", () => {
           type: "paragraph",
           content: [{ type: "text", text: "world" }],
         },
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "Original source at My Site: ",
+              marks: [{ type: "italic" }],
+            },
+            {
+              type: "text",
+              text: "https://platform.example.com/posts/1",
+              marks: [
+                { type: "italic" },
+                { type: "link", attrs: { href: "https://platform.example.com/posts/1" } },
+              ],
+            },
+          ],
+        },
       ],
     });
 
@@ -245,11 +280,11 @@ describe("substackAdapter", () => {
         encryptedAccessToken: "cookie-value",
         metadata: { publicationId: "999", publicationHost: "writer.substack.com" },
       } as never,
-      {
+      buildPayload({
         title: "Expired",
         contentHtml: "<p>session</p>",
         canonicalUrl: "https://platform.example.com/posts/2",
-      },
+      }),
       {},
     );
     const rejection = expect(publishPromise).rejects.toBeInstanceOf(SyndicationAuthExpiredError);
@@ -270,11 +305,11 @@ describe("substackAdapter", () => {
           encryptedAccessToken: null,
           metadata: null,
         } as never,
-        {
+        buildPayload({
           title: "No config",
           contentHtml: "<p>nope</p>",
           canonicalUrl: "https://platform.example.com/posts/3",
-        },
+        }),
         {},
       ),
     ).rejects.toBeInstanceOf(SyndicationConfigurationError);
@@ -336,11 +371,7 @@ describe("substackAdapter", () => {
         encryptedAccessToken: "cookie-value",
         metadata: { publicationId: "123", publicationHost: "writer.substack.com" },
       } as never,
-      {
-        title: "Hello",
-        contentHtml: "<p>world</p>",
-        canonicalUrl: "https://platform.example.com/posts/1",
-      },
+      buildPayload(),
       { substackSendNewsletter: true },
     );
 
@@ -414,11 +445,7 @@ describe("substackAdapter", () => {
         encryptedAccessToken: "foo=bar; connect.sid=cookie-value",
         metadata: { publicationId: "123", publicationHost: "writer.substack.com" },
       } as never,
-      {
-        title: "Hello",
-        contentHtml: "<p>world</p>",
-        canonicalUrl: "https://platform.example.com/posts/1",
-      },
+      buildPayload(),
       {},
     );
 

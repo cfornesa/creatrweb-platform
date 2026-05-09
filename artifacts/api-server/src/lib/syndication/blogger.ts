@@ -3,6 +3,7 @@ import { getOAuthAppCredentials } from "../oauth-app-credentials";
 import type { PlatformAdapter, SyndicationPayload, SyndicationResult, TokenRefreshResult } from "./types";
 import { parseMeta } from "./types";
 import type { PlatformConnection } from "@workspace/db";
+import { buildSyndicatedContent } from "./content";
 
 type BloggerPostResponse = { id: string; url: string };
 type GoogleTokenResponse = { access_token: string; refresh_token?: string; expires_in?: number };
@@ -28,7 +29,7 @@ export const bloggerAdapter: PlatformAdapter = {
         body: JSON.stringify({
           kind: "blogger#post",
           title: payload.title,
-          content: payload.contentHtml,
+          content: buildSyndicatedContent(payload),
         }),
       },
     );

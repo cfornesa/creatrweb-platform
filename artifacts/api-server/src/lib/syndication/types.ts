@@ -18,10 +18,16 @@ export function parseMeta(raw: PlatformConnection["metadata"]): Record<string, u
 export type SyndicationPayload = {
   /** Short title derived from the first ~100 chars of stripped content. */
   title: string;
-  /** Full HTML content of the post. */
+  /** Original post body. HTML for rich posts, plain text for legacy posts. */
   contentHtml: string;
+  /** The original post body format so adapters can append the source footer safely. */
+  contentFormat: "plain" | "html";
   /** Absolute canonical URL on this site, e.g. https://example.com/posts/42 */
   canonicalUrl: string;
+  /** HTML footer for rich syndicated copies. */
+  sourceFooterHtml: string;
+  /** Plain-text footer for plain syndicated copies and markdown conversion. */
+  sourceFooterText: string;
 };
 
 export type SyndicationDispatchOptions = {
