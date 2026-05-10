@@ -2442,6 +2442,13 @@ components:
         structuredSpec:
           type: object
           additionalProperties: true
+          nullable: true
+        htmlCode:
+          type: string
+          nullable: true
+        cssCode:
+          type: string
+          nullable: true
         generatedCode:
           type: string
         engine:
@@ -2472,7 +2479,6 @@ components:
         - id
         - artPieceId
         - prompt
-        - structuredSpec
         - generatedCode
         - engine
         - validationStatus
@@ -2580,6 +2586,13 @@ components:
         structuredSpec:
           type: object
           additionalProperties: true
+          nullable: true
+        htmlCode:
+          type: string
+          nullable: true
+        cssCode:
+          type: string
+          nullable: true
         generatedCode:
           type: string
         notes:
@@ -2613,7 +2626,6 @@ components:
         - draftToken
         - title
         - engine
-        - structuredSpec
         - generatedCode
         - notes
         - vendor
@@ -2625,7 +2637,6 @@ components:
         - timedOut
         - cancelled
         - wasRepaired
-
     CreateArtPieceBody:
       type: object
       properties:
@@ -2633,10 +2644,16 @@ components:
           type: string
           minLength: 1
           maxLength: 191
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          nullable: true
         thumbnailUrl:
           type: string
           format: uri
           maxLength: 2048
+          nullable: true
       required:
         - draftToken
 
@@ -2677,14 +2694,21 @@ components:
           type: string
           minLength: 1
           maxLength: 191
+        htmlCode:
+          type: string
+          nullable: true
+        cssCode:
+          type: string
+          nullable: true
+        generatedCode:
+          type: string
+          minLength: 1
         title:
           type: string
           minLength: 1
           maxLength: 255
         makeCurrent:
           type: boolean
-      required:
-        - draftToken
 
     CreateArtPieceVersionResponse:
       type: object

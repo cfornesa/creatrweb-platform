@@ -89,6 +89,7 @@ export default function AdminFeedsPage() {
     // Bulk-approve flips pending → published so the public timeline
     // changes too. Invalidate it to avoid stale list rendering.
     queryClient.invalidateQueries({ queryKey: getListPostsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: ["listPosts"] });
   };
 
   const createMutation = useCreateFeedSource({

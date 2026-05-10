@@ -43,7 +43,9 @@ export const artPieceVersionsTable = mysqlTable(
       .notNull()
       .references(() => artPiecesTable.id, { onDelete: "cascade" }),
     prompt: text("prompt").notNull(),
-    structuredSpec: text("structured_spec").notNull(),
+    structuredSpec: text("structured_spec"),
+    htmlCode: text("html_code"),
+    cssCode: text("css_code"),
     generatedCode: text("generated_code").notNull(),
     engine: varchar("engine", { length: 16 }).notNull().default("p5"),
     generationVendor: varchar("generation_vendor", { length: 64 }),

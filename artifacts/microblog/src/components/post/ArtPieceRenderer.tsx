@@ -20,3 +20,50 @@ export function ArtPieceRenderer(props: ArtPieceRendererProps) {
   }
   return <ThreePieceRenderer {...props} />;
 }
+
+export function evaluateArtPieceCode(code: string): any {
+  const captured: any = {};
+  const mockWindow = new Proxy(window, {
+    get(target, prop, receiver) {
+      if (prop === "sketch") return captured.sketch;
+      if (Object.prototype.hasOwnProperty.call(captured, prop)) return captured[prop];
+
+      const val = (target as any)[prop];
+      // Many window functions (like addEventListener) require 'window' as 'this'
+      if (typeof val === "function") return val.bind(target);
+      return val;
+    },
+    set(target, prop, value) {
+      if (prop === "sketch") {
+        captured.sketch = value;
+        return true;
+      }
+      captured[prop] = value;
+      return true;
+    },
+    // Prevent common Proxy traps from leaking or causing issues
+    has(target, prop) {
+      return prop === "sketch" || prop in captured || prop in target;
+    },
+  });
+
+  let sketchFactory: any = null;
+  try {
+    // Shadow 'window', 'self', and 'top' to prevent easy escapes
+    new Function("window", "self", "top", code)(mockWindow, mockWindow, mockWindow);
+    sketchFactory = captured.sketch;
+  } catch (err) {
+    // Fallback
+  }
+
+  if (!sketchFactory || typeof sketchFactory !== "function") {
+    try {
+      const expression = code.trim().replace(/;+$/, "");
+      sketchFactory = new Function(`return (${expression});`)();
+    } catch (err) {
+      // Both failed
+    }
+  }
+
+  return sketchFactory;
+}

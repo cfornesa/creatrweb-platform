@@ -19,7 +19,7 @@ import {
   StructuredArtPieceParseError,
   buildArtPieceRepairPrompt,
   buildInteractivePieceIframeHtml,
-  compileStructuredArtPieceSpec,
+  extractCodeBlocks,
   consumeValidatedDraftToken,
   getArtPieceGenerationSystemPrompt,
   getArtPieceGenerationLimits,
@@ -53,6 +53,7 @@ const GenerateArtPieceBody = z.object({
 
 const CreateArtPieceBody = z.object({
   draftToken: z.string().trim().min(1).max(191),
+  title: z.string().trim().min(1).max(255).optional(),
   thumbnailUrl: z.string().trim().url().max(2048).optional(),
 });
 
@@ -64,7 +65,10 @@ const UpdateArtPieceBody = z.object({
 });
 
 const CreateArtPieceVersionBody = z.object({
-  draftToken: z.string().trim().min(1).max(191),
+  draftToken: z.string().trim().min(1).max(191).optional(),
+  htmlCode: z.string().nullable().optional(),
+  cssCode: z.string().nullable().optional(),
+  generatedCode: z.string().min(1).optional(),
   title: z.string().trim().min(1).max(255).optional(),
   makeCurrent: z.boolean().optional(),
 });
@@ -174,6 +178,9 @@ function throwIfGenerationAborted(signal: AbortSignal, attemptCount: number) {
 }
 
 function classifyGenerationFailureStage(message: string): string {
+  if (message.includes("```javascript code block")) {
+    return "code_extraction";
+  }
   if (message.includes("valid JSON")) {
     return "json_parse";
   }
@@ -230,20 +237,19 @@ async function generateValidatedDraft(input: {
       });
       previousRawResponse = responseText;
 
-      const structuredSpec = parseStructuredArtPieceSpec(input.engine, responseText);
-      const generatedCode = preflightCompiledArtPieceCode(
-        input.engine,
-        compileStructuredArtPieceSpec(input.engine, structuredSpec),
-      );
+      const { htmlCode, cssCode, generatedCode: rawJsCode } = extractCodeBlocks(responseText);
+      const generatedCode = preflightCompiledArtPieceCode(input.engine, rawJsCode);
 
       const draftToken = issueValidatedDraftToken({
         ownerUserId: input.ownerUserId,
-        title: structuredSpec.title,
+        title: input.prompt.slice(0, 80),
         prompt: input.prompt,
         engine: input.engine,
+        htmlCode,
+        cssCode,
         generatedCode,
-        structuredSpec,
-        notes: structuredSpec.notes?.trim() ? structuredSpec.notes.trim() : null,
+        structuredSpec: null,
+        notes: null,
         generationVendor: input.vendor,
         generationModel: input.model,
         validationStatus: "validated",
@@ -255,11 +261,13 @@ async function generateValidatedDraft(input: {
 
       return {
         draftToken,
-        title: structuredSpec.title,
+        title: input.prompt.slice(0, 80),
         engine: input.engine,
+        htmlCode,
+        cssCode,
         generatedCode,
-        structuredSpec,
-        notes: structuredSpec.notes?.trim() ? structuredSpec.notes.trim() : null,
+        structuredSpec: null,
+        notes: null,
         vendor: input.vendor,
         vendorLabel: getAiVendorLabel(input.vendor) ?? input.vendor,
         model: input.model,
@@ -523,7 +531,7 @@ router.post("/art-pieces", requireAuth, requireOwner, async (req: Request, res: 
       .insert(artPiecesTable)
       .values({
         ownerUserId: req.currentUser!.id,
-        title: draft.title,
+        title: parsed.data.title || draft.title,
         prompt: draft.prompt,
         engine,
         status: "active",
@@ -662,31 +670,63 @@ router.post("/art-pieces/:id/versions", requireAuth, requireOwner, async (req: R
       return res.status(404).json({ error: "Not found" });
     }
 
-    const draft = consumeValidatedDraftToken(parsed.data.draftToken, req.currentUser!.id);
-    if (!draft) {
-      return res.status(409).json({
-        error: "This validated draft is no longer available. Generate the piece again before saving.",
-      });
-    }
+    let draftPrompt = "";
+    let draftHtmlCode: string | null = null;
+    let draftCssCode: string | null = null;
+    let draftGeneratedCode = "";
+    let draftStructuredSpec: string | null = null;
+    let draftVendor: string | null = null;
+    let draftModel: string | null = null;
+    let draftAttemptCount = 1;
+    let draftNotes: string | null = null;
+    let engine = validateArtPieceEngine(piece.engine) || "p5";
 
-    const engine = validateArtPieceEngine(draft.engine);
-    if (!engine) {
-      return res.status(400).json({ error: "Unsupported art piece engine" });
+    if (parsed.data.draftToken) {
+      const draft = consumeValidatedDraftToken(parsed.data.draftToken, req.currentUser!.id);
+      if (!draft) {
+        return res.status(409).json({
+          error: "This validated draft is no longer available. Generate the piece again before saving.",
+        });
+      }
+      const validatedEngine = validateArtPieceEngine(draft.engine);
+      if (!validatedEngine) {
+        return res.status(400).json({ error: "Unsupported art piece engine" });
+      }
+      engine = validatedEngine;
+      draftPrompt = draft.prompt;
+      draftHtmlCode = draft.htmlCode;
+      draftCssCode = draft.cssCode;
+      draftGeneratedCode = draft.generatedCode;
+      draftStructuredSpec = draft.structuredSpec ? JSON.stringify(draft.structuredSpec) : null;
+      draftVendor = draft.generationVendor;
+      draftModel = draft.generationModel;
+      draftAttemptCount = draft.attemptCount;
+      draftNotes = draft.notes;
+    } else if (parsed.data.generatedCode) {
+      // Manual save
+      draftGeneratedCode = preflightCompiledArtPieceCode(engine, parsed.data.generatedCode);
+      draftHtmlCode = parsed.data.htmlCode || null;
+      draftCssCode = parsed.data.cssCode || null;
+      draftPrompt = piece.prompt;
+    } else {
+      return res.status(400).json({ error: "Either draftToken or generatedCode must be provided." });
     }
 
     const versionInsert = await db
       .insert(artPieceVersionsTable)
       .values({
         artPieceId: piece.id,
-        prompt: draft.prompt,
-        structuredSpec: JSON.stringify(draft.structuredSpec),
-        generatedCode: draft.generatedCode,
+        prompt: draftPrompt,
+        structuredSpec: draftStructuredSpec,
+        htmlCode: draftHtmlCode,
+        cssCode: draftCssCode,
+        generatedCode: draftGeneratedCode,
         engine,
-        generationVendor: draft.generationVendor,
-        generationModel: draft.generationModel,
-        validationStatus: draft.validationStatus,
-        generationAttemptCount: draft.attemptCount,
-        notes: draft.notes,
+        generationVendor: draftVendor,
+        generationModel: draftModel,
+        validationStatus: "validated",
+        generationAttemptCount: draftAttemptCount,
+        notes: draftNotes,
       })
       .$returningId();
 
@@ -698,7 +738,7 @@ router.post("/art-pieces/:id/versions", requireAuth, requireOwner, async (req: R
     const shouldMakeCurrent = parsed.data.makeCurrent !== false;
     const updates: Partial<ArtPiece> = {
       updatedAt: new Date().toISOString().slice(0, 23).replace("T", " "),
-      prompt: draft.prompt,
+      prompt: draftPrompt,
     };
     if (typeof parsed.data.title === "string") {
       updates.title = parsed.data.title;

@@ -89,6 +89,7 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListPostsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: ["listPosts"] });
         if (currentUser) {
           queryClient.invalidateQueries({ queryKey: getGetPostsByUserQueryKey(currentUser.id) });
         }
@@ -146,6 +147,7 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
 
         setIsEditing(false);
         queryClient.invalidateQueries({ queryKey: getListPostsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: ["listPosts"] });
         queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(post.id) });
         if (currentUser) {
           queryClient.invalidateQueries({ queryKey: getGetPostsByUserQueryKey(currentUser.id) });

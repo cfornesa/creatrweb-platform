@@ -351,6 +351,7 @@ async function postChatCompletions(url: string, input: ProcessTextInput): Promis
     },
     body: {
       model: input.model,
+      max_tokens: 4096,
       messages: [
         { role: "system", content: input.systemPrompt },
         { role: "user", content: input.plainText },
@@ -389,7 +390,7 @@ async function postAnthropicMessages(url: string, input: ProcessTextInput): Prom
     },
     body: {
       model: input.model,
-      max_tokens: 1200,
+      max_tokens: 4096,
       system: input.systemPrompt,
       messages: [
         { role: "user", content: input.plainText },
@@ -434,6 +435,9 @@ async function postGoogleGenerateContent(url: string, input: ProcessTextInput): 
           parts: [{ text: input.plainText }],
         },
       ],
+      generationConfig: {
+        maxOutputTokens: 4096,
+      },
     },
   });
 

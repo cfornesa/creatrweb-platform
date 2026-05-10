@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { GeneratedArtPieceDraft } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,18 +31,29 @@ export function ArtPieceDraftDialog({
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewWarning, setPreviewWarning] = useState<string | null>(null);
   const [isPreviewValid, setIsPreviewValid] = useState(false);
+  const [viewTab, setViewTab] = useState<"preview" | "html" | "css" | "js">("preview");
+
+  const handleStatusChange = useCallback(
+    (status: { valid: boolean; error: string | null; warning?: string | null }) => {
+      setIsPreviewValid(status.valid);
+      setPreviewError(status.error);
+      setPreviewWarning(status.warning ?? null);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!open) {
       setPreviewError(null);
       setPreviewWarning(null);
       setIsPreviewValid(false);
+      setViewTab("preview");
     }
   }, [open, draft?.draftToken]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden">
+      <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden">
         <DialogHeader>
           <DialogTitle>{draft?.title ?? "Generated piece"}</DialogTitle>
           <DialogDescription>
@@ -50,8 +61,39 @@ export function ArtPieceDraftDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <div className="flex flex-wrap gap-2 border-b border-border pb-2">
+          <button
+            type="button"
+            onClick={() => setViewTab("preview")}
+            className={`px-3 py-1.5 text-sm font-medium transition-colors ${viewTab === "preview" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Preview
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewTab("html")}
+            className={`px-3 py-1.5 text-sm font-medium transition-colors ${viewTab === "html" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            HTML
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewTab("css")}
+            className={`px-3 py-1.5 text-sm font-medium transition-colors ${viewTab === "css" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            CSS
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewTab("js")}
+            className={`px-3 py-1.5 text-sm font-medium transition-colors ${viewTab === "js" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            JS
+          </button>
+        </div>
+
         <div className="overflow-y-auto min-h-0 space-y-4">
-          {draft ? (
+          {open && draft && viewTab === "preview" ? (
             <>
               <div className="rounded-xl border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
                 <p><span className="font-medium text-foreground">Prompt:</span> {prompt}</p>
@@ -70,11 +112,7 @@ export function ArtPieceDraftDialog({
               <ArtPieceRenderer
                 engine={draft.engine}
                 code={draft.generatedCode}
-                onStatusChange={({ valid, error, warning }) => {
-                  setIsPreviewValid(valid);
-                  setPreviewError(error);
-                  setPreviewWarning(warning ?? null);
-                }}
+                onStatusChange={handleStatusChange}
               />
               {previewError ? (
                 <p className="text-sm text-destructive">
@@ -87,6 +125,21 @@ export function ArtPieceDraftDialog({
                 </p>
               ) : null}
             </>
+          ) : null}
+          {open && draft && viewTab === "html" ? (
+            <pre className="p-4 text-xs font-mono bg-muted/50 rounded-lg overflow-x-auto whitespace-pre-wrap">
+              {draft.htmlCode || "(No HTML code provided)"}
+            </pre>
+          ) : null}
+          {open && draft && viewTab === "css" ? (
+            <pre className="p-4 text-xs font-mono bg-muted/50 rounded-lg overflow-x-auto whitespace-pre-wrap">
+              {draft.cssCode || "(No CSS code provided)"}
+            </pre>
+          ) : null}
+          {open && draft && viewTab === "js" ? (
+            <pre className="p-4 text-xs font-mono bg-muted/50 rounded-lg overflow-x-auto whitespace-pre-wrap">
+              {draft.generatedCode}
+            </pre>
           ) : null}
         </div>
 

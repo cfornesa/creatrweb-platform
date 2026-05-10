@@ -186,6 +186,8 @@ export async function ensureTables(): Promise<void> {
     "CREATE INDEX art_piece_versions_art_piece_idx ON art_piece_versions (art_piece_id)",
   );
   await ensureColumn("art_piece_versions", "structured_spec", "structured_spec TEXT NULL");
+  await ensureColumn("art_piece_versions", "html_code", "html_code TEXT NULL");
+  await ensureColumn("art_piece_versions", "css_code", "css_code TEXT NULL");
   await ensureColumn(
     "art_piece_versions",
     "validation_status",

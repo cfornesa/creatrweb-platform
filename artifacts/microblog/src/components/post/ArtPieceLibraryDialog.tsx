@@ -49,7 +49,7 @@ export function ArtPieceLibraryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Insert saved piece</DialogTitle>
           <DialogDescription>
@@ -57,7 +57,7 @@ export function ArtPieceLibraryDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 md:grid-cols-[18rem_1fr]">
+        <div className="grid gap-4 md:grid-cols-[18rem_1fr] overflow-y-auto min-h-0">
           <div className="space-y-3">
             <Input
               value={query}

@@ -40,6 +40,10 @@ export default function AdminPiecesPage() {
   const [prompt, setPrompt] = useState("");
   const [selectedVendor, setSelectedVendor] = useState<ProcessAiTextBodyVendor | "">("");
   const [selectedEngine, setSelectedEngine] = useState<ArtPieceEngine>("p5");
+  const [htmlCode, setHtmlCode] = useState("");
+  const [cssCode, setCssCode] = useState("");
+  const [generatedCode, setGeneratedCode] = useState("");
+  const [viewTab, setViewTab] = useState<"meta" | "html" | "css" | "js">("meta");
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<GeneratedArtPieceDraft | null>(null);
   const [draftOpen, setDraftOpen] = useState(false);
@@ -85,8 +89,19 @@ export default function AdminPiecesPage() {
       setTitle(detail.data.title);
       setPrompt(detail.data.prompt);
       setSelectedEngine(detail.data.engine);
+      setHtmlCode(detail.data.currentVersion?.htmlCode || "");
+      setCssCode(detail.data.currentVersion?.cssCode || "");
+      setGeneratedCode(detail.data.currentVersion?.generatedCode || "");
     }
-  }, [detail.data?.engine, detail.data?.id, detail.data?.title, detail.data?.prompt]);
+  }, [
+    detail.data?.engine,
+    detail.data?.id,
+    detail.data?.title,
+    detail.data?.prompt,
+    detail.data?.currentVersion?.htmlCode,
+    detail.data?.currentVersion?.cssCode,
+    detail.data?.currentVersion?.generatedCode,
+  ]);
 
   useEffect(() => () => {
     generationAbortRef.current?.abort();
@@ -452,49 +467,125 @@ export default function AdminPiecesPage() {
               <p className="text-sm text-muted-foreground">Select a piece to manage it.</p>
             ) : (
               <>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="piece-title">Title</Label>
-                    <Input id="piece-title" value={title} onChange={(event) => setTitle(event.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="piece-engine">Engine</Label>
-                    <select
-                      id="piece-engine"
-                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      value={selectedEngine}
-                      onChange={(event) => setSelectedEngine(event.target.value as ArtPieceEngine)}
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-2 border-b border-border pb-2">
+                    <button
+                      type="button"
+                      onClick={() => setViewTab("meta")}
+                      className={`px-3 py-1.5 text-sm font-medium transition-colors ${viewTab === "meta" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                     >
-                      <option value="p5">p5</option>
-                      <option value="c2">c2</option>
-                      <option value="three">Three.js</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="piece-vendor">AI vendor for new versions</Label>
-                    <select
-                      id="piece-vendor"
-                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      value={selectedVendor}
-                      onChange={(event) =>
-                        handleVendorChange(event.target.value as ProcessAiTextBodyVendor)
-                      }
+                      Metadata
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewTab("html")}
+                      className={`px-3 py-1.5 text-sm font-medium transition-colors ${viewTab === "html" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                     >
-                      {aiVendors.map((vendor) => (
-                        <option key={vendor.id} value={vendor.id}>{vendor.label}</option>
-                      ))}
-                    </select>
+                      HTML
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewTab("css")}
+                      className={`px-3 py-1.5 text-sm font-medium transition-colors ${viewTab === "css" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      CSS
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewTab("js")}
+                      className={`px-3 py-1.5 text-sm font-medium transition-colors ${viewTab === "js" ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      JS
+                    </button>
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="piece-prompt">Prompt</Label>
-                  <Textarea
-                    id="piece-prompt"
-                    value={prompt}
-                    onChange={(event) => setPrompt(event.target.value)}
-                    rows={4}
-                  />
+                  {viewTab === "meta" && (
+                    <div className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="piece-title">Title</Label>
+                          <Input id="piece-title" value={title} onChange={(event) => setTitle(event.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="piece-engine">Engine</Label>
+                          <select
+                            id="piece-engine"
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                            value={selectedEngine}
+                            onChange={(event) => setSelectedEngine(event.target.value as ArtPieceEngine)}
+                          >
+                            <option value="p5">p5</option>
+                            <option value="c2">c2</option>
+                            <option value="three">Three.js</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="piece-vendor">AI vendor for new versions</Label>
+                          <select
+                            id="piece-vendor"
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                            value={selectedVendor}
+                            onChange={(event) =>
+                              handleVendorChange(event.target.value as ProcessAiTextBodyVendor)
+                            }
+                          >
+                            {aiVendors.map((vendor) => (
+                              <option key={vendor.id} value={vendor.id}>{vendor.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="piece-prompt">Prompt</Label>
+                        <Textarea
+                          id="piece-prompt"
+                          value={prompt}
+                          onChange={(event) => setPrompt(event.target.value)}
+                          rows={4}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {viewTab === "html" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="piece-html">HTML</Label>
+                      <Textarea
+                        id="piece-html"
+                        className="font-mono text-xs"
+                        value={htmlCode}
+                        onChange={(event) => setHtmlCode(event.target.value)}
+                        rows={10}
+                      />
+                    </div>
+                  )}
+
+                  {viewTab === "css" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="piece-css">CSS</Label>
+                      <Textarea
+                        id="piece-css"
+                        className="font-mono text-xs"
+                        value={cssCode}
+                        onChange={(event) => setCssCode(event.target.value)}
+                        rows={10}
+                      />
+                    </div>
+                  )}
+
+                  {viewTab === "js" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="piece-js">JavaScript</Label>
+                      <Textarea
+                        id="piece-js"
+                        className="font-mono text-xs"
+                        value={generatedCode}
+                        onChange={(event) => setGeneratedCode(event.target.value)}
+                        rows={15}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {selected.currentVersion ? (
@@ -516,6 +607,24 @@ export default function AdminPiecesPage() {
                     disabled={updatePiece.isPending}
                   >
                     Save metadata
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      createVersion.mutate({
+                        id: selected.id,
+                        data: {
+                          title,
+                          makeCurrent: true,
+                          htmlCode,
+                          cssCode,
+                          generatedCode,
+                        },
+                      })
+                    }
+                    disabled={createVersion.isPending || !generatedCode.trim()}
+                  >
+                    Save manual edits
                   </Button>
                   <Button
                     type="button"
@@ -589,14 +698,19 @@ export default function AdminPiecesPage() {
 
       <ArtPieceDraftDialog
         open={draftOpen}
-        onOpenChange={setDraftOpen}
+        onOpenChange={(open) => {
+          setDraftOpen(open);
+          if (!open) {
+            setDraft(null);
+          }
+        }}
         draft={draft}
         prompt={prompt}
         isSaving={creating ? createPiece.isPending : createVersion.isPending}
         onSaveAndInsert={() => {
           if (!draft) return;
           if (creating) {
-            createPiece.mutate({ data: { draftToken: draft.draftToken } });
+            createPiece.mutate({ data: { draftToken: draft.draftToken, title: title || draft.title } });
           } else {
             if (!selected) return;
             createVersion.mutate({

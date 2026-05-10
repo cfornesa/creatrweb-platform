@@ -226,6 +226,7 @@ export default function AdminPendingPage() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: getListPendingPostsQueryKey() });
     queryClient.invalidateQueries({ queryKey: getListPostsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: ["listPosts"] });
     queryClient.invalidateQueries({ queryKey: getListFeedSourcesQueryKey() });
   };
 

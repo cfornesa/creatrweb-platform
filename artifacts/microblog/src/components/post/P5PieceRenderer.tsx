@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import p5 from "p5";
+import { evaluateArtPieceCode } from "./ArtPieceRenderer";
 
 type P5PieceRendererProps = {
   code: string;
   className?: string;
   height?: number;
-  onStatusChange?: (status: { valid: boolean; error: string | null }) => void;
+  onStatusChange?: (status: { valid: boolean; error: string | null; warning?: string | null }) => void;
 };
 
 export function P5PieceRenderer({
@@ -17,8 +18,10 @@ export function P5PieceRenderer({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const instanceRef = useRef<p5 | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     const container = containerRef.current;
     if (!container) {
       return;
@@ -26,26 +29,39 @@ export function P5PieceRenderer({
 
     setError(null);
     container.innerHTML = "";
-    instanceRef.current?.remove();
+    try {
+      instanceRef.current?.remove();
+    } catch (err) {
+      console.warn("p5 instance remove failed", err);
+    }
     instanceRef.current = null;
 
     try {
-      const sketchFactory = new Function(`return (${code});`)() as (p: p5) => void;
+      const sketchFactory = evaluateArtPieceCode(code);
       if (typeof sketchFactory !== "function") {
         throw new Error("The saved sketch did not evaluate to a function.");
       }
       instanceRef.current = new p5((p) => sketchFactory(p), container);
-      onStatusChange?.({ valid: true, error: null });
+      if (mountedRef.current) {
+        onStatusChange?.({ valid: true, error: null });
+      }
     } catch (nextError) {
       const message = nextError instanceof Error ? nextError.message : "Unknown preview error";
-      setError(message);
-      onStatusChange?.({ valid: false, error: message });
+      if (mountedRef.current) {
+        setError(message);
+        onStatusChange?.({ valid: false, error: message });
+      }
     }
 
     return () => {
-      instanceRef.current?.remove();
+      mountedRef.current = false;
+      try {
+        instanceRef.current?.remove();
+      } catch (err) {
+        // Ignore cleanup errors
+      }
       instanceRef.current = null;
-      container.innerHTML = "";
+      if (container) container.innerHTML = "";
     };
   }, [code, onStatusChange]);
 

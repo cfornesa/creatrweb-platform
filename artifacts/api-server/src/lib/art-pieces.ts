@@ -22,8 +22,8 @@ const DISALLOWED_CODE_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
 ];
 
 const MAX_ART_PIECE_ELEMENTS = 24;
-const MAX_ART_PIECE_ATTEMPTS = 3;
-const ART_PIECE_TIMEOUT_MS = 60_000;
+const MAX_ART_PIECE_ATTEMPTS = 5;
+const ART_PIECE_TIMEOUT_MS = 120_000;
 const VALIDATED_DRAFT_TTL_MS = 10 * 60 * 1000;
 
 const colorSchema = z
@@ -300,8 +300,10 @@ export type GeneratedArtPieceDraft = {
   draftToken: string;
   title: string;
   engine: ArtPieceEngine;
+  htmlCode: string | null;
+  cssCode: string | null;
   generatedCode: string;
-  structuredSpec: StructuredArtPieceSpec;
+  structuredSpec: StructuredArtPieceSpec | null;
   notes: string | null;
   vendor: string;
   vendorLabel: string;
@@ -319,8 +321,10 @@ export type PersistableValidatedArtPieceDraft = {
   title: string;
   prompt: string;
   engine: ArtPieceEngine;
+  htmlCode: string | null;
+  cssCode: string | null;
   generatedCode: string;
-  structuredSpec: StructuredArtPieceSpec;
+  structuredSpec: StructuredArtPieceSpec | null;
   notes: string | null;
   generationVendor: string;
   generationModel: string;
@@ -418,47 +422,25 @@ export function getArtPieceGenerationLimits() {
 
 const ENGINE_ADAPTERS: Record<ArtPieceEngine, EngineAdapter<any>> = {
   p5: {
-    schema: structuredP5ArtPieceSpecSchema,
+    schema: structuredP5ArtPieceSpecSchema, // Kept for backwards compatibility parsing
     systemPrompt: [
       "You generate reusable interactive art sketches for a self-hosted p5 runtime.",
-      "Return ONLY strict JSON for this schema:",
-      "{",
-      "\"version\": 1,",
-      "\"title\": string max 80 chars,",
-      "\"notes\": string optional,",
-      "\"canvas\": { \"width\": 240-960 integer, \"height\": 180-720 integer, \"frameRate\": 1-60 integer optional },",
-      "\"background\": CSS color string,",
-      "\"elements\": array of 1-24 drawing elements",
-      "}",
-      "Supported element types:",
-      "ellipse, rect, line, triangle, quad, bezier, arc, text.",
-      "Each element may include fill, stroke, strokeWeight, rotation, scale, animation, and repeat.",
-      "Do not return markdown fences, HTML, JavaScript, comments, or any additional keys.",
-      "Use only the supported schema. Keep the composition self-contained and visually intentional.",
+      "Return your response as Markdown code blocks (```html, ```css, ```javascript).",
+      "Do NOT use import statements for p5; the runtime provides it globally.",
+      "The JS must assign its sketch function to `window.sketch` like this: `window.sketch = (p) => { p.setup = () => {}; p.draw = () => {}; };`.",
+      "Keep the composition self-contained and visually intentional.",
     ].join(" "),
-    compile: compileP5StructuredSpec,
+    compile: compileP5StructuredSpec, // Kept for backwards compatibility
     preflight: preflightP5Code,
   },
   c2: {
     schema: structuredC2ArtPieceSpecSchema,
     systemPrompt: [
       "You generate reusable interactive art sketches for a self-hosted c2.js runtime.",
-      "Return ONLY strict JSON for this schema:",
-      "{",
-      "\"version\": 1,",
-      "\"title\": string max 80 chars,",
-      "\"notes\": string optional,",
-      "\"canvas\": { \"width\": 240-960 integer, \"height\": 180-720 integer },",
-      "\"background\": CSS color string,",
-      "\"elements\": array of 1-24 elements",
-      "}",
-      "Supported element types:",
-      "circle { x, y, radius, fill?, stroke?, strokeWeight?, animation? }",
-      "rect { x, y, width, height, fill?, stroke?, strokeWeight?, animation? }",
-      "line { x1, y1, x2, y2, stroke?, strokeWeight?, animation? }",
-      "animation may be { kind: none|drift|pulse, speed?, amplitudeX?, amplitudeY?, scaleMin?, scaleMax? }",
-      "Do not return markdown fences, HTML, JavaScript, comments, or extra keys.",
-      "Use only the supported schema and keep the work visually intentional.",
+      "Return your response as Markdown code blocks (```html, ```css, ```javascript).",
+      "Do NOT use import statements for c2; the runtime provides it globally.",
+      "The JS must assign its setup function to `window.sketch` like this: `window.sketch = (runtime) => { const { c2, canvas, startFrame } = runtime; /* ... */ };`.",
+      "Keep the work visually intentional.",
     ].join(" "),
     compile: compileC2StructuredSpec,
     preflight: preflightC2Code,
@@ -467,27 +449,11 @@ const ENGINE_ADAPTERS: Record<ArtPieceEngine, EngineAdapter<any>> = {
     schema: structuredThreeArtPieceSpecSchema,
     systemPrompt: [
       "You generate reusable interactive 3D scenes for a self-hosted Three.js runtime.",
-      "Return ONLY strict JSON for this schema:",
-      "{",
-      "\"version\": 1,",
-      "\"title\": string max 80 chars,",
-      "\"notes\": string optional,",
-      "\"scene\": { \"width\": 320-1200 integer, \"height\": 240-900 integer, \"background\": CSS color string, \"camera\": { \"fov\": 20-100 integer, \"position\": {x,y,z} }, \"ambientLight\"?: color, \"directionalLight\"?: color },",
-      "\"entities\": array of 1-24 entities",
-      "}",
-      "Supported entity types: box, sphere, plane, torusKnot.",
-      "Required geometry fields by entity type:",
-      "box requires size { x, y, z }.",
-      "sphere requires radius.",
-      "plane requires width and height.",
-      "torusKnot requires radius and tube.",
-      "Each entity may include position, rotation, scale, color, and animation.",
-      "Scale is an optional transform only. Do not use scale in place of required geometry fields like box size or sphere radius.",
-      "animation may be { kind: none|spin|float|pulse, speed?, amplitude?, scaleMin?, scaleMax?, axis? }",
-      "Do not return markdown fences, HTML, JavaScript, comments, or extra keys.",
-      "Use only the supported schema and keep the scene self-contained.",
-      "Example of valid output (use as structure reference, not content):",
-      "{\"version\":1,\"title\":\"Demo\",\"scene\":{\"width\":800,\"height\":600,\"background\":\"#111111\",\"camera\":{\"fov\":60,\"position\":{\"x\":0,\"y\":2,\"z\":8}},\"ambientLight\":\"#444444\",\"directionalLight\":\"#ffffff\"},\"entities\":[{\"type\":\"sphere\",\"radius\":1,\"color\":\"#4488ff\",\"position\":{\"x\":0,\"y\":0,\"z\":0}},{\"type\":\"box\",\"size\":{\"x\":1,\"y\":1,\"z\":1},\"color\":\"#ff8844\",\"position\":{\"x\":3,\"y\":0,\"z\":0}},{\"type\":\"plane\",\"width\":8,\"height\":8,\"color\":\"#333333\",\"position\":{\"x\":0,\"y\":-1.5,\"z\":0}},{\"type\":\"torusKnot\",\"radius\":0.8,\"tube\":0.2,\"color\":\"#44ff88\",\"position\":{\"x\":-3,\"y\":0,\"z\":0}}]}",
+      "Return your response as Markdown code blocks (```html, ```css, ```javascript).",
+      "The runtime provides THREE globally. Do NOT use import statements.",
+      "The JS must assign its setup function to `window.sketch` like this:",
+      "`window.sketch = (runtime) => { const { THREE, canvas, startFrame } = runtime; /* setup scene, return cleanup function */ return () => {}; };`.",
+      "Keep the scene self-contained.",
     ].join(" "),
     normalizeParsed: normalizeThreeStructuredSpecInput,
     compile: compileThreeStructuredSpec,
@@ -501,6 +467,23 @@ function getEngineAdapter(engine: ArtPieceEngine) {
 
 export function getArtPieceGenerationSystemPrompt(engine: ArtPieceEngine): string {
   return getEngineAdapter(engine).systemPrompt;
+}
+
+export function extractCodeBlocks(raw: string): { htmlCode: string | null; cssCode: string | null; generatedCode: string } {
+  const extract = (lang: string) => {
+    const match = raw.match(new RegExp(`\`\`\`${lang}\\s*\\n([\\s\\S]*?)\`\`\``, "i"));
+    return match ? match[1]!.trim() : null;
+  };
+
+  const htmlCode = extract("html");
+  const cssCode = extract("css");
+  let generatedCode = extract("javascript") ?? extract("js");
+
+  if (!generatedCode) {
+    throw new Error("AI response did not contain a ```javascript code block");
+  }
+
+  return { htmlCode, cssCode, generatedCode };
 }
 
 export function parseStructuredArtPieceSpec(
@@ -574,10 +557,8 @@ export function validateArtPieceCode(input: string): string {
     }
   }
   try {
-    const evaluated = new Function(`return (${code});`)();
-    if (typeof evaluated !== "function") {
-      throw new Error("Generated code did not evaluate to a function");
-    }
+    // Syntax check only
+    new Function(code);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown syntax error";
     throw new Error(`Generated code did not parse: ${message}`);
@@ -609,22 +590,10 @@ export function buildArtPieceRepairPrompt(input: {
     `Target engine: ${input.engine}`,
     `Original prompt: ${input.originalPrompt}`,
     `The previous art-piece attempt failed validation: ${input.failureMessage}`,
-    "Return a corrected JSON response that strictly follows the requested schema and stays visually faithful to the original prompt.",
+    "Return a corrected response that fixes the error while staying visually faithful to the original prompt. Provide the HTML, CSS, and JS in Markdown code blocks.",
   ];
   if (input.previousRawResponse) {
     segments.push(`Previous invalid response: ${input.previousRawResponse}`);
-  }
-  if (input.engine === "three") {
-    segments.push(
-      [
-        "Three.js geometry reminder — every entity MUST have its required field:",
-        "sphere: add \"radius\": <positive number>   e.g. {\"type\":\"sphere\",\"radius\":0.5,\"color\":\"#ff0000\",\"position\":{\"x\":0,\"y\":0,\"z\":0}}",
-        "box:    add \"size\": {\"x\":…,\"y\":…,\"z\":…}  e.g. {\"type\":\"box\",\"size\":{\"x\":1,\"y\":1,\"z\":1},\"color\":\"#ff0000\",\"position\":{\"x\":0,\"y\":0,\"z\":0}}",
-        "plane:  add \"width\": <number> and \"height\": <number>",
-        "torusKnot: add \"radius\": <number> and \"tube\": <number>",
-        "scale is a transform-only field and CANNOT replace any of the above.",
-      ].join("\n"),
-    );
   }
   return segments.join("\n\n");
 }
@@ -679,6 +648,8 @@ export function serializeArtPieceVersion(version: ArtPieceVersion) {
     artPieceId: version.artPieceId,
     prompt: version.prompt,
     structuredSpec: parseStoredStructuredSpec(version.engine as ArtPieceEngine, version.structuredSpec),
+    htmlCode: version.htmlCode ?? null,
+    cssCode: version.cssCode ?? null,
     generatedCode: version.generatedCode,
     engine: version.engine as ArtPieceEngine,
     generationVendor: version.generationVendor ?? null,
@@ -696,7 +667,7 @@ export function buildInteractivePieceIframeHtml(input: {
   versionId: number;
   title: string;
 }): string {
-  const src = `${input.origin.replace(/\/$/, "")}/embed/pieces/${input.pieceId}?version=${input.versionId}`;
+  const src = `${input.origin.replace(/\/$/, "")}/embed/pieces/${input.pieceId}`;
   const title = escapeHtml(input.title || "Interactive piece");
   return `<iframe src="${src}" width="100%" height="480" title="${title}" frameborder="0" loading="lazy" sandbox="allow-scripts allow-same-origin"></iframe>`;
 }
@@ -940,54 +911,108 @@ function compileThreeStructuredSpec(spec: StructuredThreeArtPieceSpec): string {
   }`;
 }
 
+function createPreflightPermissiveMock() {
+  const mock: any = new Proxy(() => mock, {
+    get(target, prop) {
+      if (prop === "sketch") return (target as any).sketch;
+      return mock;
+    },
+    set(target, prop, value) {
+      (target as any)[prop] = value;
+      return true;
+    },
+    apply() {
+      return mock;
+    },
+    construct() {
+      return mock;
+    },
+  });
+  return mock;
+}
+
 function preflightP5Code(code: string) {
   const validatedCode = validateArtPieceCode(code);
-  const mockP5 = createMockP5();
+  const mockWindow = createPreflightPermissiveMock();
+  let sketchFactory: any = null;
+
   try {
-    const sketchFactory = new Function(`return (${validatedCode});`)() as (p: Record<string, unknown>) => void;
-    sketchFactory(mockP5 as unknown as Record<string, unknown>);
-    if (typeof mockP5.setup !== "function") throw new Error("Compiled sketch did not define p.setup");
-    if (typeof mockP5.draw !== "function") throw new Error("Compiled sketch did not define p.draw");
-    mockP5.setup();
-    mockP5.frameCount = 1;
-    mockP5.draw();
-    mockP5.frameCount = 2;
-    mockP5.draw();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown runtime error";
-    throw new Error(`Generated sketch failed server preflight: ${message}`);
+    new Function("window", "document", validatedCode)(mockWindow, mockWindow);
+    sketchFactory = mockWindow.sketch;
+  } catch (err) {
+    // Fallback to literal expression if window.sketch assignment fails
   }
+
+  if (!sketchFactory || typeof sketchFactory !== "function") {
+    try {
+      // Trim trailing semicolon for expression evaluation
+      const expression = validatedCode.trim().replace(/;+$/, "");
+      sketchFactory = new Function(`return (${expression});`)();
+    } catch (err) {
+      // Both attempts failed
+    }
+  }
+
+  if (typeof sketchFactory !== "function") {
+    throw new Error("Generated code did not define window.sketch or evaluate to a function");
+  }
+
   return validatedCode;
 }
 
 function preflightC2Code(code: string) {
   const validatedCode = validateArtPieceCode(code);
-  const runtime = createMockC2Runtime();
+  const mockWindow = createPreflightPermissiveMock();
+  let sketchFactory: any = null;
+
   try {
-    const runner = new Function(`return (${validatedCode});`)() as (runtime: Record<string, unknown>) => void;
-    runner(runtime as unknown as Record<string, unknown>);
-    runtime.flush();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown runtime error";
-    throw new Error(`Generated sketch failed server preflight: ${message}`);
+    new Function("window", "document", validatedCode)(mockWindow, mockWindow);
+    sketchFactory = mockWindow.sketch;
+  } catch (err) {
+    // Fallback
   }
+
+  if (!sketchFactory || typeof sketchFactory !== "function") {
+    try {
+      const expression = validatedCode.trim().replace(/;+$/, "");
+      sketchFactory = new Function(`return (${expression});`)();
+    } catch (err) {
+      // Both failed
+    }
+  }
+
+  if (typeof sketchFactory !== "function") {
+    throw new Error("Generated code did not define window.sketch or evaluate to a function");
+  }
+
   return validatedCode;
 }
 
 function preflightThreeCode(code: string) {
   const validatedCode = validateArtPieceCode(code);
-  const runtime = createMockThreeRuntime();
+  const mockWindow = createPreflightPermissiveMock();
+  let sketchFactory: any = null;
+
   try {
-    const runner = new Function(`return (${validatedCode});`)() as (runtime: Record<string, unknown>) => unknown;
-    const cleanup = runner(runtime as unknown as Record<string, unknown>);
-    runtime.flush();
-    if (typeof cleanup === "function") {
-      cleanup();
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown runtime error";
-    throw new Error(`Generated sketch failed server preflight: ${message}`);
+    new Function("window", "document", validatedCode)(mockWindow, mockWindow);
+    sketchFactory = mockWindow.sketch;
+  } catch (err) {
+    // Fallback
   }
+
+  if (!sketchFactory || typeof sketchFactory !== "function") {
+    try {
+      const expression = validatedCode.trim().replace(/;+$/, "");
+      sketchFactory = new Function(`return (${expression});`)();
+    } catch (err) {
+      // Both failed
+    }
+  }
+
+  if (typeof sketchFactory !== "function") {
+    throw new Error("Generated code did not define window.sketch or evaluate to a function");
+  }
+
   return validatedCode;
 }
 

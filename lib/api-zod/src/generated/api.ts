@@ -645,7 +645,9 @@ export const ListArtPiecesResponse = zod.object({
   "id": zod.number(),
   "artPieceId": zod.number(),
   "prompt": zod.string(),
-  "structuredSpec": zod.record(zod.string(), zod.unknown()),
+  "structuredSpec": zod.record(zod.string(), zod.unknown()).nullish(),
+  "htmlCode": zod.string().nullish(),
+  "cssCode": zod.string().nullish(),
   "generatedCode": zod.string(),
   "engine": zod.enum(['p5', 'c2', 'three']),
   "generationVendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']).nullish(),
@@ -664,13 +666,16 @@ export const ListArtPiecesResponse = zod.object({
  */
 export const createArtPieceBodyDraftTokenMax = 191;
 
+export const createArtPieceBodyTitleMax = 255;
+
 export const createArtPieceBodyThumbnailUrlMax = 2048;
 
 
 
 export const CreateArtPieceBody = zod.object({
   "draftToken": zod.string().min(1).max(createArtPieceBodyDraftTokenMax),
-  "thumbnailUrl": zod.string().url().max(createArtPieceBodyThumbnailUrlMax).optional()
+  "title": zod.string().min(1).max(createArtPieceBodyTitleMax).nullish(),
+  "thumbnailUrl": zod.string().url().max(createArtPieceBodyThumbnailUrlMax).nullish()
 })
 
 
@@ -691,7 +696,9 @@ export const GenerateArtPieceResponse = zod.object({
   "draftToken": zod.string(),
   "title": zod.string(),
   "engine": zod.enum(['p5', 'c2', 'three']),
-  "structuredSpec": zod.record(zod.string(), zod.unknown()),
+  "structuredSpec": zod.record(zod.string(), zod.unknown()).nullish(),
+  "htmlCode": zod.string().nullish(),
+  "cssCode": zod.string().nullish(),
   "generatedCode": zod.string(),
   "notes": zod.string().nullable(),
   "vendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']),
@@ -728,7 +735,9 @@ export const GetArtPieceResponse = zod.object({
   "id": zod.number(),
   "artPieceId": zod.number(),
   "prompt": zod.string(),
-  "structuredSpec": zod.record(zod.string(), zod.unknown()),
+  "structuredSpec": zod.record(zod.string(), zod.unknown()).nullish(),
+  "htmlCode": zod.string().nullish(),
+  "cssCode": zod.string().nullish(),
   "generatedCode": zod.string(),
   "engine": zod.enum(['p5', 'c2', 'three']),
   "generationVendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']).nullish(),
@@ -743,7 +752,9 @@ export const GetArtPieceResponse = zod.object({
   "id": zod.number(),
   "artPieceId": zod.number(),
   "prompt": zod.string(),
-  "structuredSpec": zod.record(zod.string(), zod.unknown()),
+  "structuredSpec": zod.record(zod.string(), zod.unknown()).nullish(),
+  "htmlCode": zod.string().nullish(),
+  "cssCode": zod.string().nullish(),
   "generatedCode": zod.string(),
   "engine": zod.enum(['p5', 'c2', 'three']),
   "generationVendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']).nullish(),
@@ -793,7 +804,9 @@ export const UpdateArtPieceResponse = zod.object({
   "id": zod.number(),
   "artPieceId": zod.number(),
   "prompt": zod.string(),
-  "structuredSpec": zod.record(zod.string(), zod.unknown()),
+  "structuredSpec": zod.record(zod.string(), zod.unknown()).nullish(),
+  "htmlCode": zod.string().nullish(),
+  "cssCode": zod.string().nullish(),
   "generatedCode": zod.string(),
   "engine": zod.enum(['p5', 'c2', 'three']),
   "generationVendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']).nullish(),
@@ -823,12 +836,16 @@ export const CreateArtPieceVersionParams = zod.object({
 
 export const createArtPieceVersionBodyDraftTokenMax = 191;
 
+
 export const createArtPieceVersionBodyTitleMax = 255;
 
 
 
 export const CreateArtPieceVersionBody = zod.object({
-  "draftToken": zod.string().min(1).max(createArtPieceVersionBodyDraftTokenMax),
+  "draftToken": zod.string().min(1).max(createArtPieceVersionBodyDraftTokenMax).optional(),
+  "htmlCode": zod.string().nullish(),
+  "cssCode": zod.string().nullish(),
+  "generatedCode": zod.string().min(1).optional(),
   "title": zod.string().min(1).max(createArtPieceVersionBodyTitleMax).optional(),
   "makeCurrent": zod.boolean().optional()
 })
@@ -853,7 +870,9 @@ export const GetEmbeddedArtPieceResponse = zod.object({
   "id": zod.number(),
   "artPieceId": zod.number(),
   "prompt": zod.string(),
-  "structuredSpec": zod.record(zod.string(), zod.unknown()),
+  "structuredSpec": zod.record(zod.string(), zod.unknown()).nullish(),
+  "htmlCode": zod.string().nullish(),
+  "cssCode": zod.string().nullish(),
   "generatedCode": zod.string(),
   "engine": zod.enum(['p5', 'c2', 'three']),
   "generationVendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']).nullish(),

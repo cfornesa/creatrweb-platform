@@ -220,6 +220,8 @@ describe("art piece helpers", () => {
       title: "Orbit Bloom",
       prompt: "Make a glowing orbit bloom.",
       engine: "p5",
+      htmlCode: null,
+      cssCode: null,
       generatedCode: "(p) => { p.setup = () => { p.createCanvas(10, 10); }; p.draw = () => { p.background('#fff'); }; }",
       structuredSpec: {
         version: 1,
@@ -236,7 +238,7 @@ describe("art piece helpers", () => {
       generationModel: "gemini-test",
       validationStatus: "validated",
       attemptCount: 2,
-      maxAttempts: 3,
+      maxAttempts: 5,
       vendorLabel: "Google",
       createdAt: Date.now(),
     });

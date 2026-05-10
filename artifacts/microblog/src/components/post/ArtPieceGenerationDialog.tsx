@@ -75,7 +75,7 @@ export function ArtPieceGenerationDialog({
 
   return (
     <Dialog open={state.open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden">
+      <DialogContent className="max-w-xl w-[90vw] max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

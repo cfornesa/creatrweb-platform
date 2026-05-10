@@ -116,7 +116,7 @@ function buildPieceIframeAttrs(piece: {
   currentVersionId: number;
 }) {
   return {
-    src: `/embed/pieces/${piece.id}?version=${piece.currentVersionId}`,
+    src: `/embed/pieces/${piece.id}`,
     width: "100%",
     height: "480",
     title: piece.title,

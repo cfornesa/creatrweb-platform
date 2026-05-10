@@ -29,6 +29,7 @@ export function ComposePost() {
       onSuccess: () => {
         setIsExpanded(false);
         queryClient.invalidateQueries({ queryKey: getListPostsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: ["listPosts"] });
         queryClient.invalidateQueries({ queryKey: getGetFeedStatsQueryKey() });
         if (currentUser) {
           queryClient.invalidateQueries({ queryKey: getGetPostsByUserQueryKey(currentUser.id) });

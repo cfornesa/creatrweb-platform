@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { evaluateArtPieceCode } from "./ArtPieceRenderer";
 
 type PreviewMesh = {
   position: { x: number; y: number; z: number };
@@ -27,8 +28,10 @@ export function ThreePieceRenderer({
 }: ThreePieceRendererProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     const canvas = canvasRef.current;
     if (!canvas) {
       return;
@@ -45,15 +48,20 @@ export function ThreePieceRenderer({
         camera: null as PreviewCamera | null,
         renderCount: 0,
       };
-      const runner = new Function(`return (${code});`)() as (runtime: {
+      const runner = evaluateArtPieceCode(code) as (runtime: {
         THREE: typeof THREE;
         canvas: HTMLCanvasElement;
         startFrame: (handler: (frameCount: number) => void) => void;
       }) => void | (() => void);
 
+      if (typeof runner !== "function") {
+        throw new Error("The saved sketch did not evaluate to a function.");
+      }
+
       const startFrame = (handler: (frameCount: number) => void) => {
         let frameCount = 0;
         const tick = () => {
+          if (!mountedRef.current) return;
           frameCount += 1;
           handler(frameCount);
           frameId = window.requestAnimationFrame(tick);
@@ -68,6 +76,7 @@ export function ThreePieceRenderer({
       });
       cleanup = typeof returned === "function" ? returned : undefined;
       void waitForThreePreviewStatus(previewState).then((status) => {
+        if (!mountedRef.current) return;
         if (!status.valid) {
           console.warn("Three.js preview failed", { message: status.error });
           setError(status.error);
@@ -79,13 +88,20 @@ export function ThreePieceRenderer({
     } catch (nextError) {
       const message = nextError instanceof Error ? nextError.message : "Unknown preview error";
       console.warn("Three.js preview failed", { message });
-      setError(message);
-      onStatusChange?.({ valid: false, error: message });
+      if (mountedRef.current) {
+        setError(message);
+        onStatusChange?.({ valid: false, error: message });
+      }
     }
 
     return () => {
+      mountedRef.current = false;
       window.cancelAnimationFrame(frameId);
-      cleanup?.();
+      try {
+        cleanup?.();
+      } catch (err) {
+        // Ignore cleanup errors
+      }
     };
   }, [code, onStatusChange]);
 

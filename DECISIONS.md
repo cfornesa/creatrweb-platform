@@ -1266,3 +1266,25 @@ only queried the `users` table and returned 404 → "USER NOT FOUND".
 - Existing `feed:N` numeric URLs remain stable; `@handle` URLs are additive.
 - No user records are created for feed sources; the distinction between automated
   feed profiles and human user profiles is expressed via `sourceType`.
+
+---
+
+## 2026-05-10 — Art Piece Generation Overhaul & Editable Code
+
+### Trigger
+Pieces could only be saved via JSON specifications that restricted manual editing and frequently resulted in validation errors due to AI output inconsistencies. The user requested explicitly editable code tabs (HTML, CSS, JS) for pieces and a refactored AI generation process to inject boilerplate code instead of relying on pure JSON specifications. The user also requested to feed failed AI iterations back to the model rather than discarding them, and extending generation attempts.
+
+### Decisions Confirmed
+- Added `html_code` and `css_code` to `art_piece_versions` table and made `structured_spec` nullable to allow storing explicit source code per version.
+- Replaced JSON schema validation in the AI piece generation pipeline with markdown code block extraction (\`\`\`html, \`\`\`css, \`\`\`javascript).
+- Modified AI system prompts across P5, C2, and Three.js engines to provide boilerplate code templates.
+- Simplified the server preflight validation to a direct `new Function` parse instead of complex runtime mocking, relaxing strict AI syntax expectations while preserving malicious code checks.
+- Enhanced the generation retry logic to pass failed code blocks back to the AI for iterative repairs (up to 5 attempts, with a 120s timeout limit).
+- The `POST /api/art-pieces/:id/versions` API endpoint now supports manual overrides for `htmlCode`, `cssCode`, and `generatedCode`, allowing the user to bypass AI generation to explicitly save modifications made in the UI.
+- The Admin UI (`/admin/pieces`) now includes individual tabs for HTML, CSS, and JS areas when viewing a piece. It also adds a "Save manual edits" button.
+- The Draft preview dialog also displays the raw extracted HTML, CSS, and JS.
+- The `/embed/pieces/:id` route was refactored. If a version explicitly defines `htmlCode` and `cssCode`, it builds the iframe document around the user's manual inputs rather than injecting generic engine boilerplate.
+
+### Outcome
+- AI iteration is less prone to validation loop exhaustion and builds on previous attempts.
+- The user can natively edit and store JS, HTML, and CSS directly in the Admin console.
