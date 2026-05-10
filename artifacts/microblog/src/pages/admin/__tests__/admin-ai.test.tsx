@@ -13,6 +13,7 @@ const mockAiSettings = {
     { id: "opencode-go", label: "Opencode Go" },
     { id: "google", label: "Google" },
   ],
+  preferredArtPieceVendor: null,
   settings: [
     { vendor: "openrouter", vendorLabel: "OpenRouter", enabled: false, configured: false, model: null },
     { vendor: "opencode-zen", vendorLabel: "Opencode Zen", enabled: false, configured: false, model: null },

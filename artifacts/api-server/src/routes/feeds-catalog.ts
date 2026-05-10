@@ -163,20 +163,19 @@ router.get("/feeds", async (req: Request, res: Response) => {
       .from(categoriesTable)
       .orderBy(asc(categoriesTable.name));
     for (const cat of allCategories) {
-      const base = `/api/categories/${cat.slug}/feeds`;
       feeds.push(
         {
           slug: `category-${cat.slug}-atom`,
           title: `Atom feed — ${cat.name}`,
           description: `Posts in the "${cat.name}" category, in Atom 1.0.`,
-          url: `${origin}${base}/atom`,
+          url: `${origin}/categories/${cat.slug}/feed.xml`,
           mimeType: "application/atom+xml",
         },
         {
           slug: `category-${cat.slug}-json`,
           title: `JSON Feed — ${cat.name}`,
           description: `Posts in the "${cat.name}" category, in JSON Feed 1.1.`,
-          url: `${origin}${base}/json`,
+          url: `${origin}/categories/${cat.slug}/feed.json`,
           mimeType: "application/feed+json",
         },
       );

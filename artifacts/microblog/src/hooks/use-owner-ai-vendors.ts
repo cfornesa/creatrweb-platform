@@ -24,5 +24,7 @@ export function useOwnerAiVendors() {
   return {
     aiVendors,
     isLoading: aiSettings.isLoading,
+    preferredArtPieceVendor:
+      (aiSettings.data?.preferredArtPieceVendor as ProcessAiTextBodyVendor | null | undefined) ?? null,
   };
 }

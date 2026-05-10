@@ -15,13 +15,13 @@ This repository is a TypeScript monorepo with three main layers:
 At a high level, the app provides:
 
 - owner-only post publishing and editing with a rich WYSIWYG editor
-- POSSE outbound syndication to WordPress.com, self-hosted WordPress, Medium, and Blogger, with per-post syndication badges on post cards
-- inbound feed aggregation (PESOS) — subscribe to external RSS/Atom feeds and import posts for review
+- POSSE outbound syndication to WordPress.com, self-hosted WordPress, Blogger, and Substack, with per-post syndication badges on post cards
+- inbound feed aggregation (PESOS) — subscribe to external RSS/Atom feeds, import posts for review, and publish a profile page for each subscribed blog
 - authenticated member comments and reactions
 - owner-managed post categories with public archive pages and search filtering
 - owner-managed external navigation links and a sitewide footer surfacing the owner's social profiles
 - standardized public feeds (Atom, JSON Feed, mf2-JSON) and per-category/per-page feed variants
-- AI-assisted post rewriting (optional, owner-configured) via OpenRouter, OpenCode Zen, OpenCode Go, or Google Gemini
+- AI-assisted post rewriting and validated interactive piece generation — p5, Three.js, and C2.js (optional, owner-configured) via OpenRouter, OpenCode Zen, OpenCode Go, or Google Gemini
 - a single canonical MySQL database shared by local and deployed app instances
 
 ## Product
@@ -49,8 +49,24 @@ Rich posts support:
 - direct YouTube URL insertion that converts a watch/share link into an embedded video
 - owner-trusted `https:` iframe embeds
 - optional AI-assisted rewrite from the composer and edit flow, once the owner configures vendors in `/admin/ai`
+- optional AI-assisted piece generation (p5, Three.js, or C2.js) from the composer and edit flow, with a validated preview before any piece can be saved or embedded
 
 HTML is sanitized on the server before storage. The frontend renders rich content after that sanitization step.
+
+### Interactive Pieces
+
+The owner can generate reusable interactive pieces and embed them into posts through app-owned iframe routes. Three engines are supported: **p5** (p5.js instance-mode sketches), **Three.js** (structured 3D scenes), and **C2.js** (2D geometry and simulation pieces).
+
+Key behavior:
+
+- generated pieces are produced from a structured spec interpreted per engine — not raw AI-authored JavaScript
+- the API compiles that spec into engine-specific code and runs a server-side preflight before any draft is shown
+- the UI only opens a draft preview after the draft has been validated
+- saving a piece to the library or adding a new version consumes a one-time validated draft token, so arbitrary client-submitted code is not accepted
+- saved embeds are version-pinned, so older posts keep rendering the version they originally inserted
+- iframe embeds at `/embed/pieces/:id` serve the correct runtime library for the piece's engine via `/runtimes/`
+
+The owner can manage reusable pieces from `/admin/pieces`, regenerate versions, archive pieces, copy an iframe embed code to clipboard, and reinsert existing embeds from the composer library picker.
 
 ### Outbound Syndication (POSSE)
 
@@ -60,8 +76,10 @@ The owner can cross-post to external platforms from the post composer. Supported
 |---|---|
 | WordPress.com | OAuth 2.0 (CLIENT_ID + CLIENT_SECRET stored in DB) |
 | WordPress (self-hosted) | Application password |
-| Medium | Self-integration token |
 | Blogger | Google OAuth 2.0 (CLIENT_ID + CLIENT_SECRET stored in DB) |
+| Substack | Session cookie + publication ID (stored encrypted in DB) |
+
+> Medium's backend adapter remains in the codebase for existing connections, but the platform is not offered as a new connection option in the admin UI due to API access restrictions.
 
 OAuth app credentials (CLIENT_ID + CLIENT_SECRET) are stored encrypted in the database via `/admin/platforms` — no server-side environment variable required. The encryption key is `AI_SETTINGS_ENCRYPTION_KEY`.
 
@@ -72,6 +90,8 @@ After a post is cross-posted successfully, its card on the home feed shows platf
 ### Inbound Feed Aggregation (PESOS)
 
 The owner can subscribe to external RSS or Atom feeds from `/admin/feeds`. Imported items appear in a pending queue for review before publication. The scheduled refresh runs hourly via the included GitHub Actions workflow.
+
+Each feed source can optionally be given a **username** (enabling a friendly profile URL at `/users/@handle`), a **bio**, and a **site URL**. Once set, clicking an imported post's author name navigates to that feed's profile page, which shows the blog name, bio, site URL as a link, an "Automated feed" badge, and all published posts imported from that source. The numeric URL (`/users/feed:N`) always works regardless of whether a username is set.
 
 ### Reading Experience
 
@@ -114,7 +134,7 @@ Authentication is handled by Auth.js. Supported sign-in providers:
 
 The first owner account is established by signing in once and then promoting that user with the bootstrap script.
 
-### Optional AI Writing Assistant
+### Optional AI Assistant
 
 Configured per vendor from `/admin/ai`. Supported vendors:
 
@@ -123,17 +143,18 @@ Configured per vendor from `/admin/ai`. Supported vendors:
 - OpenCode Go
 - Google Gemini
 
-AI is owner-only and disabled per vendor by default. Saved API keys are encrypted at rest using `AI_SETTINGS_ENCRYPTION_KEY`. See [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md) before treating any vendor as production-ready.
+AI is owner-only and disabled per vendor by default. Saved API keys are encrypted at rest using `AI_SETTINGS_ENCRYPTION_KEY`. The same saved vendor credentials power both text rewriting and validated piece generation (p5, Three.js, and C2.js). Piece generation is cancellable, bounded by a one-minute server timeout, and surfaces attempts used during generation and repair. See [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md) before treating any vendor as production-ready.
 
 ### Admin Pages
 
 | Path | Purpose |
 |---|---|
-| `/admin/posts` | Manage posts and pending feed imports |
+| `/admin/pending` | Review and approve pending feed imports |
 | `/admin/categories` | Create and manage post categories |
 | `/admin/platforms` | Connect and configure outbound syndication platforms |
-| `/admin/feeds` | Manage inbound feed subscriptions |
+| `/admin/feeds` | Manage inbound feed subscriptions; set username, bio, and site URL for each source's profile page |
 | `/admin/ai` | Configure AI writing assistant vendors |
+| `/admin/pieces` | Manage reusable p5, Three.js, and C2.js pieces, regenerate versions, and copy iframe embed codes |
 | `/admin/pages` | Create and manage static pages |
 | `/settings` | Site customization (theme, palette, colors, site copy) |
 

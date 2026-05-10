@@ -36,7 +36,7 @@ export function buildSourceFooter(siteTitle: string | null | undefined, canonica
 }
 
 export function buildSyndicatedContent(payload: Pick<SyndicationPayload, "contentHtml" | "contentFormat" | "sourceFooterHtml" | "sourceFooterText">): string {
-  const body = payload.contentHtml.trimEnd();
+  const body = replaceInteractivePieceIframes(payload.contentHtml).trimEnd();
   if (payload.contentFormat === "html") {
     return `${body}\n${payload.sourceFooterHtml}`;
   }
@@ -45,4 +45,15 @@ export function buildSyndicatedContent(payload: Pick<SyndicationPayload, "conten
 
 export function shouldAppendSourceFooter(post: Pick<Post, "sourceFeedId">): boolean {
   return post.sourceFeedId == null;
+}
+
+function replaceInteractivePieceIframes(html: string): string {
+  return html.replace(
+    /<iframe\b[^>]*\bsrc="([^"]*\/embed\/pieces\/[^"]+)"[^>]*\btitle="([^"]*)"[^>]*><\/iframe>/gi,
+    (_match, src: string, title: string) => {
+      const safeTitle = escapeHtml(title || "Interactive piece");
+      const safeSrc = escapeHtml(src);
+      return `<p><em>${safeTitle}: <a href="${safeSrc}" class="u-url" rel="noopener noreferrer nofollow" target="_blank">${safeSrc}</a></em></p>`;
+    },
+  );
 }

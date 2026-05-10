@@ -10,6 +10,7 @@ import Home from "@/pages/home";
 import SettingsPage from "@/pages/settings";
 import PostDetail from "@/pages/post-detail";
 import PostEmbed from "@/pages/post-embed";
+import PieceEmbed from "@/pages/piece-embed";
 import UserProfile from "@/pages/user-profile";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
@@ -21,6 +22,7 @@ import AdminNavigationPage from "@/pages/admin/admin-navigation";
 import AdminPagesPage from "@/pages/admin/admin-pages";
 import AdminPageEditor from "@/pages/admin/admin-page-editor";
 import AdminAiPage from "@/pages/admin/admin-ai";
+import AdminPiecesPage from "@/pages/admin/admin-pieces";
 import AdminPlatformsPage from "@/pages/admin/admin-platforms";
 import SearchPage from "@/pages/search";
 import CategoryDetailPage from "@/pages/category-detail";
@@ -29,7 +31,14 @@ import CategoriesIndexPage from "@/pages/categories";
 import PageDetailPage from "@/pages/page-detail";
 import NotFound from "@/pages/not-found";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function AdminRedirect() {
@@ -37,14 +46,16 @@ function AdminRedirect() {
 }
 
 function AppShell() {
-  const [isEmbed] = useRoute("/embed/posts/:id");
+  const [isPostEmbed] = useRoute("/embed/posts/:id");
+  const [isPieceEmbed] = useRoute("/embed/pieces/:id");
 
-  if (isEmbed) {
+  if (isPostEmbed || isPieceEmbed) {
     return (
       <QueryClientProvider client={queryClient}>
         <ThemeInjector />
         <Switch>
           <Route path="/embed/posts/:id" component={PostEmbed} />
+          <Route path="/embed/pieces/:id" component={PieceEmbed} />
         </Switch>
         <Toaster />
       </QueryClientProvider>
@@ -63,6 +74,7 @@ function AppShell() {
             <Route path="/admin" component={AdminRedirect} />
             <Route path="/admin/site" component={AdminIndexPage} />
             <Route path="/admin/ai" component={AdminAiPage} />
+            <Route path="/admin/pieces" component={AdminPiecesPage} />
             <Route path="/admin/platforms" component={AdminPlatformsPage} />
             <Route path="/admin/categories" component={AdminCategoriesPage} />
             <Route path="/admin/navigation" component={AdminNavigationPage} />

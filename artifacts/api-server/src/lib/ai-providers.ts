@@ -12,6 +12,7 @@ type ProcessTextInput = {
   apiKey: string;
   systemPrompt: string;
   vendor: AiVendor;
+  signal?: AbortSignal;
 };
 
 type TransportAttempt = {
@@ -299,6 +300,7 @@ async function postOpenAiResponses(url: string, input: ProcessTextInput): Promis
   const result = await postJson(url, {
     transportKind: "openai-responses",
     endpointFamily: "responses",
+    signal: input.signal,
     headers: {
       Authorization: `Bearer ${input.apiKey}`,
     },
@@ -333,6 +335,7 @@ async function postChatCompletions(url: string, input: ProcessTextInput): Promis
   const result = await postJson(url, {
     transportKind: "chat-completions",
     endpointFamily: "chat_completions",
+    signal: input.signal,
     headers: {
       Authorization: `Bearer ${input.apiKey}`,
       ...(input.vendor === "openrouter"
@@ -379,6 +382,7 @@ async function postAnthropicMessages(url: string, input: ProcessTextInput): Prom
   const result = await postJson(url, {
     transportKind: "anthropic-messages",
     endpointFamily: "messages",
+    signal: input.signal,
     headers: {
       "x-api-key": input.apiKey,
       "anthropic-version": "2023-06-01",
@@ -419,6 +423,7 @@ async function postGoogleGenerateContent(url: string, input: ProcessTextInput): 
   const result = await postJson(endpoint, {
     transportKind: "google-generate-content",
     endpointFamily: "generate_content",
+    signal: input.signal,
     body: {
       systemInstruction: {
         parts: [{ text: input.systemPrompt }],
@@ -459,6 +464,7 @@ async function postJson(
     endpointFamily: EndpointFamily;
     headers?: Record<string, string>;
     body: unknown;
+    signal?: AbortSignal;
   },
 ): Promise<
   | { ok: true; json: unknown }
@@ -466,6 +472,8 @@ async function postJson(
 > {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+  const abortListener = () => controller.abort();
+  input.signal?.addEventListener("abort", abortListener);
 
   try {
     const response = await fetch(url, {
@@ -497,6 +505,17 @@ async function postJson(
     return { ok: true, json };
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
+      if (input.signal?.aborted) {
+        return {
+          ok: false,
+          transportKind: input.transportKind,
+          endpointFamily: input.endpointFamily,
+          url,
+          message: "The AI request was cancelled.",
+          retryable: false,
+          failureClass: "network",
+        };
+      }
       return {
         ok: false,
         transportKind: input.transportKind,
@@ -519,6 +538,7 @@ async function postJson(
     };
   } finally {
     clearTimeout(timeout);
+    input.signal?.removeEventListener("abort", abortListener);
   }
 }
 

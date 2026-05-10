@@ -61,6 +61,7 @@ describe("ai-settings", () => {
   it("returns disabled-by-default safe settings for every supported vendor", () => {
     expect(toSafeAiSettingsResponse([])).toEqual({
       availableVendors: AI_VENDOR_OPTIONS,
+      preferredArtPieceVendor: null,
       settings: [
         {
           vendor: "openrouter",
@@ -102,7 +103,7 @@ describe("ai-settings", () => {
         model: "anthropic/claude-sonnet-4.5",
         encryptedApiKey: "secret-payload",
       },
-    ]);
+    ], "openrouter");
 
     expect(response.settings[0]).toEqual({
       vendor: "openrouter",
@@ -111,6 +112,7 @@ describe("ai-settings", () => {
       configured: true,
       model: "anthropic/claude-sonnet-4.5",
     });
+    expect(response.preferredArtPieceVendor).toBe("openrouter");
     expect("encryptedApiKey" in response.settings[0]!).toBe(false);
   });
 

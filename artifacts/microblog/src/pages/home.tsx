@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
-import { useListPosts, getListPostsQueryKey, useListCategories, useListPublicFeedSources } from "@workspace/api-client-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { listPosts, useListCategories, useListPublicFeedSources } from "@workspace/api-client-react";
 import { PostCard } from "@/components/post/PostCard";
 import { ComposePost } from "@/components/post/ComposePost";
 import { FeedStatsWidget } from "@/components/layout/FeedStatsWidget";
@@ -9,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 import type { Post } from "@workspace/api-client-react";
+
+const PAGE_SIZE = 5;
 
 type SortMode = "newest" | "oldest" | "most-commented";
 type FilterMode = "all" | "has-comments" | "has-media" | "rich-posts";
@@ -36,18 +39,52 @@ export default function Home() {
   const categories = categoriesData?.categories ?? [];
   const sources = sourcesData?.sources ?? [];
 
-  // Build server-side filter params — only include when a real filter is active.
   const apiCategory = categoryFilter !== "all" ? categoryFilter : undefined;
   const apiSource = sourceFilter !== "all" ? sourceFilter : undefined;
-  const queryParams = { page: 1, limit: 50, ...(apiCategory ? { category: apiCategory } : {}), ...(apiSource ? { source: apiSource } : {}) };
 
-  const { data: postsPage, isLoading } = useListPosts(
-    queryParams,
-    { query: { queryKey: getListPostsQueryKey(queryParams) } }
-  );
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["listPosts", { category: apiCategory, source: apiSource }],
+    queryFn: ({ pageParam }) =>
+      listPosts({
+        page: pageParam as number,
+        limit: PAGE_SIZE,
+        ...(apiCategory ? { category: apiCategory } : {}),
+        ...(apiSource ? { source: apiSource } : {}),
+      }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page * lastPage.limit < lastPage.total
+        ? lastPage.page + 1
+        : undefined,
+  });
+
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { rootMargin: "300px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  const allLoadedPosts = data?.pages.flatMap((p) => p.posts) ?? [];
 
   const visiblePosts = useMemo(() => {
-    const basePosts = [...(postsPage?.posts ?? [])];
+    const basePosts = [...allLoadedPosts];
 
     const filteredPosts = basePosts.filter((post) => {
       switch (filterMode) {
@@ -79,7 +116,7 @@ export default function Home() {
     });
 
     return filteredPosts;
-  }, [filterMode, postsPage?.posts, sortMode]);
+  }, [filterMode, allLoadedPosts, sortMode]);
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8">
@@ -199,7 +236,7 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-            ) : postsPage?.posts.length === 0 ? (
+            ) : allLoadedPosts.length === 0 ? (
               <div className="p-12 text-center text-muted-foreground">
                 <p>No posts yet. It's quiet here...</p>
               </div>
@@ -214,6 +251,14 @@ export default function Home() {
                 ))}
               </div>
             )}
+
+            <div ref={sentinelRef} />
+
+            {isFetchingNextPage && (
+              <div className="p-6 text-center text-sm text-muted-foreground animate-pulse">
+                Loading more posts…
+              </div>
+            )}
           </div>
         </main>
 
@@ -221,9 +266,9 @@ export default function Home() {
           {isAuthenticated ? (
             <MiniProfile />
           ) : null}
-          
+
           <FeedStatsWidget />
-          
+
           <div className="rounded-2xl bg-muted/50 p-6 text-sm text-muted-foreground">
             <h3 className="font-semibold text-foreground mb-2">{siteSettings?.aboutHeading ?? ""}</h3>
             <p className="whitespace-pre-line">{siteSettings?.aboutBody ?? ""}</p>

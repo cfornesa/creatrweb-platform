@@ -174,6 +174,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `color_muted_foreground`       VARCHAR(64),
   `color_destructive`            VARCHAR(64),
   `color_destructive_foreground` VARCHAR(64),
+  `preferred_art_piece_vendor`   VARCHAR(64),
 
   UNIQUE KEY `users_email_unique`    (`email`),                     -- one account per OAuth email
   UNIQUE KEY `users_username_unique` (`username`)                   -- one /users/@<handle> per username
@@ -197,7 +198,47 @@ CREATE TABLE IF NOT EXISTS `user_ai_vendor_settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
--- 3. Auth.js tables: `accounts`, `sessions`, `verification_tokens`.
+-- 3. Reusable interactive art pieces. The supported engine contract is
+--    `p5` | `c2` | `three`, and saved embeds render through the app-owned
+--    /embed/pieces/:id surface without executing code in the main post DOM.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `art_pieces` (
+  `id`                 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `owner_user_id`      VARCHAR(191) NOT NULL,                      -- FK -> users.id
+  `title`              VARCHAR(255) NOT NULL,                      -- owner-facing library title
+  `prompt`             TEXT NOT NULL,                              -- canonical generation prompt
+  `engine`             VARCHAR(16) NOT NULL DEFAULT 'p5',         -- confirmed enum: 'p5' | 'c2' | 'three'
+  `status`             VARCHAR(16) NOT NULL DEFAULT 'active',     -- 'active' | 'archived'
+  `current_version_id` INT,                                        -- points at art_piece_versions.id (soft link)
+  `thumbnail_url`      VARCHAR(2048),                              -- reserved for future preview snapshots
+  `created_at`         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at`         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY `art_pieces_owner_idx`  (`owner_user_id`),
+  KEY `art_pieces_status_idx` (`status`),
+  CONSTRAINT `art_pieces_owner_user_id_fk`
+    FOREIGN KEY (`owner_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `art_piece_versions` (
+  `id`                INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `art_piece_id`      INT NOT NULL,                                -- FK -> art_pieces.id
+  `prompt`            TEXT NOT NULL,                               -- prompt used for this specific version
+  `structured_spec`   TEXT NOT NULL,                               -- normalized structured sketch spec as JSON
+  `generated_code`    TEXT NOT NULL,                               -- validated p5 sketch function source
+  `engine`            VARCHAR(16) NOT NULL DEFAULT 'p5',          -- confirmed enum: 'p5'
+  `generation_vendor` VARCHAR(64),                                 -- AI vendor slug used for generation
+  `generation_model`  VARCHAR(191),                                -- vendor model slug used for generation
+  `validation_status` VARCHAR(32) NOT NULL DEFAULT 'validated',    -- currently always 'validated'
+  `generation_attempt_count` INT NOT NULL DEFAULT 1,               -- model calls consumed to reach this version
+  `notes`             TEXT,                                        -- optional AI rationale / summary
+  `created_at`        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY `art_piece_versions_art_piece_idx` (`art_piece_id`),
+  CONSTRAINT `art_piece_versions_art_piece_id_fk`
+    FOREIGN KEY (`art_piece_id`) REFERENCES `art_pieces` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------------
+-- 4. Auth.js tables: `accounts`, `sessions`, `verification_tokens`.
 --    These three exactly match what `@auth/drizzle-adapter` expects;
 --    do NOT rename columns or you will break sign-in.
 -- ----------------------------------------------------------------------------
@@ -234,7 +275,7 @@ CREATE TABLE IF NOT EXISTS `verification_tokens` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
--- 4. Inbound feeds (PESOS): `feed_sources` (subscriptions) +
+-- 5. Inbound feeds (PESOS): `feed_sources` (subscriptions) +
 --    `feed_items_seen` (per-source dedup ledger). Both empty after install
 --    — populate them through the /admin/feeds UI as the owner.
 -- ----------------------------------------------------------------------------
@@ -267,7 +308,7 @@ CREATE TABLE IF NOT EXISTS `feed_items_seen` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
--- 4. `posts` — every post on the site, owner-authored AND feed-imported.
+-- 5. `posts` — every post on the site, owner-authored AND feed-imported.
 --    The FULLTEXT index on `content_text` powers `/api/posts/search`.
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `posts` (
@@ -294,7 +335,7 @@ CREATE TABLE IF NOT EXISTS `posts` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
--- 5. `comments` + `reactions`. Visitors must be signed in to use either.
+-- 6. `comments` + `reactions`. Visitors must be signed in to use either.
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `comments` (
   `id`                INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -312,7 +353,7 @@ CREATE TABLE IF NOT EXISTS `comments` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
--- 5b. `nav_links` — owner-managed external navigation links rendered in the
+-- 6b. `nav_links` — owner-managed external navigation links rendered in the
 --     sitewide navbar. Flat list (no nesting), ordered ascending by
 --     `sort_order`. The owner adds entries from /settings; fresh installs
 --     start with zero rows so the navbar shows just the logo + auth control.
@@ -342,7 +383,7 @@ CREATE TABLE IF NOT EXISTS `reactions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------------
--- 6. `categories` + `post_categories` — owner-managed taxonomy. Each post may
+-- 7. `categories` + `post_categories` — owner-managed taxonomy. Each post may
 --    belong to zero or more categories. Slugs are the canonical addressable
 --    identifier (`/categories/:slug`); names are the human label shown in chips.
 -- ----------------------------------------------------------------------------

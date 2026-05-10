@@ -35,6 +35,27 @@
 - **What breaks if it changes or is removed:** The post composer and editor lose their CMS-style authoring experience until replaced, but stored sanitized HTML content remains in the app database.
 - **Self-hosting alternative:** A custom `contenteditable` editor or a different in-repo editor stack.
 
+## p5
+
+- **Purpose:** Self-hosted runtime for owner-authored interactive art pieces rendered inside app-owned iframe embeds, with the API compiling validated structured sketches into `p5` instance-mode code before any draft is shown.
+- **Sends data off-domain:** No.
+- **What breaks if it changes or is removed:** Saved interactive `p5` pieces stop rendering and the validated piece-generation pipeline cannot complete its runtime preflight until a compatible local runtime is restored, but the stored piece prompts, structured specs, generated code, and surrounding post content remain intact.
+- **Self-hosting alternative:** A custom in-repo canvas runtime maintained by the app.
+
+## c2.js
+
+- **Purpose:** Self-hosted creative-coding runtime for owner-authored 2D interactive pieces, used alongside the app-owned structured-spec compiler and preview/embed renderer.
+- **Sends data off-domain:** No.
+- **What breaks if it changes or is removed:** Saved interactive `c2` pieces stop rendering and new `c2` piece drafts cannot be previewed until a compatible local runtime is restored, but the stored prompts, structured specs, generated code, and post content remain intact.
+- **Self-hosting alternative:** A custom in-repo 2D geometry/canvas runtime maintained by the app.
+
+## Three.js
+
+- **Purpose:** Self-hosted imperative 3D runtime for owner-authored interactive pieces, used for app-owned structured scene compilation, preview, and embed rendering.
+- **Sends data off-domain:** No.
+- **What breaks if it changes or is removed:** Saved interactive `three` pieces stop rendering and new `three` drafts cannot be previewed until a compatible local runtime is restored, but the stored prompts, structured specs, generated code, and post content remain intact.
+- **Self-hosting alternative:** A custom in-repo WebGL scene runtime maintained by the app.
+
 ## sanitize-html
 
 - **Purpose:** Sanitizing author-authored HTML before it is stored and rendered in the Express API.
@@ -72,30 +93,30 @@
 
 ## OpenCode Zen
 
-- **Purpose:** Optional owner-enabled AI writing assistance through OpenCode Zen using the owner's saved API key and chosen model slug.
-- **Sends data off-domain:** Yes, when the owner explicitly triggers AI from the post editor.
-- **What breaks if it changes or is removed:** AI-assisted rewriting for users who selected OpenCode Zen stops working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
+- **Purpose:** Optional owner-enabled AI assistance through OpenCode Zen using the owner's saved API key and chosen model slug for both text rewriting and validated interactive piece generation across `p5`, `c2`, and `three`.
+- **Sends data off-domain:** Yes, when the owner explicitly triggers AI from the post editor or the interactive-piece generation flow.
+- **What breaks if it changes or is removed:** AI-assisted rewriting and AI-assisted interactive piece generation for users who selected OpenCode Zen stop working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
 - **Self-hosting alternative:** Not permitted for this product direction. Hosted-provider-only.
 
 ## OpenCode Go
 
-- **Purpose:** Optional owner-enabled AI writing assistance through OpenCode Go using the owner's saved API key and chosen model slug.
-- **Sends data off-domain:** Yes, when the owner explicitly triggers AI from the post editor.
-- **What breaks if it changes or is removed:** AI-assisted rewriting for users who selected OpenCode Go stops working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
+- **Purpose:** Optional owner-enabled AI assistance through OpenCode Go using the owner's saved API key and chosen model slug for both text rewriting and validated interactive piece generation across `p5`, `c2`, and `three`.
+- **Sends data off-domain:** Yes, when the owner explicitly triggers AI from the post editor or the interactive-piece generation flow.
+- **What breaks if it changes or is removed:** AI-assisted rewriting and AI-assisted interactive piece generation for users who selected OpenCode Go stop working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
 - **Self-hosting alternative:** Not permitted for this product direction. Hosted-provider-only.
 
 ## Google Gemini API
 
-- **Purpose:** Optional owner-enabled AI writing assistance for the Google vendor using the owner's saved Gemini API key.
-- **Sends data off-domain:** Yes, when the owner explicitly triggers AI from the post editor.
-- **What breaks if it changes or is removed:** AI-assisted rewriting for users who selected Google stops working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
+- **Purpose:** Optional owner-enabled AI assistance for the Google vendor using the owner's saved Gemini API key for both text rewriting and validated interactive piece generation across `p5`, `c2`, and `three`.
+- **Sends data off-domain:** Yes, when the owner explicitly triggers AI from the post editor or the interactive-piece generation flow.
+- **What breaks if it changes or is removed:** AI-assisted rewriting and AI-assisted interactive piece generation for users who selected Google stop working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
 - **Self-hosting alternative:** Not permitted for this product direction. Hosted-provider-only.
 
 ## OpenRouter
 
-- **Purpose:** Optional owner-enabled AI writing assistance through OpenRouter using the owner's saved OpenRouter API key and chosen provider-prefixed model slug.
-- **Sends data off-domain:** Yes, when the owner explicitly triggers AI from the post editor.
-- **What breaks if it changes or is removed:** AI-assisted rewriting for users who selected OpenRouter stops working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
+- **Purpose:** Optional owner-enabled AI assistance through OpenRouter using the owner's saved OpenRouter API key and chosen provider-prefixed model slug for both text rewriting and validated interactive piece generation across `p5`, `c2`, and `three`.
+- **Sends data off-domain:** Yes, when the owner explicitly triggers AI from the post editor or the interactive-piece generation flow.
+- **What breaks if it changes or is removed:** AI-assisted rewriting and AI-assisted interactive piece generation for users who selected OpenRouter stop working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
 - **Self-hosting alternative:** Not permitted for this product direction. Hosted-provider-only.
 - **Routing note:** Uses OpenRouter's official OpenAI-compatible `POST https://openrouter.ai/api/v1/chat/completions` endpoint.
 
@@ -117,6 +138,7 @@
 
 ## Medium API v1
 
+- **Status:** Backend adapter retained for existing connections; the platform is no longer offered as a new connection option in the admin UI (removed from the `PLATFORMS` constant in `admin-platforms.tsx`) due to API access restrictions that make reliable cross-posting impractical for most account types.
 - **Purpose:** POSSE syndication — publishing owner-authored posts to a connected Medium account via a self-integration token stored encrypted in the database. Medium deprecated its public OAuth API for new integrations; the app uses a personal self-integration token instead.
 - **Sends data off-domain:** Yes, to `api.medium.com` when the owner publishes a post with Medium selected as a syndication target.
 - **Outbound payload note:** The submitted content includes an appended visible source line in the form `Original source at {Site Title}: {Canonical URL}`, and the request also sends Medium's native `canonicalUrl` field.

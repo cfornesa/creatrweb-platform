@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, postsTable, usersTable, eq, count, and, ne, formatMysqlDateTime } from "@workspace/db";
+import { db, postsTable, usersTable, feedSourcesTable, eq, count, and, ne, isNull, formatMysqlDateTime } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { UpdateMeBody } from "@workspace/api-zod";
 
@@ -115,61 +115,120 @@ router.get("/users/me", requireAuth, async (req: Request, res: Response) => {
 });
 
 // GET /users/:id
+// Handles three ID shapes:
+//   "feed:N"  → feed source profile (by numeric source id)
+//   UUID      → human user profile (by id)
+//   other     → try feed_sources.username first, then users.username
 router.get("/users/:id", async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const rawId = req.params.id as string;
 
-    // Check if ID is a UUID or a username
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    // --- Feed source profile via numeric id (feed:N) ---
+    const feedNumericMatch = /^feed:(\d+)$/.exec(rawId);
+    if (feedNumericMatch) {
+      const sourceId = parseInt(feedNumericMatch[1], 10);
+      const sourceResult = await db
+        .select()
+        .from(feedSourcesTable)
+        .where(eq(feedSourcesTable.id, sourceId))
+        .limit(1);
+      const source = sourceResult[0];
+      if (!source) return res.status(404).json({ error: "User not found" });
+      return res.json(await buildFeedSourceProfile(source));
+    }
 
-    let user;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawId);
+
     if (isUuid) {
-      const result = await db
-        .select()
-        .from(usersTable)
-        .where(eq(usersTable.id, id))
-        .limit(1);
-      user = result[0];
-    } else {
-      // Try fetching by username
-      const result = await db
-        .select()
-        .from(usersTable)
-        .where(eq(usersTable.username, id))
-        .limit(1);
-      user = result[0];
+      // --- Human user by UUID ---
+      const result = await db.select().from(usersTable).where(eq(usersTable.id, rawId)).limit(1);
+      const user = result[0];
+      if (!user) return res.status(404).json({ error: "User not found" });
+      return res.json(await buildHumanUserProfile(user));
     }
 
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    // --- Slug: try feed_sources.username first, then users.username ---
+    const feedBySlug = await db
+      .select()
+      .from(feedSourcesTable)
+      .where(eq(feedSourcesTable.username, rawId))
+      .limit(1);
+    if (feedBySlug[0]) return res.json(await buildFeedSourceProfile(feedBySlug[0]));
 
-    const name = user.name || user.email || "Anonymous";
-    const imageUrl = user.image || null;
+    const userBySlug = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.username, rawId))
+      .limit(1);
+    if (userBySlug[0]) return res.json(await buildHumanUserProfile(userBySlug[0]));
 
-    const postCountResult = await db
-      .select({ count: count() })
-      .from(postsTable)
-      .where(eq(postsTable.authorId, user.id));
-
-    const postCount = postCountResult[0]?.count ?? 0;
-
-    return res.json({
-      id: user.id,
-      name,
-      username: user.username || null,
-      imageUrl,
-      bio: user.bio || null,
-      website: user.website || null,
-      socialLinks: parseSocialLinks(user.socialLinks),
-      postCount,
-      ...pickThemeFields(user),
-    });
+    return res.status(404).json({ error: "User not found" });
   } catch (err) {
     console.error("Failed to fetch user:", err);
     return res.status(500).json({ error: "Server error" });
   }
 });
+
+async function buildFeedSourceProfile(source: typeof feedSourcesTable.$inferSelect) {
+  const postCountResult = await db
+    .select({ count: count() })
+    .from(postsTable)
+    .where(and(eq(postsTable.sourceFeedId, source.id), isNull(postsTable.authorUserId)));
+  const postCount = postCountResult[0]?.count ?? 0;
+  return {
+    id: `feed:${source.id}`,
+    name: source.name,
+    username: source.username ?? null,
+    imageUrl: null,
+    bio: source.bio ?? null,
+    website: source.siteUrl ?? null,
+    siteUrl: source.siteUrl ?? null,
+    socialLinks: null,
+    postCount,
+    sourceType: "feed" as const,
+    // Feed profiles have no theme customization — return nulls so the
+    // frontend falls back to the site-wide theme transparently.
+    theme: null,
+    palette: null,
+    colorBackground: null,
+    colorForeground: null,
+    colorBackgroundDark: null,
+    colorForegroundDark: null,
+    colorPrimary: null,
+    colorPrimaryForeground: null,
+    colorSecondary: null,
+    colorSecondaryForeground: null,
+    colorAccent: null,
+    colorAccentForeground: null,
+    colorMuted: null,
+    colorMutedForeground: null,
+    colorDestructive: null,
+    colorDestructiveForeground: null,
+  };
+}
+
+async function buildHumanUserProfile(user: typeof usersTable.$inferSelect) {
+  const name = user.name || user.email || "Anonymous";
+  const imageUrl = user.image || null;
+  const postCountResult = await db
+    .select({ count: count() })
+    .from(postsTable)
+    .where(eq(postsTable.authorId, user.id));
+  const postCount = postCountResult[0]?.count ?? 0;
+  return {
+    id: user.id,
+    name,
+    username: user.username || null,
+    imageUrl,
+    bio: user.bio || null,
+    website: user.website || null,
+    siteUrl: null,
+    socialLinks: parseSocialLinks(user.socialLinks),
+    postCount,
+    sourceType: null,
+    ...pickThemeFields(user),
+  };
+}
 
 // PATCH /users/me
 router.patch("/users/me", requireAuth, async (req: Request, res: Response) => {

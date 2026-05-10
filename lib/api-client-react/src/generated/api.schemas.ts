@@ -281,6 +281,16 @@ export const UserProfilePalette = {
   pastel: 'pastel',
 } as const;
 
+/**
+ * Present only when the profile represents an external blog feed source rather than a human user.
+ */
+export type UserProfileSourceType = typeof UserProfileSourceType[keyof typeof UserProfileSourceType] | null;
+
+
+export const UserProfileSourceType = {
+  feed: 'feed',
+} as const;
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -306,6 +316,10 @@ export interface UserProfile {
   colorMutedForeground?: string | null;
   colorDestructive?: string | null;
   colorDestructiveForeground?: string | null;
+  /** Present only when the profile represents an external blog feed source rather than a human user. */
+  sourceType?: UserProfileSourceType;
+  /** The blog's canonical site URL. Present when sourceType is "feed". */
+  siteUrl?: string | null;
 }
 
 export type UpdateUserProfileBodySocialLinks = {[key: string]: string};
@@ -466,9 +480,20 @@ export interface MyAiVendorSetting {
   model?: string | null;
 }
 
+export type MyAiSettingsPreferredArtPieceVendor = typeof MyAiSettingsPreferredArtPieceVendor[keyof typeof MyAiSettingsPreferredArtPieceVendor] | null;
+
+
+export const MyAiSettingsPreferredArtPieceVendor = {
+  openrouter: 'openrouter',
+  'opencode-zen': 'opencode-zen',
+  'opencode-go': 'opencode-go',
+  google: 'google',
+} as const;
+
 export interface MyAiSettings {
   availableVendors: AiVendorOption[];
   settings: MyAiVendorSetting[];
+  preferredArtPieceVendor: MyAiSettingsPreferredArtPieceVendor;
 }
 
 export type UpdateMyAiVendorSettingBodyVendor = typeof UpdateMyAiVendorSettingBodyVendor[keyof typeof UpdateMyAiVendorSettingBodyVendor];
@@ -496,6 +521,16 @@ export interface UpdateMyAiVendorSettingBody {
   apiKey?: string;
 }
 
+export type UpdateMyAiSettingsBodyPreferredArtPieceVendor = typeof UpdateMyAiSettingsBodyPreferredArtPieceVendor[keyof typeof UpdateMyAiSettingsBodyPreferredArtPieceVendor] | null;
+
+
+export const UpdateMyAiSettingsBodyPreferredArtPieceVendor = {
+  openrouter: 'openrouter',
+  'opencode-zen': 'opencode-zen',
+  'opencode-go': 'opencode-go',
+  google: 'google',
+} as const;
+
 /**
  * Owner AI settings for all supported vendors. Each vendor keeps its own
 enabled flag, model slug, and encrypted API key so the editor can
@@ -504,6 +539,7 @@ switch vendors without re-entering credentials.
  */
 export interface UpdateMyAiSettingsBody {
   settings: UpdateMyAiVendorSettingBody[];
+  preferredArtPieceVendor?: UpdateMyAiSettingsBodyPreferredArtPieceVendor;
 }
 
 export type ProcessAiTextBodyVendor = typeof ProcessAiTextBodyVendor[keyof typeof ProcessAiTextBodyVendor];
@@ -537,6 +573,237 @@ export interface ProcessAiTextResponse {
   vendor: ProcessAiTextResponseVendor;
   vendorLabel: string;
   model: string;
+}
+
+export type ArtPieceVersionStructuredSpec = { [key: string]: unknown };
+
+export type ArtPieceVersionEngine = typeof ArtPieceVersionEngine[keyof typeof ArtPieceVersionEngine];
+
+
+export const ArtPieceVersionEngine = {
+  p5: 'p5',
+  c2: 'c2',
+  three: 'three',
+} as const;
+
+export type ArtPieceVersionGenerationVendor = typeof ArtPieceVersionGenerationVendor[keyof typeof ArtPieceVersionGenerationVendor] | null;
+
+
+export const ArtPieceVersionGenerationVendor = {
+  openrouter: 'openrouter',
+  'opencode-zen': 'opencode-zen',
+  'opencode-go': 'opencode-go',
+  google: 'google',
+} as const;
+
+export type ArtPieceVersionValidationStatus = typeof ArtPieceVersionValidationStatus[keyof typeof ArtPieceVersionValidationStatus];
+
+
+export const ArtPieceVersionValidationStatus = {
+  validated: 'validated',
+} as const;
+
+export interface ArtPieceVersion {
+  id: number;
+  artPieceId: number;
+  prompt: string;
+  structuredSpec: ArtPieceVersionStructuredSpec;
+  generatedCode: string;
+  engine: ArtPieceVersionEngine;
+  generationVendor?: ArtPieceVersionGenerationVendor;
+  generationModel?: string | null;
+  validationStatus: ArtPieceVersionValidationStatus;
+  generationAttemptCount: number;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export type ArtPieceEngine = typeof ArtPieceEngine[keyof typeof ArtPieceEngine];
+
+
+export const ArtPieceEngine = {
+  p5: 'p5',
+  c2: 'c2',
+  three: 'three',
+} as const;
+
+export type ArtPieceStatus = typeof ArtPieceStatus[keyof typeof ArtPieceStatus];
+
+
+export const ArtPieceStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface ArtPiece {
+  id: number;
+  ownerUserId: string;
+  title: string;
+  prompt: string;
+  engine: ArtPieceEngine;
+  status: ArtPieceStatus;
+  currentVersionId: number | null;
+  thumbnailUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  currentVersion: ArtPieceVersion | null;
+}
+
+export type ArtPieceDetail = ArtPiece & {
+  versions: ArtPieceVersion[];
+};
+
+export interface ListArtPiecesResponse {
+  pieces: ArtPiece[];
+}
+
+export type GenerateArtPieceBodyEngine = typeof GenerateArtPieceBodyEngine[keyof typeof GenerateArtPieceBodyEngine];
+
+
+export const GenerateArtPieceBodyEngine = {
+  p5: 'p5',
+  c2: 'c2',
+  three: 'three',
+} as const;
+
+export type GenerateArtPieceBodyVendor = typeof GenerateArtPieceBodyVendor[keyof typeof GenerateArtPieceBodyVendor];
+
+
+export const GenerateArtPieceBodyVendor = {
+  openrouter: 'openrouter',
+  'opencode-zen': 'opencode-zen',
+  'opencode-go': 'opencode-go',
+  google: 'google',
+} as const;
+
+export interface GenerateArtPieceBody {
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  prompt: string;
+  engine: GenerateArtPieceBodyEngine;
+  vendor: GenerateArtPieceBodyVendor;
+}
+
+export type GeneratedArtPieceDraftEngine = typeof GeneratedArtPieceDraftEngine[keyof typeof GeneratedArtPieceDraftEngine];
+
+
+export const GeneratedArtPieceDraftEngine = {
+  p5: 'p5',
+  c2: 'c2',
+  three: 'three',
+} as const;
+
+export type GeneratedArtPieceDraftStructuredSpec = { [key: string]: unknown };
+
+export type GeneratedArtPieceDraftVendor = typeof GeneratedArtPieceDraftVendor[keyof typeof GeneratedArtPieceDraftVendor];
+
+
+export const GeneratedArtPieceDraftVendor = {
+  openrouter: 'openrouter',
+  'opencode-zen': 'opencode-zen',
+  'opencode-go': 'opencode-go',
+  google: 'google',
+} as const;
+
+export type GeneratedArtPieceDraftValidationStatus = typeof GeneratedArtPieceDraftValidationStatus[keyof typeof GeneratedArtPieceDraftValidationStatus];
+
+
+export const GeneratedArtPieceDraftValidationStatus = {
+  validated: 'validated',
+} as const;
+
+export interface GeneratedArtPieceDraft {
+  draftToken: string;
+  title: string;
+  engine: GeneratedArtPieceDraftEngine;
+  structuredSpec: GeneratedArtPieceDraftStructuredSpec;
+  generatedCode: string;
+  notes: string | null;
+  vendor: GeneratedArtPieceDraftVendor;
+  vendorLabel: string;
+  model: string;
+  validationStatus: GeneratedArtPieceDraftValidationStatus;
+  attemptCount: number;
+  maxAttempts: number;
+  timedOut: boolean;
+  cancelled: boolean;
+  wasRepaired: boolean;
+}
+
+export interface CreateArtPieceBody {
+  /**
+     * @minLength 1
+     * @maxLength 191
+     */
+  draftToken: string;
+  /** @maxLength 2048 */
+  thumbnailUrl?: string;
+}
+
+export type CreateArtPieceResponse = ArtPiece & {
+  iframeHtml: string;
+};
+
+export type UpdateArtPieceBodyStatus = typeof UpdateArtPieceBodyStatus[keyof typeof UpdateArtPieceBodyStatus];
+
+
+export const UpdateArtPieceBodyStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface UpdateArtPieceBody {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  title?: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  prompt?: string;
+  status?: UpdateArtPieceBodyStatus;
+  /** @maxLength 2048 */
+  thumbnailUrl?: string | null;
+}
+
+export interface CreateArtPieceVersionBody {
+  /**
+     * @minLength 1
+     * @maxLength 191
+     */
+  draftToken: string;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  title?: string;
+  makeCurrent?: boolean;
+}
+
+export interface CreateArtPieceVersionResponse {
+  piece: ArtPiece;
+  version: ArtPieceVersion;
+  iframeHtml: string;
+}
+
+export type EmbeddedArtPieceEngine = typeof EmbeddedArtPieceEngine[keyof typeof EmbeddedArtPieceEngine];
+
+
+export const EmbeddedArtPieceEngine = {
+  p5: 'p5',
+  c2: 'c2',
+  three: 'three',
+} as const;
+
+export interface EmbeddedArtPiece {
+  id: number;
+  title: string;
+  engine: EmbeddedArtPieceEngine;
+  version: ArtPieceVersion;
 }
 
 export interface FeedStats {
@@ -873,6 +1140,10 @@ export const FeedSourceCadence = {
 export interface FeedSource {
   id: number;
   name: string;
+  /** Optional URL-safe handle for the feed's profile page (enables /users/@handle). */
+  username?: string | null;
+  /** Optional short description shown on the feed's profile page. */
+  bio?: string | null;
   /**
      * Optional display name to use for all posts imported from this source. Falls back to the feed item's author, then the source name.
      * @maxLength 255
@@ -921,6 +1192,11 @@ export interface CreateFeedSourceBody {
   /** @maxLength 255 */
   name: string;
   /**
+     * Optional short description shown on the feed's profile page.
+     * @maxLength 500
+     */
+  bio?: string | null;
+  /**
      * Optional display name to use for all posts imported from this source.
      * @maxLength 255
      */
@@ -945,6 +1221,16 @@ export const UpdateFeedSourceBodyCadence = {
 export interface UpdateFeedSourceBody {
   /** @maxLength 255 */
   name?: string;
+  /**
+     * Optional URL-safe handle (enables /users/@handle). Must be 2–30 lowercase letters, numbers, or underscores.
+     * @maxLength 30
+     */
+  username?: string | null;
+  /**
+     * Optional short description shown on the feed's profile page.
+     * @maxLength 500
+     */
+  bio?: string | null;
   /**
      * Optional display name to use for all posts imported from this source.
      * @maxLength 255
@@ -1292,6 +1578,10 @@ limit?: number;
 export type GetPostsByUserParams = {
 page?: number;
 limit?: number;
+};
+
+export type GetEmbeddedArtPieceParams = {
+version?: number;
 };
 
 export type UploadMediaBody = {

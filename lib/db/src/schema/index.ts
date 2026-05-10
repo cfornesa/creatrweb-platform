@@ -14,4 +14,5 @@ export * from "./user-ai-settings.ts";
 export * from "./platform-connections.ts";
 export * from "./post-syndications.ts";
 export * from "./platform-oauth-apps.ts";
+export * from "./art-pieces.ts";
 export * from "../lib/reserved-slugs.ts";

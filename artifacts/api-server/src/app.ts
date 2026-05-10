@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import { ExpressAuth } from "@auth/express";
 import router from "./routes";
 import feedsRouter from "./routes/feeds";
+import pieceEmbedHtmlRouter from "./routes/piece-embed-html";
 import { logger } from "./lib/logger";
 import { authConfig } from "./auth/config";
 import { hydrateAuth } from "./middlewares/auth";
@@ -20,6 +21,13 @@ import {
 } from "./lib/meta-injection";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const nmRoot = path.resolve(__dirname, "../../..", "node_modules");
+
+const RUNTIME_FILES: Record<string, string> = {
+  "p5.min.js": path.join(nmRoot, "p5", "lib", "p5.min.js"),
+  "three.module.min.js": path.join(nmRoot, "three", "build", "three.module.min.js"),
+  "c2.min.js": path.join(nmRoot, "c2.js", "dist", "c2.min.js"),
+};
 
 const app: Express = express();
 app.set("trust proxy", true);
@@ -95,7 +103,16 @@ app.use(createRateLimitMiddleware({ windowMs: 60_000, max: 240 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.get("/runtimes/:file", (req: Request, res: Response) => {
+  const filePath = RUNTIME_FILES[req.params.file as string];
+  if (!filePath) return res.status(404).end();
+  res.setHeader("Content-Type", "application/javascript");
+  res.setHeader("Cache-Control", "public, max-age=86400, immutable");
+  return res.sendFile(filePath);
+});
+
 app.use(feedsRouter);
+app.use(pieceEmbedHtmlRouter);
 app.use("/api/auth", ExpressAuth(authConfig));
 
 app.use(hydrateAuth);

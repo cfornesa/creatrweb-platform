@@ -102,9 +102,19 @@ function isAllowedHttpsUrl(value: string) {
 }
 
 function isAllowedIframeSource(value: string) {
+  if (value.startsWith("/embed/pieces/")) return true;
   try {
     const parsed = new URL(value);
-    return parsed.protocol === "https:";
+    if (parsed.protocol === "https:") {
+      return true;
+    }
+    if (
+      parsed.protocol === "http:" &&
+      (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1")
+    ) {
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
@@ -165,7 +175,7 @@ export function sanitizeRichHtml(input: string): string {
       figure: ["data-media-kind"],
     },
     allowedSchemes: ["https"],
-    allowedSchemesAppliedToAttributes: ["href", "src"],
+    allowedSchemesAppliedToAttributes: ["href"],
     allowProtocolRelative: false,
     allowedStyles: {
       "*": {

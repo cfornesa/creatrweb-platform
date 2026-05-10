@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { memo, useMemo, type ReactNode } from "react";
 import type { PostContentFormat } from "@workspace/api-client-react";
 
 type PostContentProps = {
@@ -105,7 +105,7 @@ const DEFAULT_PLAIN_CLASS =
 const DEFAULT_HTML_CLASS =
   "wysiwyg-rendered-content prose prose-neutral max-w-none break-words text-foreground prose-p:my-3 prose-h1:mt-7 prose-h1:mb-4 prose-h2:mt-6 prose-h2:mb-3 prose-h3:mt-5 prose-h3:mb-2 prose-h4:mt-4 prose-h4:mb-2 prose-h5:mt-4 prose-h5:mb-2 prose-h6:mt-4 prose-h6:mb-2 prose-strong:font-extrabold prose-strong:text-foreground prose-img:rounded-xl prose-img:border prose-img:border-border prose-iframe:w-full prose-iframe:rounded-xl prose-iframe:border prose-iframe:border-border";
 
-export function PostContent({
+export const PostContent = memo(function PostContent({
   content,
   contentFormat,
   className,
@@ -140,4 +140,4 @@ export function PostContent({
       dangerouslySetInnerHTML={{ __html: renderedHtml }}
     />
   );
-}
+});

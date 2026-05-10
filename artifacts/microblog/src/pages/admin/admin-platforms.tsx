@@ -196,9 +196,11 @@ function OAuthAppCredentialsDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Connect {label}</DialogTitle>
+        </DialogHeader>
+        <div className="overflow-y-auto min-h-0 space-y-4">
           <DialogDescription asChild>
             <div className="space-y-3 text-sm text-muted-foreground">
               {hasSavedCredentials ? (
@@ -256,61 +258,61 @@ function OAuthAppCredentialsDialog({
               )}
             </div>
           </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSave} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor={`${platform}-client-id`}>Client ID</Label>
-            <Input
-              id={`${platform}-client-id`}
-              name={`${platform}-oauth-client-id`}
-              placeholder="your-client-id"
-              value={form.clientId}
-              onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))}
-              required
-              autoComplete="new-password"
-              data-1p-ignore="true"
-              data-lpignore="true"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`${platform}-client-secret`}>Client Secret</Label>
-            <Input
-              id={`${platform}-client-secret`}
-              name={`${platform}-oauth-client-secret`}
-              type="password"
-              placeholder="your-client-secret"
-              value={form.clientSecret}
-              onChange={(e) => setForm((f) => ({ ...f, clientSecret: e.target.value }))}
-              required
-              autoComplete="new-password"
-              data-1p-ignore="true"
-              data-lpignore="true"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`${platform}-blog-url`}>Your blog URL</Label>
-            <Input
-              id={`${platform}-blog-url`}
-              name={`${platform}-oauth-blog-url`}
-              type="url"
-              placeholder={blogUrlPlaceholder}
-              value={form.blogUrl}
-              onChange={(e) => setForm((f) => ({ ...f, blogUrl: e.target.value }))}
-              autoComplete="url"
-            />
-            <p className="text-xs text-muted-foreground">
-              {platform === "wordpress_com"
-                ? "Scopes the OAuth token to this blog, so the correct blog ID is used when posting."
-                : "Used to look up your Blogger blog ID directly, bypassing the account-level discovery that can fail in testing mode."}
-            </p>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={upsertApp.isPending}>
-              {upsertApp.isPending ? "Saving…" : hasSavedCredentials ? "Replace saved credentials & connect" : "Save & connect"}
-            </Button>
-          </DialogFooter>
-        </form>
+          <form id="oauth-credentials-form" onSubmit={handleSave} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor={`${platform}-client-id`}>Client ID</Label>
+              <Input
+                id={`${platform}-client-id`}
+                name={`${platform}-oauth-client-id`}
+                placeholder="your-client-id"
+                value={form.clientId}
+                onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))}
+                required
+                autoComplete="new-password"
+                data-1p-ignore="true"
+                data-lpignore="true"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${platform}-client-secret`}>Client Secret</Label>
+              <Input
+                id={`${platform}-client-secret`}
+                name={`${platform}-oauth-client-secret`}
+                type="password"
+                placeholder="your-client-secret"
+                value={form.clientSecret}
+                onChange={(e) => setForm((f) => ({ ...f, clientSecret: e.target.value }))}
+                required
+                autoComplete="new-password"
+                data-1p-ignore="true"
+                data-lpignore="true"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${platform}-blog-url`}>Your blog URL</Label>
+              <Input
+                id={`${platform}-blog-url`}
+                name={`${platform}-oauth-blog-url`}
+                type="url"
+                placeholder={blogUrlPlaceholder}
+                value={form.blogUrl}
+                onChange={(e) => setForm((f) => ({ ...f, blogUrl: e.target.value }))}
+                autoComplete="url"
+              />
+              <p className="text-xs text-muted-foreground">
+                {platform === "wordpress_com"
+                  ? "Scopes the OAuth token to this blog, so the correct blog ID is used when posting."
+                  : "Used to look up your Blogger blog ID directly, bypassing the account-level discovery that can fail in testing mode."}
+              </p>
+            </div>
+          </form>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+          <Button type="submit" form="oauth-credentials-form" disabled={upsertApp.isPending}>
+            {upsertApp.isPending ? "Saving…" : hasSavedCredentials ? "Replace saved credentials & connect" : "Save & connect"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

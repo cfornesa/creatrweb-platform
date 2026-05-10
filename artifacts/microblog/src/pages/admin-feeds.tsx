@@ -52,6 +52,7 @@ export default function AdminFeedsPage() {
 
   // New-source form state.
   const [newName, setNewName] = useState("");
+  const [newBio, setNewBio] = useState("");
   const [newAuthorName, setNewAuthorName] = useState("");
   const [newFeedUrl, setNewFeedUrl] = useState("");
   const [newSiteUrl, setNewSiteUrl] = useState("");
@@ -60,6 +61,8 @@ export default function AdminFeedsPage() {
   // Inline-edit state — which source card is open for editing.
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
+  const [editUsername, setEditUsername] = useState("");
+  const [editBio, setEditBio] = useState("");
   const [editAuthorName, setEditAuthorName] = useState("");
   const [editFeedUrl, setEditFeedUrl] = useState("");
   const [editSiteUrl, setEditSiteUrl] = useState("");
@@ -93,6 +96,7 @@ export default function AdminFeedsPage() {
       onSuccess: () => {
         toast({ title: "Feed source added" });
         setNewName("");
+        setNewBio("");
         setNewAuthorName("");
         setNewFeedUrl("");
         setNewSiteUrl("");
@@ -199,6 +203,7 @@ export default function AdminFeedsPage() {
     createMutation.mutate({
       data: {
         name: newName.trim(),
+        bio: newBio.trim() || null,
         authorName: newAuthorName.trim() || null,
         feedUrl: newFeedUrl.trim(),
         siteUrl: newSiteUrl.trim() || null,
@@ -244,6 +249,8 @@ export default function AdminFeedsPage() {
   const handleStartEdit = (source: FeedSource) => {
     setEditingId(source.id);
     setEditName(source.name);
+    setEditUsername(source.username ?? "");
+    setEditBio(source.bio ?? "");
     setEditAuthorName(source.authorName ?? "");
     setEditFeedUrl(source.feedUrl);
     setEditSiteUrl(source.siteUrl ?? "");
@@ -259,6 +266,8 @@ export default function AdminFeedsPage() {
         id: sourceId,
         data: {
           name: editName.trim(),
+          username: editUsername.trim() || null,
+          bio: editBio.trim() || null,
           authorName: editAuthorName.trim() || null,
           feedUrl: editFeedUrl.trim(),
           siteUrl: editSiteUrl.trim() || null,
@@ -355,6 +364,18 @@ export default function AdminFeedsPage() {
               />
             </div>
             <div className="space-y-1">
+              <Label htmlFor="feed-bio">Bio (optional)</Label>
+              <textarea
+                id="feed-bio"
+                placeholder="Short description shown on the feed's profile page"
+                value={newBio}
+                onChange={(e) => setNewBio(e.target.value)}
+                maxLength={500}
+                rows={2}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div className="space-y-1">
               <Label htmlFor="feed-author">Author Name (optional)</Label>
               <Input
                 id="feed-author"
@@ -400,6 +421,14 @@ export default function AdminFeedsPage() {
                       <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">disabled</span>
                     )}
                   </div>
+                  {source.username ? (
+                    <p className="text-xs text-muted-foreground">
+                      <a href={`/users/@${source.username}`} className="hover:underline text-primary">
+                        @{source.username}
+                      </a>
+                      {" "}· <span className="text-muted-foreground">profile page</span>
+                    </p>
+                  ) : null}
                   {source.authorName ? (
                     <p className="text-xs text-muted-foreground">Author: {source.authorName}</p>
                   ) : null}
@@ -482,12 +511,44 @@ export default function AdminFeedsPage() {
                       />
                     </div>
                     <div className="space-y-1">
+                      <Label className="text-xs">Username (optional)</Label>
+                      <Input
+                        value={editUsername}
+                        onChange={(e) => setEditUsername(e.target.value.toLowerCase())}
+                        maxLength={30}
+                        placeholder="e.g. myblog"
+                      />
+                      <p className="text-xs text-muted-foreground">Sets <code>/users/@handle</code> profile URL. 2–30 chars: a–z, 0–9, _</p>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Bio (optional)</Label>
+                    <textarea
+                      value={editBio}
+                      onChange={(e) => setEditBio(e.target.value)}
+                      maxLength={500}
+                      placeholder="Short description shown on the feed's profile page"
+                      rows={2}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
                       <Label className="text-xs">Author Name (optional)</Label>
                       <Input
                         value={editAuthorName}
                         onChange={(e) => setEditAuthorName(e.target.value)}
                         maxLength={255}
                         placeholder="e.g. Jane Doe"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Site URL (optional)</Label>
+                      <Input
+                        value={editSiteUrl}
+                        onChange={(e) => setEditSiteUrl(e.target.value)}
+                        maxLength={2048}
+                        placeholder="https://example.com"
                       />
                     </div>
                   </div>
@@ -498,15 +559,6 @@ export default function AdminFeedsPage() {
                       onChange={(e) => setEditFeedUrl(e.target.value)}
                       maxLength={2048}
                       placeholder="https://example.com/feed.xml"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Site URL (optional)</Label>
-                    <Input
-                      value={editSiteUrl}
-                      onChange={(e) => setEditSiteUrl(e.target.value)}
-                      maxLength={2048}
-                      placeholder="https://example.com"
                     />
                   </div>
                   <div className="flex justify-end gap-2">

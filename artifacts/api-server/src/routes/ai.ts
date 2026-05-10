@@ -4,6 +4,7 @@ import {
   eq,
   mysqlPool,
   userAiVendorSettingsTable,
+  usersTable,
 } from "@workspace/db";
 import {
   GetMyAiSettingsResponse,
@@ -16,6 +17,7 @@ import {
   decryptAiApiKey,
   encryptAiApiKey,
   getAiVendorLabel,
+  isAiVendor,
   normalizeAiVendorSettingsInput,
   normalizeOptionalString,
   toSafeAiSettingsResponse,
@@ -52,7 +54,9 @@ router.get("/users/me/ai-settings", requireAuth, requireOwner, async (req: Reque
   try {
     setAiNoStoreHeaders(res);
     const rows = await loadUserAiSettings(req.currentUser!.id);
-    const response = GetMyAiSettingsResponse.parse(toSafeAiSettingsResponse(rows));
+    const response = GetMyAiSettingsResponse.parse(
+      toSafeAiSettingsResponse(rows, req.currentUser?.preferredArtPieceVendor),
+    );
     return res.json(response);
   } catch {
     return res.status(500).json({ error: "Server error" });
@@ -74,6 +78,20 @@ router.patch("/users/me/ai-settings", requireAuth, requireOwner, async (req: Req
     const currentUser = req.currentUser!;
     const existingRows = await loadUserAiSettings(currentUser.id);
     const existingByVendor = indexRowsByVendor(existingRows);
+    let preferredArtPieceVendor = currentUser.preferredArtPieceVendor ?? null;
+
+    if (Object.prototype.hasOwnProperty.call(parsed.data, "preferredArtPieceVendor")) {
+      const requested = parsed.data.preferredArtPieceVendor;
+      if (typeof requested === "string" && !isAiVendor(requested)) {
+        return res.status(400).json({ error: `Unsupported AI vendor "${requested}"` });
+      }
+
+      preferredArtPieceVendor = requested ?? null;
+      await db
+        .update(usersTable)
+        .set({ preferredArtPieceVendor })
+        .where(eq(usersTable.id, currentUser.id));
+    }
 
     for (const item of parsed.data.settings) {
       const normalized = normalizeAiVendorSettingsInput(item);
@@ -120,7 +138,9 @@ router.patch("/users/me/ai-settings", requireAuth, requireOwner, async (req: Req
     }
 
     const rows = await loadUserAiSettings(currentUser.id);
-    const response = GetMyAiSettingsResponse.parse(toSafeAiSettingsResponse(rows));
+    const response = GetMyAiSettingsResponse.parse(
+      toSafeAiSettingsResponse(rows, preferredArtPieceVendor),
+    );
     return res.json(response);
   } catch {
     return res.status(500).json({ error: "Server error" });

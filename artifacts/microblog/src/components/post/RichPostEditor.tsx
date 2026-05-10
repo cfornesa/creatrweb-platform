@@ -8,13 +8,24 @@ import Underline from "@tiptap/extension-underline";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, ImagePlus, Link2, MoreHorizontal, Pilcrow, Redo2, Sparkles, Undo2, Youtube } from "lucide-react";
-import { useProcessAiText, type ProcessAiTextBodyVendor } from "@workspace/api-client-react";
+import {
+  ApiError,
+  type ArtPieceEngine,
+  generateArtPiece as requestGeneratedArtPiece,
+  useCreateArtPiece,
+  useProcessAiText,
+  type GeneratedArtPieceDraft,
+  type ProcessAiTextBodyVendor,
+} from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { IframeEmbed } from "./iframe-embed";
 import { CategoryMultiSelect } from "./CategoryMultiSelect";
 import { PlatformMultiSelect } from "./PlatformMultiSelect";
 import { getAiFailureMessage } from "./ai-error";
 import type { EnabledPlatformConnection } from "@/hooks/use-enabled-platform-connections";
+import { ArtPieceDraftDialog } from "./ArtPieceDraftDialog";
+import { ArtPieceGenerationDialog, type ArtPieceGenerationState } from "./ArtPieceGenerationDialog";
+import { ArtPieceLibraryDialog } from "./ArtPieceLibraryDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -99,6 +110,24 @@ function parseIframeEmbed(embedCode: string) {
   };
 }
 
+function buildPieceIframeAttrs(piece: {
+  id: number;
+  title: string;
+  currentVersionId: number;
+}) {
+  return {
+    src: `/embed/pieces/${piece.id}?version=${piece.currentVersionId}`,
+    width: "100%",
+    height: "480",
+    title: piece.title,
+    loading: "lazy",
+    frameborder: "0",
+    sandbox: "allow-scripts allow-same-origin",
+  };
+}
+
+const MAX_PIECE_GENERATION_ATTEMPTS = 3;
+
 function parseYouTubeUrl(input: string) {
   const trimmed = input.trim();
   if (!trimmed) {
@@ -171,12 +200,28 @@ export function RichPostEditor({
   );
   const [substackSendNewsletter, setSubstackSendNewsletter] = useState(false);
   const [selectedAiVendor, setSelectedAiVendor] = useState<ProcessAiTextBodyVendor | "">(aiVendors[0]?.id ?? "");
+  const [selectedAiMode, setSelectedAiMode] = useState<"text" | "piece">("text");
+  const [selectedPieceEngine, setSelectedPieceEngine] = useState<ArtPieceEngine>("p5");
+  const [pieceDraft, setPieceDraft] = useState<GeneratedArtPieceDraft | null>(null);
+  const [pieceDraftPrompt, setPieceDraftPrompt] = useState("");
+  const [isPieceDraftOpen, setIsPieceDraftOpen] = useState(false);
+  const [isPieceLibraryOpen, setIsPieceLibraryOpen] = useState(false);
+  const [pieceGenerationState, setPieceGenerationState] = useState<ArtPieceGenerationState | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const pieceGenerationAbortRef = useRef<AbortController | null>(null);
   const processAiText = useProcessAiText({
     mutation: {
       onError: (error: any) => {
         const message = getAiFailureMessage(error);
         toast({ title: "AI request failed", description: message, variant: "destructive" });
+      },
+    },
+  });
+  const createArtPiece = useCreateArtPiece({
+    mutation: {
+      onError: (error: any) => {
+        const message = getAiFailureMessage(error);
+        toast({ title: "Saving piece failed", description: message, variant: "destructive" });
       },
     },
   });
@@ -243,6 +288,11 @@ export function RichPostEditor({
       setSubstackSendNewsletter(false);
     }
   }, [isSubstackSelected, substackSendNewsletter]);
+
+  useEffect(() => () => {
+    pieceGenerationAbortRef.current?.abort();
+    pieceGenerationAbortRef.current = null;
+  }, []);
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -340,6 +390,139 @@ export function RichPostEditor({
     });
   }
 
+  function stopPieceGeneration() {
+    const activeState = pieceGenerationState;
+    pieceGenerationAbortRef.current?.abort();
+    pieceGenerationAbortRef.current = null;
+    if (activeState) {
+      setPieceGenerationState({
+        ...activeState,
+        open: true,
+        phase: "cancelled",
+        attemptCount: Math.max(activeState.attemptCount, 1),
+        approximateAttempts: true,
+        message: "Generation stopped before the server could finish validating a draft.",
+      });
+    }
+  }
+
+  async function generatePieceDraft(prompt: string) {
+    if (!selectedAiVendor) {
+      return;
+    }
+
+    pieceGenerationAbortRef.current?.abort();
+    const controller = new AbortController();
+    pieceGenerationAbortRef.current = controller;
+
+    const selectedVendorLabel = aiVendors.find((vendor) => vendor.id === selectedAiVendor)?.label ?? selectedAiVendor;
+
+    setPieceGenerationState({
+      open: true,
+      phase: "generating",
+      prompt,
+      engine: selectedPieceEngine,
+      vendorLabel: selectedVendorLabel,
+      model: null,
+      attemptCount: 1,
+      maxAttempts: MAX_PIECE_GENERATION_ATTEMPTS,
+      message: null,
+      startedAt: Date.now(),
+      approximateAttempts: false,
+    });
+
+    try {
+      const response = await requestGeneratedArtPiece(
+        {
+          prompt,
+          engine: selectedPieceEngine,
+          vendor: selectedAiVendor,
+        },
+        { signal: controller.signal },
+      );
+
+      setPieceDraft(response);
+      setPieceDraftPrompt(prompt);
+      setPieceGenerationState(null);
+      setIsPieceDraftOpen(true);
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      let message = getAiFailureMessage(error);
+      let attemptCount = 1;
+      let maxAttempts = MAX_PIECE_GENERATION_ATTEMPTS;
+      let phase: ArtPieceGenerationState["phase"] = "failed";
+
+      if (error instanceof ApiError && error.data && typeof error.data === "object") {
+        const body = error.data as Record<string, unknown>;
+        if (typeof body.error === "string" && body.error.trim()) {
+          message = body.error;
+        }
+        if (typeof body.attemptCount === "number" && Number.isFinite(body.attemptCount)) {
+          attemptCount = body.attemptCount;
+        }
+        if (typeof body.maxAttempts === "number" && Number.isFinite(body.maxAttempts)) {
+          maxAttempts = body.maxAttempts;
+        }
+        if (body.timedOut === true) {
+          phase = "timedOut";
+        } else if (body.cancelled === true) {
+          phase = "cancelled";
+        }
+        const engine =
+          typeof body.engine === "string" && body.engine.trim()
+            ? body.engine
+            : selectedPieceEngine;
+        const failureStage =
+          typeof body.failureStage === "string" && body.failureStage.trim()
+            ? body.failureStage
+            : null;
+        const rawResponsePreview =
+          typeof body.rawResponsePreview === "string" && body.rawResponsePreview.trim()
+            ? body.rawResponsePreview
+            : null;
+        setPieceGenerationState((current) => ({
+          open: true,
+          phase,
+          prompt,
+          engine,
+          vendorLabel: selectedVendorLabel,
+          model: current?.model ?? null,
+          attemptCount,
+          maxAttempts,
+          message,
+          failureStage,
+          rawResponsePreview,
+          startedAt: current?.startedAt ?? Date.now(),
+          approximateAttempts: false,
+        }));
+        return;
+      }
+
+      setPieceGenerationState((current) => ({
+        open: true,
+        phase,
+        prompt,
+        engine: selectedPieceEngine,
+        vendorLabel: selectedVendorLabel,
+        model: current?.model ?? null,
+        attemptCount,
+        maxAttempts,
+        message,
+        failureStage: null,
+        rawResponsePreview: null,
+        startedAt: current?.startedAt ?? Date.now(),
+        approximateAttempts: false,
+      }));
+    } finally {
+      if (pieceGenerationAbortRef.current === controller) {
+        pieceGenerationAbortRef.current = null;
+      }
+    }
+  }
+
   async function handleImproveWithAi() {
     if (!editor) {
       return;
@@ -359,20 +542,30 @@ export function RichPostEditor({
       return;
     }
 
-    try {
-      const response = await processAiText.mutateAsync({
-        data: { content: currentHtml, vendor: selectedAiVendor },
-      });
+    if (selectedAiMode === "text") {
+      try {
+        const response = await processAiText.mutateAsync({
+          data: { content: currentHtml, vendor: selectedAiVendor },
+        });
 
-      editor.commands.setContent(ensureParagraphHtml(response.text), { emitUpdate: true });
-      toast({
-        title: "Draft improved",
-        description: "The editor content has been replaced with the AI-assisted rewrite.",
-      });
-    } catch {
-      // onError already surfaces the failure to the user; keep the current
-      // editor content unchanged and avoid bubbling an unhandled rejection.
+        editor.commands.setContent(ensureParagraphHtml(response.text), { emitUpdate: true });
+        toast({
+          title: "Draft improved",
+          description: "The editor content has been replaced with the AI-assisted rewrite.",
+        });
+      } catch {
+        // onError already surfaces the failure to the user; keep the current
+        // editor content unchanged and avoid bubbling an unhandled rejection.
+      }
+      return;
     }
+
+    const prompt = [title.trim(), editor.getText().trim()].filter(Boolean).join("\n\n").trim();
+    if (!prompt) {
+      return;
+    }
+
+    await generatePieceDraft(prompt);
   }
 
   if (!editor) {
@@ -387,6 +580,8 @@ export function RichPostEditor({
     "rounded-none border-2 border-yellow-400 bg-zinc-100/95 text-zinc-950 shadow-[3px_3px_0_0_rgba(234,179,8,1)] hover:bg-yellow-200 dark:bg-zinc-950/95 dark:text-yellow-200 dark:hover:bg-zinc-900";
   const aiSelectClass =
     "pointer-events-auto h-9 min-w-[11rem] rounded-none border-2 border-yellow-400 bg-zinc-100/95 px-3 text-sm text-zinc-950 shadow-[3px_3px_0_0_rgba(234,179,8,1)] focus:outline-none focus:ring-0 dark:bg-zinc-950/95 dark:text-yellow-200";
+  const aiModeSelectClass =
+    "pointer-events-auto h-9 min-w-[8rem] rounded-none border-2 border-black bg-white/95 px-3 text-sm text-zinc-950 shadow-[3px_3px_0_0_rgba(0,0,0,0.95)] focus:outline-none focus:ring-0 dark:bg-zinc-900/95 dark:text-zinc-50";
   const headingLabel =
     editor.isActive("heading", { level: 1 }) ? "H1"
       : editor.isActive("heading", { level: 2 }) ? "H2"
@@ -626,6 +821,19 @@ export function RichPostEditor({
             >
               Embed
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={toolbarButtonClass}
+              aria-label="Insert saved piece"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                setIsPieceLibraryOpen(true);
+              }}
+            >
+              Pieces
+            </Button>
           </div>
 
           <div className="ml-auto flex items-center gap-1">
@@ -671,6 +879,9 @@ export function RichPostEditor({
                 <DropdownMenuItem onSelect={handleInsertEmbed}>
                   Insert iframe embed
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setIsPieceLibraryOpen(true)}>
+                  Insert saved piece
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -691,6 +902,27 @@ export function RichPostEditor({
           {aiVendors.length > 0 ? (
             <div className="pointer-events-none absolute bottom-3 right-3 z-20 flex items-center gap-2">
               <select
+                aria-label="AI Mode"
+                className={aiModeSelectClass}
+                value={selectedAiMode}
+                onChange={(event) => setSelectedAiMode(event.target.value as "text" | "piece")}
+              >
+                <option value="text">Text</option>
+                <option value="piece">Piece</option>
+              </select>
+              {selectedAiMode === "piece" ? (
+                <select
+                  aria-label="Piece Engine"
+                  className={aiModeSelectClass}
+                  value={selectedPieceEngine}
+                  onChange={(event) => setSelectedPieceEngine(event.target.value as ArtPieceEngine)}
+                >
+                  <option value="p5">p5</option>
+                  <option value="c2">c2</option>
+                  <option value="three">Three.js</option>
+                </select>
+              ) : null}
+              <select
                 aria-label="AI Vendor"
                 className={aiSelectClass}
                 value={selectedAiVendor}
@@ -706,15 +938,21 @@ export function RichPostEditor({
                 type="button"
                 size="sm"
                 className={`pointer-events-auto min-h-9 px-3 ${aiButtonClass}`}
-                disabled={isSubmitting || processAiText.isPending || textLength === 0 || !selectedAiVendor}
+                disabled={
+                  isSubmitting ||
+                  processAiText.isPending ||
+                  pieceGenerationState?.phase === "generating" ||
+                  textLength === 0 ||
+                  !selectedAiVendor
+                }
                 onClick={() => void handleImproveWithAi()}
               >
-                {processAiText.isPending ? (
+                {processAiText.isPending || pieceGenerationState?.phase === "generating" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Sparkles className="h-4 w-4" />
                 )}
-                AI
+                {selectedAiMode === "text" ? "AI" : "Make Piece"}
               </Button>
             </div>
           ) : null}
@@ -778,6 +1016,71 @@ export function RichPostEditor({
           </Button>
         </div>
       </div>
+
+      <ArtPieceLibraryDialog
+        open={isPieceLibraryOpen}
+        onOpenChange={setIsPieceLibraryOpen}
+        onInsert={(piece) => {
+          if (!editor) return;
+          editor.chain().focus().insertIframe(buildPieceIframeAttrs(piece)).run();
+          toast({
+            title: "Piece inserted",
+            description: "The saved piece embed has been added to this post.",
+          });
+        }}
+      />
+
+      {pieceGenerationState ? (
+        <ArtPieceGenerationDialog
+          state={pieceGenerationState}
+          onOpenChange={(open) => {
+            if (!open) {
+              if (pieceGenerationState.phase === "generating") {
+                stopPieceGeneration();
+                return;
+              }
+              setPieceGenerationState(null);
+            }
+          }}
+          onStop={stopPieceGeneration}
+          onRetry={() => void handleImproveWithAi()}
+        />
+      ) : null}
+
+      <ArtPieceDraftDialog
+        open={isPieceDraftOpen}
+        onOpenChange={setIsPieceDraftOpen}
+        draft={pieceDraft}
+        prompt={pieceDraftPrompt}
+        isSaving={createArtPiece.isPending}
+        onSaveAndInsert={() => {
+          if (!pieceDraft || !editor) return;
+          createArtPiece.mutate(
+            {
+              data: {
+                draftToken: pieceDraft.draftToken,
+              },
+            },
+            {
+              onSuccess: (response) => {
+                editor.chain().focus().insertIframe(
+                  buildPieceIframeAttrs({
+                    id: response.id,
+                    title: response.title,
+                    currentVersionId: response.currentVersionId!,
+                  }),
+                ).run();
+                setIsPieceDraftOpen(false);
+                setPieceDraft(null);
+                toast({
+                  title: "Piece saved",
+                  description: "The new piece was saved to your library and embedded into the post.",
+                });
+              },
+            },
+          );
+        }}
+      />
     </div>
   );
 }

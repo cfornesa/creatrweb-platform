@@ -26,6 +26,20 @@ describe("syndication content helpers", () => {
     })).toBe(`<p>Hello</p>\n${footer.html}`);
   });
 
+  it("replaces embedded interactive piece iframes with a plain source link before appending the footer", () => {
+    const footer = buildSourceFooter("My Site", "https://example.com/posts/42");
+
+    expect(buildSyndicatedContent({
+      contentHtml: '<p>Intro</p><iframe src="https://creatr.example/embed/pieces/7?version=9" title="Orbit Bloom"></iframe>',
+      contentFormat: "html",
+      sourceFooterHtml: footer.html,
+      sourceFooterText: footer.text,
+    })).toBe(
+      '<p>Intro</p><p><em>Orbit Bloom: <a href="https://creatr.example/embed/pieces/7?version=9" class="u-url" rel="noopener noreferrer nofollow" target="_blank">https://creatr.example/embed/pieces/7?version=9</a></em></p>\n' +
+      footer.html,
+    );
+  });
+
   it("appends a text footer for plain posts", () => {
     const footer = buildSourceFooter("My Site", "https://example.com/posts/42");
 

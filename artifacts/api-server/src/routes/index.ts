@@ -15,6 +15,7 @@ import aiRouter from "./ai";
 import platformConnectionsRouter from "./platform-connections";
 import platformOAuthRouter from "./platform-oauth";
 import platformOAuthAppsRouter from "./platform-oauth-apps";
+import artPiecesRouter from "./art-pieces";
 
 const router: IRouter = Router();
 
@@ -33,6 +34,7 @@ router.use(commentsRouter);
 router.use(mediaRouter);
 router.use(usersRouter);
 router.use(aiRouter);
+router.use(artPiecesRouter);
 router.use(siteSettingsRouter);
 router.use(feedSourcesRouter);
 router.use(navLinksRouter);

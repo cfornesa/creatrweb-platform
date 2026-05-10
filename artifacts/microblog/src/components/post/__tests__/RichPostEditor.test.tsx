@@ -29,8 +29,13 @@ const insertIframeRun = vi.fn();
 const undoRun = vi.fn();
 const redoRun = vi.fn();
 const processMutateAsync = vi.fn();
+const hoistedApiMocks = vi.hoisted(() => ({
+  generatePieceRequest: vi.fn(),
+}));
+const createPieceMutate = vi.fn();
 const toastSpy = vi.fn();
 let processPending = false;
+let createPending = false;
 
 vi.mock("@tiptap/react", () => ({
   useEditor: () => ({
@@ -83,6 +88,11 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
         }
       },
     }),
+    generateArtPiece: hoistedApiMocks.generatePieceRequest,
+    useCreateArtPiece: () => ({
+      isPending: createPending,
+      mutate: createPieceMutate,
+    }),
   };
 });
 
@@ -130,6 +140,13 @@ vi.mock("../PlatformMultiSelect", () => ({
       })}
     </div>
   ),
+}));
+
+vi.mock("../P5PieceRenderer", () => ({
+  P5PieceRenderer: ({ onStatusChange }: { onStatusChange?: (status: { valid: boolean; error: string | null }) => void }) => {
+    onStatusChange?.({ valid: true, error: null });
+    return <div data-testid="p5-piece-renderer" />;
+  },
 }));
 
 vi.mock("@tiptap/starter-kit", () => ({
@@ -218,8 +235,11 @@ describe("RichPostEditor AI action", () => {
     undoRun.mockClear();
     redoRun.mockClear();
     processMutateAsync.mockReset();
+    hoistedApiMocks.generatePieceRequest.mockReset();
+    createPieceMutate.mockReset();
     toastSpy.mockReset();
     processPending = false;
+    createPending = false;
   });
 
   it("hides the AI button when AI is unavailable", () => {
@@ -249,6 +269,33 @@ describe("RichPostEditor AI action", () => {
     const button = screen.getByRole("button", { name: /AI/i });
     expect(button).toBeDisabled();
     expect(button.querySelector(".animate-spin")).not.toBeNull();
+  });
+
+  it("can generate an art piece draft in p5 mode", async () => {
+    const user = userEvent.setup();
+    hoistedApiMocks.generatePieceRequest.mockResolvedValue({
+      draftToken: "draft-1",
+      title: "Orbit Bloom",
+      engine: "p5",
+      structuredSpec: { version: 1, canvas: { width: 640, height: 420, frameRate: 30 }, background: "#fff", elements: [] },
+      generatedCode: "(p) => { p.setup = () => { p.createCanvas(320, 240); }; }",
+      notes: "Soft looping motion",
+      vendor: "opencode-zen",
+      vendorLabel: "Opencode Zen",
+      model: "big-pickle",
+      validationStatus: "validated",
+      attemptCount: 1,
+      maxAttempts: 3,
+      timedOut: false,
+      cancelled: false,
+      wasRepaired: false,
+    });
+    renderEditor([{ id: "opencode-zen", label: "Opencode Zen" }]);
+
+    await user.selectOptions(screen.getByLabelText("AI Mode"), "piece");
+    await user.click(screen.getByRole("button", { name: /Make Piece/i }));
+
+    expect(await screen.findByText("Orbit Bloom")).toBeInTheDocument();
   });
 
   it("preserves content and shows an error toast when AI fails", async () => {

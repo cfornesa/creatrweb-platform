@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, useLocation, useRoute, Redirect } from "wouter";
-import { Settings, Tags, Link2, FileText, Rss, Inbox, ShieldCheck, ChevronLeft, Sparkles, Share2 } from "lucide-react";
+import { Settings, Tags, Link2, FileText, Rss, Inbox, ShieldCheck, ChevronLeft, Sparkles, Share2, Palette } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ const NAV: Array<{
 }> = [
   { href: "/admin", label: "Site", icon: Settings, group: "site" },
   { href: "/admin/ai", label: "AI", icon: Sparkles, group: "site" },
+  { href: "/admin/pieces", label: "Pieces", icon: Palette, group: "site" },
   { href: "/admin/categories", label: "Categories", icon: Tags, group: "site" },
   { href: "/admin/navigation", label: "Navigation", icon: Link2, group: "site" },
   { href: "/admin/pages", label: "Pages", icon: FileText, group: "site" },

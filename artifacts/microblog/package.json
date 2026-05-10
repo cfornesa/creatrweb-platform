@@ -88,6 +88,9 @@
     "@tiptap/extension-text-align": "^3.22.5",
     "@tiptap/extension-underline": "^3.22.5",
     "@tiptap/react": "^3.22.5",
-    "@tiptap/starter-kit": "^3.22.5"
+    "@tiptap/starter-kit": "^3.22.5",
+    "c2.js": "^1.0.9",
+    "p5": "^2.2.3",
+    "three": "^0.180.0"
   }
 }

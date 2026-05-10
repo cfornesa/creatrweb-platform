@@ -30,6 +30,8 @@ tags:
     description: Public catalog of subscribable site feeds (Atom / JSON Feed / MF2 export)
   - name: ai
     description: Opt-in AI writing assistant configuration and processing
+  - name: art-pieces
+    description: Owner-authored reusable interactive art pieces rendered in app-owned embeds
   - name: syndication
     description: POSSE outbound syndication — platform connections, OAuth app credentials, and syndication history
 paths:
@@ -477,6 +479,207 @@ paths:
           description: Selected AI vendor is not enabled for this user
         "429":
           description: Upstream provider rate limited the request
+
+  /art-pieces:
+    get:
+      operationId: listArtPieces
+      tags: [art-pieces]
+      summary: List the owner's reusable art pieces
+      responses:
+        "200":
+          description: Art pieces
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListArtPiecesResponse"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+    post:
+      operationId: createArtPiece
+      tags: [art-pieces]
+      summary: Save a new reusable art piece
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateArtPieceBody"
+      responses:
+        "201":
+          description: Created art piece
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateArtPieceResponse"
+        "400":
+          description: Invalid request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /art-pieces/generate:
+    post:
+      operationId: generateArtPiece
+      tags: [art-pieces]
+      summary: Generate an unsaved art piece draft with the selected AI vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateArtPieceBody"
+      responses:
+        "200":
+          description: Generated art piece draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedArtPieceDraft"
+        "400":
+          description: Invalid request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "409":
+          description: Selected AI vendor is not enabled for this user
+
+  /art-pieces/{id}:
+    get:
+      operationId: getArtPiece
+      tags: [art-pieces]
+      summary: Get one owner art piece and its versions
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Art piece
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtPieceDetail"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+    patch:
+      operationId: updateArtPiece
+      tags: [art-pieces]
+      summary: Update owner-controlled art piece metadata
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateArtPieceBody"
+      responses:
+        "200":
+          description: Updated art piece
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtPiece"
+        "400":
+          description: Invalid request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteArtPiece
+      tags: [art-pieces]
+      summary: Delete an art piece and all its versions (owner only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+
+  /art-pieces/{id}/versions:
+    post:
+      operationId: createArtPieceVersion
+      tags: [art-pieces]
+      summary: Save a new version for an existing art piece
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateArtPieceVersionBody"
+      responses:
+        "201":
+          description: Created art piece version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateArtPieceVersionResponse"
+        "400":
+          description: Invalid request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+
+  /art-pieces/{id}/embed:
+    get:
+      operationId: getEmbeddedArtPiece
+      tags: [art-pieces]
+      summary: Get the public runtime payload for an embedded art piece
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: version
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Embedded art piece payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmbeddedArtPiece"
+        "404":
+          description: Not found
 
   /feed/stats:
     get:
@@ -1941,6 +2144,16 @@ components:
         colorDestructiveForeground:
           type: string
           nullable: true
+        sourceType:
+          type: string
+          enum:
+            - feed
+          nullable: true
+          description: Present only when the profile represents an external blog feed source rather than a human user.
+        siteUrl:
+          type: string
+          nullable: true
+          description: The blog's canonical site URL. Present when sourceType is "feed".
       required:
         - id
         - name
@@ -2120,9 +2333,18 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MyAiVendorSetting"
+        preferredArtPieceVendor:
+          type: string
+          nullable: true
+          enum:
+            - openrouter
+            - opencode-zen
+            - opencode-go
+            - google
       required:
         - availableVendors
         - settings
+        - preferredArtPieceVendor
 
     UpdateMyAiVendorSettingBody:
       type: object
@@ -2158,6 +2380,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/UpdateMyAiVendorSettingBody"
+        preferredArtPieceVendor:
+          type: string
+          nullable: true
+          enum:
+            - openrouter
+            - opencode-zen
+            - opencode-go
+            - google
       required:
         - settings
 
@@ -2199,6 +2429,294 @@ components:
         - vendor
         - vendorLabel
         - model
+
+    ArtPieceVersion:
+      type: object
+      properties:
+        id:
+          type: integer
+        artPieceId:
+          type: integer
+        prompt:
+          type: string
+        structuredSpec:
+          type: object
+          additionalProperties: true
+        generatedCode:
+          type: string
+        engine:
+          type: string
+          enum: [p5, c2, three]
+        generationVendor:
+          type: string
+          enum:
+            - openrouter
+            - opencode-zen
+            - opencode-go
+            - google
+          nullable: true
+        generationModel:
+          type: string
+          nullable: true
+        validationStatus:
+          type: string
+          enum: [validated]
+        generationAttemptCount:
+          type: integer
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required:
+        - id
+        - artPieceId
+        - prompt
+        - structuredSpec
+        - generatedCode
+        - engine
+        - validationStatus
+        - generationAttemptCount
+        - createdAt
+
+    ArtPiece:
+      type: object
+      properties:
+        id:
+          type: integer
+        ownerUserId:
+          type: string
+        title:
+          type: string
+        prompt:
+          type: string
+        engine:
+          type: string
+          enum: [p5, c2, three]
+        status:
+          type: string
+          enum: [active, archived]
+        currentVersionId:
+          type: integer
+          nullable: true
+        thumbnailUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        currentVersion:
+          allOf:
+            - $ref: "#/components/schemas/ArtPieceVersion"
+          nullable: true
+      required:
+        - id
+        - ownerUserId
+        - title
+        - prompt
+        - engine
+        - status
+        - currentVersionId
+        - thumbnailUrl
+        - createdAt
+        - updatedAt
+        - currentVersion
+
+    ArtPieceDetail:
+      allOf:
+        - $ref: "#/components/schemas/ArtPiece"
+        - type: object
+          properties:
+            versions:
+              type: array
+              items:
+                $ref: "#/components/schemas/ArtPieceVersion"
+          required:
+            - versions
+
+    ListArtPiecesResponse:
+      type: object
+      properties:
+        pieces:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArtPiece"
+      required:
+        - pieces
+
+    GenerateArtPieceBody:
+      type: object
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        engine:
+          type: string
+          enum: [p5, c2, three]
+        vendor:
+          type: string
+          enum:
+            - openrouter
+            - opencode-zen
+            - opencode-go
+            - google
+      required:
+        - prompt
+        - engine
+        - vendor
+
+    GeneratedArtPieceDraft:
+      type: object
+      properties:
+        draftToken:
+          type: string
+        title:
+          type: string
+        engine:
+          type: string
+          enum: [p5, c2, three]
+        structuredSpec:
+          type: object
+          additionalProperties: true
+        generatedCode:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        vendor:
+          type: string
+          enum:
+            - openrouter
+            - opencode-zen
+            - opencode-go
+            - google
+        vendorLabel:
+          type: string
+        model:
+          type: string
+        validationStatus:
+          type: string
+          enum: [validated]
+        attemptCount:
+          type: integer
+        maxAttempts:
+          type: integer
+        timedOut:
+          type: boolean
+        cancelled:
+          type: boolean
+        wasRepaired:
+          type: boolean
+      required:
+        - draftToken
+        - title
+        - engine
+        - structuredSpec
+        - generatedCode
+        - notes
+        - vendor
+        - vendorLabel
+        - model
+        - validationStatus
+        - attemptCount
+        - maxAttempts
+        - timedOut
+        - cancelled
+        - wasRepaired
+
+    CreateArtPieceBody:
+      type: object
+      properties:
+        draftToken:
+          type: string
+          minLength: 1
+          maxLength: 191
+        thumbnailUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+      required:
+        - draftToken
+
+    CreateArtPieceResponse:
+      allOf:
+        - $ref: "#/components/schemas/ArtPiece"
+        - type: object
+          properties:
+            iframeHtml:
+              type: string
+          required:
+            - iframeHtml
+
+    UpdateArtPieceBody:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        status:
+          type: string
+          enum: [active, archived]
+        thumbnailUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+          nullable: true
+
+    CreateArtPieceVersionBody:
+      type: object
+      properties:
+        draftToken:
+          type: string
+          minLength: 1
+          maxLength: 191
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        makeCurrent:
+          type: boolean
+      required:
+        - draftToken
+
+    CreateArtPieceVersionResponse:
+      type: object
+      properties:
+        piece:
+          $ref: "#/components/schemas/ArtPiece"
+        version:
+          $ref: "#/components/schemas/ArtPieceVersion"
+        iframeHtml:
+          type: string
+      required:
+        - piece
+        - version
+        - iframeHtml
+
+    EmbeddedArtPiece:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        engine:
+          type: string
+          enum: [p5, c2, three]
+        version:
+          $ref: "#/components/schemas/ArtPieceVersion"
+      required:
+        - id
+        - title
+        - engine
+        - version
 
     FeedStats:
       type: object
@@ -2696,6 +3214,14 @@ components:
           type: integer
         name:
           type: string
+        username:
+          type: string
+          nullable: true
+          description: Optional URL-safe handle for the feed's profile page (enables /users/@handle).
+        bio:
+          type: string
+          nullable: true
+          description: Optional short description shown on the feed's profile page.
         authorName:
           type: string
           nullable: true
@@ -2782,6 +3308,11 @@ components:
         name:
           type: string
           maxLength: 255
+        bio:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Optional short description shown on the feed's profile page.
         authorName:
           type: string
           maxLength: 255
@@ -2813,6 +3344,16 @@ components:
         name:
           type: string
           maxLength: 255
+        username:
+          type: string
+          maxLength: 30
+          nullable: true
+          description: Optional URL-safe handle (enables /users/@handle). Must be 2–30 lowercase letters, numbers, or underscores.
+        bio:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Optional short description shown on the feed's profile page.
         authorName:
           type: string
           maxLength: 255

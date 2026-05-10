@@ -9,6 +9,7 @@ type AuthShape = {
         id: string;
         status: "active" | "blocked";
         role: "owner" | "member";
+        preferredArtPieceVendor?: string | null;
       }
     | null;
 };
@@ -86,6 +87,18 @@ vi.mock("@workspace/db", () => ({
         where: async () => aiSettingsRows,
       }),
     }),
+    update: () => ({
+      set: (values: Record<string, unknown>) => ({
+        where: async () => {
+          if (authState.user) {
+            authState.user.preferredArtPieceVendor =
+              typeof values.preferredArtPieceVendor === "string" || values.preferredArtPieceVendor === null
+                ? (values.preferredArtPieceVendor as string | null)
+                : authState.user.preferredArtPieceVendor ?? null;
+          }
+        },
+      }),
+    }),
   },
   eq: () => ({}),
   and: () => ({}),
@@ -95,6 +108,10 @@ vi.mock("@workspace/db", () => ({
   userAiVendorSettingsTable: {
     userId: "user_id",
     vendor: "vendor",
+  },
+  usersTable: {
+    id: "id",
+    preferredArtPieceVendor: "preferred_art_piece_vendor",
   },
 }));
 
@@ -276,6 +293,7 @@ describe("AI routes", () => {
     expect(res.headers["cache-control"]).toBe("no-store, max-age=0");
     expect(res.body).toMatchObject({
       availableVendors: expect.any(Array),
+      preferredArtPieceVendor: null,
       settings: expect.arrayContaining([
         expect.objectContaining({
           vendor: "opencode-zen",
@@ -296,6 +314,21 @@ describe("AI routes", () => {
     expect(res.body).not.toHaveProperty("apiKey");
     expect(aiSettingsRows[0]?.encryptedApiKey).toBeTruthy();
     expect(aiSettingsRows[0]?.encryptedApiKey).not.toContain("sk-secret");
+  });
+
+  it("persists the preferred art piece vendor on the owner account", async () => {
+    const { res } = await runRoute("/users/me/ai-settings", "patch", {
+      body: {
+        settings: [],
+        preferredArtPieceVendor: "google",
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      preferredArtPieceVendor: "google",
+    });
+    expect(authState.user?.preferredArtPieceVendor).toBe("google");
   });
 
   it("allows re-enabling a saved vendor without re-sending the api key", async () => {

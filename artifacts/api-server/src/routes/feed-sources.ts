@@ -5,9 +5,12 @@ import {
   feedSourcesTable,
   feedItemsSeenTable,
   postsTable,
+  usersTable,
   eq,
   desc,
   and,
+  ne,
+  or,
   formatMysqlDateTime,
 } from "@workspace/db";
 import { requireAuth, requireOwner } from "../middlewares/auth";
@@ -36,6 +39,8 @@ function serialize(row: FeedSourceRow) {
   return {
     id: row.id,
     name: row.name,
+    username: row.username ?? null,
+    bio: row.bio ?? null,
     authorName: row.authorName ?? null,
     feedUrl: row.feedUrl,
     siteUrl: row.siteUrl,
@@ -393,6 +398,7 @@ router.post("/feed-sources", requireAuth, requireOwner, async (req: Request, res
       .insert(feedSourcesTable)
       .values({
         name: body.name,
+        bio: body.bio ?? null,
         authorName: body.authorName ?? null,
         feedUrl: body.feedUrl,
         siteUrl: body.siteUrl ?? null,
@@ -440,10 +446,33 @@ router.patch("/feed-sources/:id", requireAuth, requireOwner, async (req: Request
       return res.status(404).json({ error: "Feed source not found" });
     }
 
+    // Validate username uniqueness across both users and feed_sources.
+    if (body.username) {
+      const slug = body.username;
+      const [humanConflict] = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.username, slug))
+        .limit(1);
+      if (humanConflict) {
+        return res.status(400).json({ error: "Username is already taken" });
+      }
+      const [feedConflict] = await db
+        .select({ id: feedSourcesTable.id })
+        .from(feedSourcesTable)
+        .where(and(eq(feedSourcesTable.username, slug), ne(feedSourcesTable.id, id)))
+        .limit(1);
+      if (feedConflict) {
+        return res.status(400).json({ error: "Username is already taken" });
+      }
+    }
+
     const updates: Partial<typeof feedSourcesTable.$inferInsert> = {
       updatedAt: formatMysqlDateTime(),
     };
     if (body.name !== undefined) updates.name = body.name;
+    if (body.username !== undefined) updates.username = body.username ?? null;
+    if (body.bio !== undefined) updates.bio = body.bio ?? null;
     if (body.authorName !== undefined) updates.authorName = body.authorName ?? null;
     if (body.feedUrl !== undefined) updates.feedUrl = body.feedUrl;
     if (body.siteUrl !== undefined) updates.siteUrl = body.siteUrl ?? null;

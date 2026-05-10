@@ -15,6 +15,8 @@ export type FeedCadence = z.infer<typeof feedCadenceSchema>;
 export const feedSourcesTable = mysqlTable("feed_sources", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
+  username: varchar("username", { length: 100 }),
+  bio: text("bio"),
   authorName: varchar("author_name", { length: 255 }),
   feedUrl: varchar("feed_url", { length: 2048 }).notNull(),
   siteUrl: varchar("site_url", { length: 2048 }),
@@ -68,6 +70,7 @@ export type FeedItemSeen = typeof feedItemsSeenTable.$inferSelect;
  */
 export const createFeedSourceSchema = z.object({
   name: z.string().trim().min(1).max(255),
+  bio: z.string().trim().max(500).optional().nullable(),
   authorName: z.string().trim().min(1).max(255).optional().nullable(),
   feedUrl: z.string().trim().url().max(2048),
   siteUrl: z.string().trim().url().max(2048).optional().nullable(),
@@ -77,6 +80,8 @@ export const createFeedSourceSchema = z.object({
 
 export const updateFeedSourceSchema = z.object({
   name: z.string().trim().min(1).max(255).optional(),
+  username: z.string().trim().regex(/^[a-z0-9_]{2,30}$/, "Username must be 2–30 lowercase letters, numbers, or underscores").optional().nullable(),
+  bio: z.string().trim().max(500).optional().nullable(),
   authorName: z.string().trim().min(1).max(255).optional().nullable(),
   feedUrl: z.string().trim().url().max(2048).optional(),
   siteUrl: z.string().trim().url().max(2048).optional().nullable(),

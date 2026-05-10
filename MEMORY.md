@@ -127,3 +127,19 @@ or rejection. -->
 
 2026-05-08 · PLATFORMS UI · Medium is no longer offered as a connection option in the admin Platforms page — removed from the `PLATFORMS` constant, `MediumTokenDialog` deleted, `"medium"` dropped from `credentialKind` union. Reason: Medium's API restrictions make reliable cross-posting impossible. The backend adapter and any existing DB rows are untouched; the entry can be restored to the UI if Medium improves API access. The Blogger credentials dialog now includes: API enablement instruction, scope addition step (`https://www.googleapis.com/auth/blogger` on the consent screen), and an amber callout explaining Testing vs. Production mode and the test-user requirement.
     [Implemented 2026-05-08; verified from `admin-platforms.tsx` PLATFORMS array, PlatformDef type, PlatformCard, and OAuthAppCredentialsDialog.]
+
+2026-05-09 · INTERACTIVE PIECES · AI-generated interactive pieces no longer accept raw model-authored JavaScript as a trusted draft surface. The owner-facing generation flow now asks the model for a structured sketch spec, compiles that spec into app-owned `p5` code, and only surfaces a draft after server-side syntax and runtime preflight validation succeed.
+    [Implemented 2026-05-09; verified from `artifacts/api-server/src/lib/art-pieces.ts`, `routes/art-pieces.ts`, and the updated composer/admin UI flow.]
+
+2026-05-10 · INTERACTIVE PIECES · The supported AI-generated interactive-piece engines are now `p5`, `c2`, and `three`. A-Frame was explicitly rolled back from the product: it is no longer a valid saved/API engine, no longer appears in owner generation UIs, and existing A-Frame content is intentionally not supported.
+    [Confirmed by the owner during the 2026-05-10 interactive-piece rollback session; implementation recorded in DECISIONS.md and docs/dependencies.md.]
+    [Implemented 2026-05-10; verified from `artifacts/api-server/src/lib/art-pieces.ts`, `lib/db/src/migrate.ts`, and the updated composer/admin UI flow.]
+
+2026-05-09 · INTERACTIVE PIECES · Piece generation is bounded and transparent: the UI shows an Attempts counter, generation can be stopped manually, the API enforces a one-minute timeout and bounded repair loop, and failed/timed-out runs do not create saved pieces.
+    [Implemented 2026-05-09; verified from the validated draft response contract, generation dialog UI, and focused backend/frontend tests.]
+
+2026-05-09 · INTERACTIVE PIECES · Saving a new piece or new piece version now requires a one-time validated draft token issued by `/api/art-pieces/generate`; `POST /art-pieces` and `POST /art-pieces/:id/versions` no longer trust browser-submitted sketch code directly.
+    [Implemented 2026-05-09; verified from the narrowed OpenAPI request bodies, token consumption logic, and version metadata persistence.]
+
+2026-05-10 · INBOUND FEEDS · Feed source profile pages are live. Visiting `/users/feed:N` or `/users/@handle` (once a username is set) renders a feed source profile showing the blog name, optional bio, site URL as a clickable link, "Automated feed" badge, and a live post list. `GET /users/:id` now dispatches on `feed:N` prefix and feed-source username before falling through to human user lookup. No user records are created for feed sources; `sourceType: "feed"` in the response is the discriminator. `feed_sources` gained `username VARCHAR(100) NULL` and `bio TEXT NULL` columns (additive, via `ensureColumn`). Username uniqueness is enforced at the application layer across both `users` and `feed_sources` tables.
+    [Implemented 2026-05-10; verified from `lib/db/src/schema/feeds.ts`, `migrate.ts`, `routes/users.ts`, `routes/feed-sources.ts`, `pages/user-profile.tsx`, and `pages/admin-feeds.tsx`.]

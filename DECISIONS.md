@@ -210,6 +210,72 @@ Removed the `PUBLIC_SITE_URL` short-circuit from `getOrigin()` in both `feeds.ts
 
 ---
 
+## 2026-05-09 — Validated P5 Draft Pipeline For Interactive Pieces
+
+### Trigger
+AI-generated `p5` piece drafts could return malformed JavaScript that passed the original shape checks, showed a broken preview (`Unexpected token ')'`), and could still be saved if the owner ignored the preview failure. The product direction was tightened: every surfaced draft must already work, attempts should be visible, and generation should be cancellable and time-bounded.
+
+### Decisions Confirmed
+- V1 interactive pieces remain locked to persisted `engine = 'p5'`.
+- The generation contract changed from raw AI-authored sketch code to a structured sketch-spec JSON response. The API now compiles the spec into app-owned `p5` instance-mode code.
+
+---
+
+## 2026-05-10 — Multi-Engine Interactive Pieces (`p5`, `c2`, `aframe`, `three`)
+
+### Trigger
+The interactive piece system was hard-wired to persisted `engine = 'p5'`, a single `p5`-specific structured schema, a `p5` compiler/preflight path, and `P5PieceRenderer`-only previews/embeds. The owner confirmed the product should expand to support `c2`, `aframe`, and `three` using the same compile-first safety model.
+
+### Decisions Confirmed
+- The persisted art-piece engine contract is now the four-value enum `p5 | c2 | aframe | three`. This is an intentional irreversible expansion of the saved API/database surface.
+- A single piece may accumulate versions across different engines. The current version defines the piece's canonical `art_pieces.engine`, and saving a new current version in a different engine updates the parent piece's engine to match.
+- The owner explicitly chooses the target engine when generating a piece. The model never auto-selects the runtime.
+- All engines follow the guarded structured-spec pipeline: AI returns strict JSON, the app validates it against an engine-specific schema, compiles it into app-owned runtime code, server-preflights that code, and only validated draft tokens may be saved.
+- Official self-hosted runtime dependencies were added for the new engines and documented in `docs/dependencies.md`: `c2.js`, `aframe`, and `three`.
+- The old backend-only standalone `p5.min.js` embed route is no longer the active rendering path. `/embed/pieces/:id` now relies on the existing frontend route so the same engine-aware renderer boundary can power both admin previews and live embeds without changing embed URLs.
+
+### Outcome
+- Owners can generate and preview interactive pieces in four runtimes while keeping the existing draft-token, timeout, retry, and vendor-selection behavior.
+- Existing `p5` pieces remain valid with no content migration beyond the engine enum expansion.
+- Interactive piece previews and embeds now dispatch by saved `version.engine` instead of assuming `p5`.
+- The API must perform server-side validation before returning any draft: parse the structured JSON, compile it, syntax-check it, and run a lightweight Node-side `p5` preflight against a mocked runtime wrapper.
+- Invalid model output no longer surfaces directly. The API performs a bounded repair loop, feeding validation failures back into the model until a working draft is produced or the attempt/timeout budget is exhausted.
+- Generation is bounded by a one-minute timeout and a fixed attempt budget. Attempt usage is surfaced in the UI as part of the generation and preview flow.
+- The save path no longer accepts arbitrary browser-supplied `generatedCode`. Instead, `POST /art-pieces` and `POST /art-pieces/:id/versions` require a one-time validated draft token issued by the generation pipeline.
+- `art_piece_versions` now persist the structured spec, compiled code, validation status, and generation attempt count so saved pieces remain inspectable and version-pinned.
+
+### API / Schema Outcome
+- `POST /api/art-pieces/generate` now returns a validated draft payload containing `draftToken`, `structuredSpec`, compiled `generatedCode`, `validationStatus`, `attemptCount`, `maxAttempts`, `timedOut`, `cancelled`, and `wasRepaired`.
+- `CreateArtPieceBody` and `CreateArtPieceVersionBody` were narrowed to token-based save requests instead of raw code payloads.
+- `art_piece_versions` gained `structured_spec`, `validation_status`, and `generation_attempt_count` columns via additive runtime migration and install-script updates.
+
+---
+
+## 2026-05-10 — A-Frame Rolled Back From Interactive Pieces; Three.js Preview Warning Relaxed
+
+### Trigger
+A-Frame generation proved too brittle and visually unreliable for the current interactive-piece product direction, while Three.js previews could visibly render and still surface a false browser-side warning that implied the draft was broken. The owner explicitly approved a full A-Frame rollback, including removing the saved/API enum value and hard-disabling legacy A-Frame content, rather than merely hiding it in the UI.
+
+### Decisions Confirmed
+- The persisted art-piece engine contract is now narrowed from `p5 | c2 | aframe | three` to `p5 | c2 | three`. This is an intentional breaking rollback of the previously expanded enum.
+- A-Frame generation, preview, embed rendering, and engine selection were removed from the owner-facing interactive-piece system. Incoming `aframe` generation/save attempts must now fail at the API boundary because `aframe` is no longer a valid engine.
+- Existing saved A-Frame content is intentionally no longer supported. Runtime migration removes `art_piece_versions.engine = 'aframe'`, repoints affected parent pieces to their latest remaining supported version when possible, and deletes orphaned parent pieces that no longer have any supported versions.
+- The self-hosted dependency record was updated to remove A-Frame as an active interactive-piece runtime. Active AI-generated interactive engines are now `p5`, `c2`, and `three`.
+- Three.js preview readiness was relaxed so a scene with a camera and visible meshes no longer surfaces the false “did not render a frame” warning purely because the browser-side heuristic observed rendering late.
+
+### Outcome
+- Owners can now generate interactive pieces in `p5`, `c2`, and `three` only.
+- Legacy A-Frame pieces and embeds are intentionally hard-disabled by data cleanup plus contract rollback, so future sessions should not assume backward compatibility for `aframe`.
+- Three.js drafts that visibly render no longer send mixed signals by showing a warning while still being saveable.
+
+### Product Outcome
+- The composer and Admin Pieces flows now show a generation-progress dialog with a `Stop` action and `Attempts: X / Y`.
+- A piece draft dialog only opens after server validation succeeds.
+- Saving is gated by both the server-validated token and a successful browser-side preview render.
+- Existing saved pieces remain renderable; rows without historical structured specs are tolerated as legacy data during serialization.
+
+---
+
 ## 2026-05-06 — Profile Display Names, Safer Theme Reset, And Post Editor Refinement
 
 ### Decisions Confirmed
@@ -1026,3 +1092,177 @@ approximation, so historical and new rows are stripped identically.
   `/api/feed-sources` endpoint still exposes the full row to the
   owner, so this is a deliberately narrowed projection rather than
   a change to the existing endpoint.
+
+---
+
+## 2026-05-09 — P5 Piece Embed Architecture (Option C: Server-Rendered Standalone Page)
+
+### Trigger
+After pieces could be saved and inserted into posts via the library
+dialog, the iframe embed disappeared immediately when the post was
+published. The sanitizer was stripping `http://localhost` iframe srcs
+because `"src"` was listed in `allowedSchemesAppliedToAttributes`,
+which applied the HTTPS-only scheme check before `exclusiveFilter`
+(which already allowed localhost) could evaluate the src.
+
+### Decision Confirmed
+Option C: server-rendered standalone embed page at
+`GET /embed/pieces/:id`. Express route returns a minimal, self-
+contained HTML document — p5.min.js + sketch code inline, no React
+SPA, no extra round-trips. Mirrors the already-working post embed
+(`GET /embed/posts/:id`) architecture exactly.
+
+### Options Considered
+- **Option A — fix allowedSchemes in the sanitizer only**: would have
+  worked for localhost dev but continued to require `https:` in
+  production. Fragile: any future origin change would break embeds.
+- **Option B — URL rewriting to an absolute https: URL**: bakes the
+  origin into stored content; breaks if the domain changes.
+- **Option C — server-rendered standalone embed page** *(chosen)*:
+  zero browser JS dependency in the embed frame, stable at any origin,
+  identical to the post embed pattern that already worked.
+
+### Files Changed
+- `artifacts/api-server/src/routes/piece-embed-html.ts` — new file;
+  Express router for `GET /embed/pieces/:id` + `?version=` query param.
+  Serves inline p5.min.js sketch via `JSON.stringify(code)` to safely
+  embed the sketch as a JS string literal.
+- `artifacts/api-server/src/app.ts` — registered
+  `/assets/p5.min.js` static route (from workspace `node_modules/p5`)
+  and mounted `pieceEmbedHtmlRouter`.
+- `artifacts/api-server/src/lib/html.ts` — removed `"src"` from
+  `allowedSchemesAppliedToAttributes`; added `/embed/pieces/` prefix
+  check to `isAllowedIframeSource` for root-relative URLs.
+- `artifacts/microblog/src/components/post/RichPostEditor.tsx` —
+  changed iframe src from absolute (`window.location.origin + ...`) to
+  root-relative (`/embed/pieces/${id}?version=...`) so it resolves
+  against the page origin in both dev and production.
+
+### Outcome
+- Piece iframes survive the HTML sanitizer in all environments.
+- p5.min.js is served self-hosted from workspace node_modules — no CDN
+  dependency, no new vendor entry needed in docs/dependencies.md.
+
+---
+
+## 2026-05-09 — React Iframe Stability (Three-Layer Fix)
+
+### Trigger
+Server logs showed `/embed/pieces/:id` being requested repeatedly
+every 20–30 seconds, and the same behavior affected external iframe
+embeds (e.g. YouTube). Root cause: React Query's default
+`staleTime: 0` + `refetchOnWindowFocus: true` triggered frequent
+refetches; each refetch produced new JS object references for posts,
+which cascaded through PostCard state and caused PostContent to reset
+its innerHTML, restarting all iframes.
+
+### Decision
+Three-layer fix applied in parallel:
+
+1. **QueryClient defaults** (`App.tsx`): `staleTime: 60_000` (data
+   fresh for 1 minute, no background refetch within that window) +
+   `refetchOnWindowFocus: false` (eliminates tab-focus refetches, the
+   most common trigger during normal use).
+
+2. **`React.memo` on PostContent** (`PostContent.tsx`): All four props
+   (`content`, `contentFormat`, `className`, `highlightQuery`) are
+   primitives — shallow comparison equals value comparison. PostContent
+   will not re-render unless those strings actually change.
+
+3. **Functional state update in PostCard** (`PostCard.tsx`): The
+   `displayPost` sync effect was changed from `setDisplayPost(post)` to
+   a functional updater that returns `prev` unchanged when `id`,
+   `content`, and `contentFormat` are identical. Same reference →
+   React bails out → PostContent is never re-rendered → iframes never
+   reload. The optimistic-update path (onSuccess calling setDisplayPost
+   directly) is unaffected.
+
+### Outcome
+- Piece embeds and external iframes load exactly once per navigation.
+- Tab switching and background fetches (after the 60s stale window)
+  no longer restart embedded content.
+- Optimistic post editing still works correctly.
+
+---
+
+## 2026-05-09 — Art Piece Delete Endpoint and Admin UI
+
+### Trigger
+The Pieces admin panel had no way to remove pieces once created.
+
+### Decision
+Full-stack delete: OpenAPI spec → orval codegen → Express route →
+admin UI Trash icon.
+
+### Files Changed
+- `lib/api-spec/openapi.yaml` — added `DELETE /art-pieces/{id}`
+  operation (`deleteArtPiece`, 204/401/403/404). Treated as a new
+  irreversible API contract; the endpoint returns 404 for pieces the
+  caller does not own, never 403, to avoid ownership enumeration.
+- `artifacts/api-server/src/routes/art-pieces.ts` — added
+  `router.delete("/art-pieces/:id", requireAuth, requireOwner, ...)`.
+  Cascades to `art_piece_versions` via the `ON DELETE CASCADE` FK
+  already in the schema. Validates ownership at the row level in
+  addition to the middleware check.
+- `lib/api-client-react/src/generated/api.ts` and
+  `lib/api-zod/src/generated/api.ts` — regenerated via
+  `cd lib/api-spec && npm run codegen`; `useDeleteArtPiece` hook
+  is now available.
+- `artifacts/microblog/src/pages/admin/admin-pieces.tsx` — added
+  `useDeleteArtPiece` mutation with `window.confirm` guard. Piece
+  list items wrapped in `<div class="group relative">` so the Trash2
+  icon (`opacity-0`, `group-hover:opacity-100`) appears on hover;
+  `e.stopPropagation()` prevents the trash click from selecting the
+  piece. Clears `selectedId` if the deleted piece was selected.
+
+### Outcome
+- Pieces can be permanently deleted from the admin UI with a single
+  hover-reveal Trash button and a confirmation dialog.
+- Deletion cascades — no orphaned version rows.
+
+---
+
+## 2026-05-10 — Feed Source Profile Pages
+
+### Trigger
+Feed-imported posts use `posts.author_id = "feed:N"`. Clicking an author
+name on any such post navigated to `/users/feed:1`, but `GET /users/:id`
+only queried the `users` table and returned 404 → "USER NOT FOUND".
+
+### Decisions Confirmed
+- `feed_sources` gains two additive nullable columns: `username VARCHAR(100) NULL`
+  and `bio TEXT NULL`. Provisioned via `ensureColumn` in `lib/db/src/migrate.ts`.
+- `feed_sources.username` creates a friendly profile URL at `/users/@handle`.
+  Uniqueness is enforced at the application layer across both `users` and
+  `feed_sources`; there is no DB-level cross-table unique constraint.
+- `GET /users/:id` now dispatches on three ID shapes:
+  - `feed:N` → queries `feed_sources` by numeric ID.
+  - UUID → queries `users` by ID (existing path, unchanged).
+  - Any other slug → checks `feed_sources.username` first, then `users.username`.
+  Feed profiles return `sourceType: "feed"` and `siteUrl` in the response so the
+  frontend can distinguish them from human user profiles.
+- `PATCH /feed-sources/:id` now accepts `username` and `bio`. Before saving a
+  username the route validates uniqueness against both `users.username` and
+  `feed_sources.username` (excluding the current row).
+- `POST /feed-sources` (create) now accepts `bio` so a bio can be set at
+  subscription time without a separate edit step.
+- The `UserProfile` frontend page branches on `sourceType === "feed"`: shows an
+  "Automated feed" badge next to the source name, renders `siteUrl` as a
+  clickable external link (Globe icon), and loads posts via
+  `useListPosts({ source: N })` using the existing `?source=` filter rather than
+  `useGetPostsByUser`. The empty-state message is contextual.
+- The `/admin/feeds` inline edit panel gained Username and Bio fields. When a
+  username is saved the source card shows a clickable `@handle → profile page`
+  link. The "Add a source" form also exposes a Bio textarea.
+- OpenAPI spec and orval codegen updated: `FeedSource` and `UpdateFeedSourceBody`
+  gain `username` and `bio`; `CreateFeedSourceBody` gains `bio`; `UserProfile`
+  gains optional `sourceType` and `siteUrl` fields.
+
+### Outcome
+- Visiting `/users/feed:1` or `/users/@myblog` now renders a feed source profile
+  showing the blog name, optional bio, site URL as a link, post count, and a
+  live list of the source's published imported posts.
+- Human user `@handle` routes continue to resolve without regression.
+- Existing `feed:N` numeric URLs remain stable; `@handle` URLs are additive.
+- No user records are created for feed sources; the distinction between automated
+  feed profiles and human user profiles is expressed via `sourceType`.

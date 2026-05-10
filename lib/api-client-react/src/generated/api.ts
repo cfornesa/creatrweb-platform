@@ -22,10 +22,16 @@ import type {
 import type {
   ApproveAllFromFeedSourceResponse,
   ApprovePostResponse,
+  ArtPiece,
+  ArtPieceDetail,
   CategoriesList,
   Category,
   CategoryWithPostCount,
   Comment,
+  CreateArtPieceBody,
+  CreateArtPieceResponse,
+  CreateArtPieceVersionBody,
+  CreateArtPieceVersionResponse,
   CreateCategoryBody,
   CreateCommentBody,
   CreateFeedSourceBody,
@@ -33,14 +39,19 @@ import type {
   CreatePageBody,
   CreatePlatformConnectionBody,
   CreatePostBody,
+  EmbeddedArtPiece,
   FeedRefreshResult,
   FeedRefreshSummary,
   FeedSource,
   FeedSourcesList,
   FeedStats,
+  GenerateArtPieceBody,
+  GeneratedArtPieceDraft,
   GetCategoryPostsParams,
+  GetEmbeddedArtPieceParams,
   GetPostsByUserParams,
   HealthStatus,
+  ListArtPiecesResponse,
   ListNavLinksParams,
   ListPagesParams,
   ListPendingPostsParams,
@@ -70,6 +81,7 @@ import type {
   SearchPostsParams,
   SiteFeedsList,
   SiteSettings,
+  UpdateArtPieceBody,
   UpdateCategoryBody,
   UpdateCommentBody,
   UpdateFeedSourceBody,
@@ -1389,6 +1401,605 @@ export const useProcessAiText = <TError = ErrorType<void>,
       > => {
       return useMutation(getProcessAiTextMutationOptions(options));
     }
+
+/**
+ * @summary List the owner's reusable art pieces
+ */
+export const getListArtPiecesUrl = () => {
+
+
+
+
+  return `/api/art-pieces`
+}
+
+export const listArtPieces = async ( options?: RequestInit): Promise<ListArtPiecesResponse> => {
+
+  return customFetch<ListArtPiecesResponse>(getListArtPiecesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListArtPiecesQueryKey = () => {
+    return [
+    `/api/art-pieces`
+    ] as const;
+    }
+
+
+export const getListArtPiecesQueryOptions = <TData = Awaited<ReturnType<typeof listArtPieces>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listArtPieces>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListArtPiecesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listArtPieces>>> = ({ signal }) => listArtPieces({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listArtPieces>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListArtPiecesQueryResult = NonNullable<Awaited<ReturnType<typeof listArtPieces>>>
+export type ListArtPiecesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List the owner's reusable art pieces
+ */
+
+export function useListArtPieces<TData = Awaited<ReturnType<typeof listArtPieces>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listArtPieces>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListArtPiecesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * @summary Save a new reusable art piece
+ */
+export const getCreateArtPieceUrl = () => {
+
+
+
+
+  return `/api/art-pieces`
+}
+
+export const createArtPiece = async (createArtPieceBody: CreateArtPieceBody, options?: RequestInit): Promise<CreateArtPieceResponse> => {
+
+  return customFetch<CreateArtPieceResponse>(getCreateArtPieceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      createArtPieceBody,)
+  }
+);}
+
+
+
+
+export const getCreateArtPieceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createArtPiece>>, TError,{data: BodyType<CreateArtPieceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createArtPiece>>, TError,{data: BodyType<CreateArtPieceBody>}, TContext> => {
+
+const mutationKey = ['createArtPiece'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createArtPiece>>, {data: BodyType<CreateArtPieceBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createArtPiece(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateArtPieceMutationResult = NonNullable<Awaited<ReturnType<typeof createArtPiece>>>
+    export type CreateArtPieceMutationBody = BodyType<CreateArtPieceBody>
+    export type CreateArtPieceMutationError = ErrorType<void>
+
+    /**
+ * @summary Save a new reusable art piece
+ */
+export const useCreateArtPiece = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createArtPiece>>, TError,{data: BodyType<CreateArtPieceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createArtPiece>>,
+        TError,
+        {data: BodyType<CreateArtPieceBody>},
+        TContext
+      > => {
+      return useMutation(getCreateArtPieceMutationOptions(options));
+    }
+
+/**
+ * @summary Generate an unsaved art piece draft with the selected AI vendor
+ */
+export const getGenerateArtPieceUrl = () => {
+
+
+
+
+  return `/api/art-pieces/generate`
+}
+
+export const generateArtPiece = async (generateArtPieceBody: GenerateArtPieceBody, options?: RequestInit): Promise<GeneratedArtPieceDraft> => {
+
+  return customFetch<GeneratedArtPieceDraft>(getGenerateArtPieceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      generateArtPieceBody,)
+  }
+);}
+
+
+
+
+export const getGenerateArtPieceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateArtPiece>>, TError,{data: BodyType<GenerateArtPieceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateArtPiece>>, TError,{data: BodyType<GenerateArtPieceBody>}, TContext> => {
+
+const mutationKey = ['generateArtPiece'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateArtPiece>>, {data: BodyType<GenerateArtPieceBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  generateArtPiece(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateArtPieceMutationResult = NonNullable<Awaited<ReturnType<typeof generateArtPiece>>>
+    export type GenerateArtPieceMutationBody = BodyType<GenerateArtPieceBody>
+    export type GenerateArtPieceMutationError = ErrorType<void>
+
+    /**
+ * @summary Generate an unsaved art piece draft with the selected AI vendor
+ */
+export const useGenerateArtPiece = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateArtPiece>>, TError,{data: BodyType<GenerateArtPieceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generateArtPiece>>,
+        TError,
+        {data: BodyType<GenerateArtPieceBody>},
+        TContext
+      > => {
+      return useMutation(getGenerateArtPieceMutationOptions(options));
+    }
+
+/**
+ * @summary Get one owner art piece and its versions
+ */
+export const getGetArtPieceUrl = (id: number,) => {
+
+
+
+
+  return `/api/art-pieces/${id}`
+}
+
+export const getArtPiece = async (id: number, options?: RequestInit): Promise<ArtPieceDetail> => {
+
+  return customFetch<ArtPieceDetail>(getGetArtPieceUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetArtPieceQueryKey = (id: number,) => {
+    return [
+    `/api/art-pieces/${id}`
+    ] as const;
+    }
+
+
+export const getGetArtPieceQueryOptions = <TData = Awaited<ReturnType<typeof getArtPiece>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArtPiece>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetArtPieceQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getArtPiece>>> = ({ signal }) => getArtPiece(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getArtPiece>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetArtPieceQueryResult = NonNullable<Awaited<ReturnType<typeof getArtPiece>>>
+export type GetArtPieceQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get one owner art piece and its versions
+ */
+
+export function useGetArtPiece<TData = Awaited<ReturnType<typeof getArtPiece>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArtPiece>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetArtPieceQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * @summary Update owner-controlled art piece metadata
+ */
+export const getUpdateArtPieceUrl = (id: number,) => {
+
+
+
+
+  return `/api/art-pieces/${id}`
+}
+
+export const updateArtPiece = async (id: number,
+    updateArtPieceBody: UpdateArtPieceBody, options?: RequestInit): Promise<ArtPiece> => {
+
+  return customFetch<ArtPiece>(getUpdateArtPieceUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateArtPieceBody,)
+  }
+);}
+
+
+
+
+export const getUpdateArtPieceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateArtPiece>>, TError,{id: number;data: BodyType<UpdateArtPieceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateArtPiece>>, TError,{id: number;data: BodyType<UpdateArtPieceBody>}, TContext> => {
+
+const mutationKey = ['updateArtPiece'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateArtPiece>>, {id: number;data: BodyType<UpdateArtPieceBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateArtPiece(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateArtPieceMutationResult = NonNullable<Awaited<ReturnType<typeof updateArtPiece>>>
+    export type UpdateArtPieceMutationBody = BodyType<UpdateArtPieceBody>
+    export type UpdateArtPieceMutationError = ErrorType<void>
+
+    /**
+ * @summary Update owner-controlled art piece metadata
+ */
+export const useUpdateArtPiece = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateArtPiece>>, TError,{id: number;data: BodyType<UpdateArtPieceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateArtPiece>>,
+        TError,
+        {id: number;data: BodyType<UpdateArtPieceBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateArtPieceMutationOptions(options));
+    }
+
+/**
+ * @summary Delete an art piece and all its versions (owner only)
+ */
+export const getDeleteArtPieceUrl = (id: number,) => {
+
+
+
+
+  return `/api/art-pieces/${id}`
+}
+
+export const deleteArtPiece = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteArtPieceUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteArtPieceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteArtPiece>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteArtPiece>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteArtPiece'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteArtPiece>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteArtPiece(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteArtPieceMutationResult = NonNullable<Awaited<ReturnType<typeof deleteArtPiece>>>
+
+    export type DeleteArtPieceMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete an art piece and all its versions (owner only)
+ */
+export const useDeleteArtPiece = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteArtPiece>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteArtPiece>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteArtPieceMutationOptions(options));
+    }
+
+/**
+ * @summary Save a new version for an existing art piece
+ */
+export const getCreateArtPieceVersionUrl = (id: number,) => {
+
+
+
+
+  return `/api/art-pieces/${id}/versions`
+}
+
+export const createArtPieceVersion = async (id: number,
+    createArtPieceVersionBody: CreateArtPieceVersionBody, options?: RequestInit): Promise<CreateArtPieceVersionResponse> => {
+
+  return customFetch<CreateArtPieceVersionResponse>(getCreateArtPieceVersionUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      createArtPieceVersionBody,)
+  }
+);}
+
+
+
+
+export const getCreateArtPieceVersionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createArtPieceVersion>>, TError,{id: number;data: BodyType<CreateArtPieceVersionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createArtPieceVersion>>, TError,{id: number;data: BodyType<CreateArtPieceVersionBody>}, TContext> => {
+
+const mutationKey = ['createArtPieceVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createArtPieceVersion>>, {id: number;data: BodyType<CreateArtPieceVersionBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createArtPieceVersion(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateArtPieceVersionMutationResult = NonNullable<Awaited<ReturnType<typeof createArtPieceVersion>>>
+    export type CreateArtPieceVersionMutationBody = BodyType<CreateArtPieceVersionBody>
+    export type CreateArtPieceVersionMutationError = ErrorType<void>
+
+    /**
+ * @summary Save a new version for an existing art piece
+ */
+export const useCreateArtPieceVersion = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createArtPieceVersion>>, TError,{id: number;data: BodyType<CreateArtPieceVersionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createArtPieceVersion>>,
+        TError,
+        {id: number;data: BodyType<CreateArtPieceVersionBody>},
+        TContext
+      > => {
+      return useMutation(getCreateArtPieceVersionMutationOptions(options));
+    }
+
+/**
+ * @summary Get the public runtime payload for an embedded art piece
+ */
+export const getGetEmbeddedArtPieceUrl = (id: number,
+    params?: GetEmbeddedArtPieceParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/art-pieces/${id}/embed?${stringifiedParams}` : `/api/art-pieces/${id}/embed`
+}
+
+export const getEmbeddedArtPiece = async (id: number,
+    params?: GetEmbeddedArtPieceParams, options?: RequestInit): Promise<EmbeddedArtPiece> => {
+
+  return customFetch<EmbeddedArtPiece>(getGetEmbeddedArtPieceUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEmbeddedArtPieceQueryKey = (id: number,
+    params?: GetEmbeddedArtPieceParams,) => {
+    return [
+    `/api/art-pieces/${id}/embed`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetEmbeddedArtPieceQueryOptions = <TData = Awaited<ReturnType<typeof getEmbeddedArtPiece>>, TError = ErrorType<void>>(id: number,
+    params?: GetEmbeddedArtPieceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmbeddedArtPiece>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEmbeddedArtPieceQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmbeddedArtPiece>>> = ({ signal }) => getEmbeddedArtPiece(id,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEmbeddedArtPiece>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEmbeddedArtPieceQueryResult = NonNullable<Awaited<ReturnType<typeof getEmbeddedArtPiece>>>
+export type GetEmbeddedArtPieceQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the public runtime payload for an embedded art piece
+ */
+
+export function useGetEmbeddedArtPiece<TData = Awaited<ReturnType<typeof getEmbeddedArtPiece>>, TError = ErrorType<void>>(
+ id: number,
+    params?: GetEmbeddedArtPieceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmbeddedArtPiece>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEmbeddedArtPieceQueryOptions(id,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 /**
  * @summary Get feed statistics (total posts, active users today)

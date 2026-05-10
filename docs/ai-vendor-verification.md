@@ -6,7 +6,7 @@ The goal is to verify three layers for each vendor:
 
 1. Contract correctness in the adapter.
 2. Settings save and persistence behavior.
-3. Real composer round-trip behavior.
+3. Real composer round-trip behavior for both text rewriting and validated piece generation (p5, Three.js, or C2.js).
 
 Test vendors in this order:
 
@@ -72,12 +72,28 @@ Confirm the `user_ai_vendor_settings` row for the owner/vendor pair has:
 8. Confirm the original draft remains unchanged on failure.
 9. Confirm an error toast appears on failure.
 
+### Interactive Piece Verification
+
+1. Open the post composer or `/admin/pieces`.
+2. Confirm the mode selector exposes `Text` and `Piece`, and the piece engine dropdown exposes `p5`, `c2`, and `Three.js`.
+3. Enter a short descriptive prompt for an interactive piece.
+4. Select the vendor under test.
+5. Trigger piece generation.
+6. Confirm the generation-progress dialog appears and shows an `Attempts` counter.
+7. Confirm the dialog can be stopped manually.
+8. Confirm a successful run only opens the draft preview after server validation completes.
+9. Confirm the preview dialog shows attempt usage and a rendered piece.
+10. Confirm the piece can be saved only from a validated draft preview.
+11. Confirm failed or timed-out generation does not create a saved piece row.
+
 ### Runtime And Log Verification
 
 - Confirm the request reaches `POST /api/ai/process`.
+- Confirm interactive piece requests reach `POST /api/art-pieces/generate`.
 - Confirm the logged vendor and model match the selected vendor's saved settings.
 - Confirm no fallback-to-wrong-endpoint behavior occurs.
 - Confirm any upstream failure returns an understandable status and error message.
+- Confirm invalid structured outputs trigger bounded repair attempts rather than surfacing a broken draft preview.
 
 ### Pass Or Fail
 
@@ -86,6 +102,7 @@ Only mark the vendor as verified if:
 - settings save succeeds
 - the composer round-trip succeeds
 - the returned text replaces the editor content as expected
+- the interactive-piece round-trip produces a validated draft that previews and saves successfully
 
 Mark the vendor as not verified if any of these fail:
 
@@ -145,6 +162,8 @@ Actual endpoint observed:
 Settings save result:
 Composer click result:
 Output replacement result:
+Interactive piece result:
+Attempt counter result:
 Error toast result:
 DB row correct:
 Upstream HTTP status:

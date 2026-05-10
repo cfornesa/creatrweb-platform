@@ -387,7 +387,9 @@ export const GetUserResponse = zod.object({
   "colorMuted": zod.string().nullish(),
   "colorMutedForeground": zod.string().nullish(),
   "colorDestructive": zod.string().nullish(),
-  "colorDestructiveForeground": zod.string().nullish()
+  "colorDestructiveForeground": zod.string().nullish(),
+  "sourceType": zod.enum(['feed']).nullish().describe('Present only when the profile represents an external blog feed source rather than a human user.'),
+  "siteUrl": zod.string().nullish().describe('The blog\'s canonical site URL. Present when sourceType is \"feed\".')
 })
 
 
@@ -418,7 +420,9 @@ export const GetMeResponse = zod.object({
   "colorMuted": zod.string().nullish(),
   "colorMutedForeground": zod.string().nullish(),
   "colorDestructive": zod.string().nullish(),
-  "colorDestructiveForeground": zod.string().nullish()
+  "colorDestructiveForeground": zod.string().nullish(),
+  "sourceType": zod.enum(['feed']).nullish().describe('Present only when the profile represents an external blog feed source rather than a human user.'),
+  "siteUrl": zod.string().nullish().describe('The blog\'s canonical site URL. Present when sourceType is \"feed\".')
 })
 
 
@@ -538,7 +542,9 @@ export const UpdateMeResponse = zod.object({
   "colorMuted": zod.string().nullish(),
   "colorMutedForeground": zod.string().nullish(),
   "colorDestructive": zod.string().nullish(),
-  "colorDestructiveForeground": zod.string().nullish()
+  "colorDestructiveForeground": zod.string().nullish(),
+  "sourceType": zod.enum(['feed']).nullish().describe('Present only when the profile represents an external blog feed source rather than a human user.'),
+  "siteUrl": zod.string().nullish().describe('The blog\'s canonical site URL. Present when sourceType is \"feed\".')
 })
 
 
@@ -556,7 +562,8 @@ export const GetMyAiSettingsResponse = zod.object({
   "enabled": zod.boolean(),
   "configured": zod.boolean(),
   "model": zod.string().nullish()
-}))
+})),
+  "preferredArtPieceVendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']).nullable()
 })
 
 
@@ -575,7 +582,8 @@ export const UpdateMyAiSettingsBody = zod.object({
   "enabled": zod.boolean().optional(),
   "model": zod.string().min(1).max(updateMyAiSettingsBodySettingsItemModelMax).optional(),
   "apiKey": zod.string().min(1).max(updateMyAiSettingsBodySettingsItemApiKeyMax).optional()
-}))
+})),
+  "preferredArtPieceVendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']).nullish()
 }).describe('Owner AI settings for all supported vendors. Each vendor keeps its own\nenabled flag, model slug, and encrypted API key so the editor can\nswitch vendors without re-entering credentials.\n')
 
 export const UpdateMyAiSettingsResponse = zod.object({
@@ -589,7 +597,8 @@ export const UpdateMyAiSettingsResponse = zod.object({
   "enabled": zod.boolean(),
   "configured": zod.boolean(),
   "model": zod.string().nullish()
-}))
+})),
+  "preferredArtPieceVendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']).nullable()
 })
 
 
@@ -614,6 +623,246 @@ export const ProcessAiTextResponse = zod.object({
   "vendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']),
   "vendorLabel": zod.string(),
   "model": zod.string()
+})
+
+
+/**
+ * @summary List the owner's reusable art pieces
+ */
+export const ListArtPiecesResponse = zod.object({
+  "pieces": zod.array(zod.object({
+  "id": zod.number(),
+  "ownerUserId": zod.string(),
+  "title": zod.string(),
+  "prompt": zod.string(),
+  "engine": zod.enum(['p5', 'c2', 'three']),
+  "status": zod.enum(['active', 'archived']),
+  "currentVersionId": zod.number().nullable(),
+  "thumbnailUrl": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "currentVersion": zod.object({
+  "id": zod.number(),
+  "artPieceId": zod.number(),
+  "prompt": zod.string(),
+  "structuredSpec": zod.record(zod.string(), zod.unknown()),
+  "generatedCode": zod.string(),
+  "engine": zod.enum(['p5', 'c2', 'three']),
+  "generationVendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']).nullish(),
+  "generationModel": zod.string().nullish(),
+  "validationStatus": zod.enum(['validated']),
+  "generationAttemptCount": zod.number(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+}).nullable()
+}))
+})
+
+
+/**
+ * @summary Save a new reusable art piece
+ */
+export const createArtPieceBodyDraftTokenMax = 191;
+
+export const createArtPieceBodyThumbnailUrlMax = 2048;
+
+
+
+export const CreateArtPieceBody = zod.object({
+  "draftToken": zod.string().min(1).max(createArtPieceBodyDraftTokenMax),
+  "thumbnailUrl": zod.string().url().max(createArtPieceBodyThumbnailUrlMax).optional()
+})
+
+
+/**
+ * @summary Generate an unsaved art piece draft with the selected AI vendor
+ */
+export const generateArtPieceBodyPromptMax = 4000;
+
+
+
+export const GenerateArtPieceBody = zod.object({
+  "prompt": zod.string().min(1).max(generateArtPieceBodyPromptMax),
+  "engine": zod.enum(['p5', 'c2', 'three']),
+  "vendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google'])
+})
+
+export const GenerateArtPieceResponse = zod.object({
+  "draftToken": zod.string(),
+  "title": zod.string(),
+  "engine": zod.enum(['p5', 'c2', 'three']),
+  "structuredSpec": zod.record(zod.string(), zod.unknown()),
+  "generatedCode": zod.string(),
+  "notes": zod.string().nullable(),
+  "vendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']),
+  "vendorLabel": zod.string(),
+  "model": zod.string(),
+  "validationStatus": zod.enum(['validated']),
+  "attemptCount": zod.number(),
+  "maxAttempts": zod.number(),
+  "timedOut": zod.boolean(),
+  "cancelled": zod.boolean(),
+  "wasRepaired": zod.boolean()
+})
+
+
+/**
+ * @summary Get one owner art piece and its versions
+ */
+export const GetArtPieceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetArtPieceResponse = zod.object({
+  "id": zod.number(),
+  "ownerUserId": zod.string(),
+  "title": zod.string(),
+  "prompt": zod.string(),
+  "engine": zod.enum(['p5', 'c2', 'three']),
+  "status": zod.enum(['active', 'archived']),
+  "currentVersionId": zod.number().nullable(),
+  "thumbnailUrl": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "currentVersion": zod.object({
+  "id": zod.number(),
+  "artPieceId": zod.number(),
+  "prompt": zod.string(),
+  "structuredSpec": zod.record(zod.string(), zod.unknown()),
+  "generatedCode": zod.string(),
+  "engine": zod.enum(['p5', 'c2', 'three']),
+  "generationVendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']).nullish(),
+  "generationModel": zod.string().nullish(),
+  "validationStatus": zod.enum(['validated']),
+  "generationAttemptCount": zod.number(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+}).nullable()
+}).and(zod.object({
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "artPieceId": zod.number(),
+  "prompt": zod.string(),
+  "structuredSpec": zod.record(zod.string(), zod.unknown()),
+  "generatedCode": zod.string(),
+  "engine": zod.enum(['p5', 'c2', 'three']),
+  "generationVendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']).nullish(),
+  "generationModel": zod.string().nullish(),
+  "validationStatus": zod.enum(['validated']),
+  "generationAttemptCount": zod.number(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+}))
+}))
+
+
+/**
+ * @summary Update owner-controlled art piece metadata
+ */
+export const UpdateArtPieceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateArtPieceBodyTitleMax = 255;
+
+export const updateArtPieceBodyPromptMax = 4000;
+
+export const updateArtPieceBodyThumbnailUrlMax = 2048;
+
+
+
+export const UpdateArtPieceBody = zod.object({
+  "title": zod.string().min(1).max(updateArtPieceBodyTitleMax).optional(),
+  "prompt": zod.string().min(1).max(updateArtPieceBodyPromptMax).optional(),
+  "status": zod.enum(['active', 'archived']).optional(),
+  "thumbnailUrl": zod.string().url().max(updateArtPieceBodyThumbnailUrlMax).nullish()
+})
+
+export const UpdateArtPieceResponse = zod.object({
+  "id": zod.number(),
+  "ownerUserId": zod.string(),
+  "title": zod.string(),
+  "prompt": zod.string(),
+  "engine": zod.enum(['p5', 'c2', 'three']),
+  "status": zod.enum(['active', 'archived']),
+  "currentVersionId": zod.number().nullable(),
+  "thumbnailUrl": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "currentVersion": zod.object({
+  "id": zod.number(),
+  "artPieceId": zod.number(),
+  "prompt": zod.string(),
+  "structuredSpec": zod.record(zod.string(), zod.unknown()),
+  "generatedCode": zod.string(),
+  "engine": zod.enum(['p5', 'c2', 'three']),
+  "generationVendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']).nullish(),
+  "generationModel": zod.string().nullish(),
+  "validationStatus": zod.enum(['validated']),
+  "generationAttemptCount": zod.number(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+}).nullable()
+})
+
+
+/**
+ * @summary Delete an art piece and all its versions (owner only)
+ */
+export const DeleteArtPieceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Save a new version for an existing art piece
+ */
+export const CreateArtPieceVersionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const createArtPieceVersionBodyDraftTokenMax = 191;
+
+export const createArtPieceVersionBodyTitleMax = 255;
+
+
+
+export const CreateArtPieceVersionBody = zod.object({
+  "draftToken": zod.string().min(1).max(createArtPieceVersionBodyDraftTokenMax),
+  "title": zod.string().min(1).max(createArtPieceVersionBodyTitleMax).optional(),
+  "makeCurrent": zod.boolean().optional()
+})
+
+
+/**
+ * @summary Get the public runtime payload for an embedded art piece
+ */
+export const GetEmbeddedArtPieceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEmbeddedArtPieceQueryParams = zod.object({
+  "version": zod.coerce.number().optional()
+})
+
+export const GetEmbeddedArtPieceResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "engine": zod.enum(['p5', 'c2', 'three']),
+  "version": zod.object({
+  "id": zod.number(),
+  "artPieceId": zod.number(),
+  "prompt": zod.string(),
+  "structuredSpec": zod.record(zod.string(), zod.unknown()),
+  "generatedCode": zod.string(),
+  "engine": zod.enum(['p5', 'c2', 'three']),
+  "generationVendor": zod.enum(['openrouter', 'opencode-zen', 'opencode-go', 'google']).nullish(),
+  "generationModel": zod.string().nullish(),
+  "validationStatus": zod.enum(['validated']),
+  "generationAttemptCount": zod.number(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+})
 })
 
 
@@ -865,6 +1114,8 @@ export const ListFeedSourcesResponse = zod.object({
   "sources": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "username": zod.string().nullish().describe('Optional URL-safe handle for the feed\'s profile page (enables \/users\/@handle).'),
+  "bio": zod.string().nullish().describe('Optional short description shown on the feed\'s profile page.'),
   "authorName": zod.string().max(listFeedSourcesResponseSourcesItemAuthorNameMax).nullish().describe('Optional display name to use for all posts imported from this source. Falls back to the feed item\'s author, then the source name.'),
   "feedUrl": zod.string(),
   "siteUrl": zod.string().nullish(),
@@ -886,6 +1137,8 @@ export const ListFeedSourcesResponse = zod.object({
  */
 export const createFeedSourceBodyNameMax = 255;
 
+export const createFeedSourceBodyBioMax = 500;
+
 export const createFeedSourceBodyAuthorNameMax = 255;
 
 export const createFeedSourceBodyFeedUrlMax = 2048;
@@ -897,6 +1150,7 @@ export const createFeedSourceBodyEnabledDefault = true;
 
 export const CreateFeedSourceBody = zod.object({
   "name": zod.string().max(createFeedSourceBodyNameMax),
+  "bio": zod.string().max(createFeedSourceBodyBioMax).nullish().describe('Optional short description shown on the feed\'s profile page.'),
   "authorName": zod.string().max(createFeedSourceBodyAuthorNameMax).nullish().describe('Optional display name to use for all posts imported from this source.'),
   "feedUrl": zod.string().url().max(createFeedSourceBodyFeedUrlMax),
   "siteUrl": zod.string().url().max(createFeedSourceBodySiteUrlMax).nullish(),
@@ -914,6 +1168,10 @@ export const UpdateFeedSourceParams = zod.object({
 
 export const updateFeedSourceBodyNameMax = 255;
 
+export const updateFeedSourceBodyUsernameMax = 30;
+
+export const updateFeedSourceBodyBioMax = 500;
+
 export const updateFeedSourceBodyAuthorNameMax = 255;
 
 export const updateFeedSourceBodyFeedUrlMax = 2048;
@@ -924,6 +1182,8 @@ export const updateFeedSourceBodySiteUrlMax = 2048;
 
 export const UpdateFeedSourceBody = zod.object({
   "name": zod.string().max(updateFeedSourceBodyNameMax).optional(),
+  "username": zod.string().max(updateFeedSourceBodyUsernameMax).nullish().describe('Optional URL-safe handle (enables \/users\/@handle). Must be 2–30 lowercase letters, numbers, or underscores.'),
+  "bio": zod.string().max(updateFeedSourceBodyBioMax).nullish().describe('Optional short description shown on the feed\'s profile page.'),
   "authorName": zod.string().max(updateFeedSourceBodyAuthorNameMax).nullish().describe('Optional display name to use for all posts imported from this source.'),
   "feedUrl": zod.string().url().max(updateFeedSourceBodyFeedUrlMax).optional(),
   "siteUrl": zod.string().url().max(updateFeedSourceBodySiteUrlMax).nullish(),
@@ -938,6 +1198,8 @@ export const updateFeedSourceResponseAuthorNameMax = 255;
 export const UpdateFeedSourceResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "username": zod.string().nullish().describe('Optional URL-safe handle for the feed\'s profile page (enables \/users\/@handle).'),
+  "bio": zod.string().nullish().describe('Optional short description shown on the feed\'s profile page.'),
   "authorName": zod.string().max(updateFeedSourceResponseAuthorNameMax).nullish().describe('Optional display name to use for all posts imported from this source. Falls back to the feed item\'s author, then the source name.'),
   "feedUrl": zod.string(),
   "siteUrl": zod.string().nullish(),

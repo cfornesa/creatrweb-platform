@@ -76,7 +76,13 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
   });
 
   useEffect(() => {
-    setDisplayPost(post);
+    setDisplayPost((prev) =>
+      prev.id === post.id &&
+      prev.content === post.content &&
+      prev.contentFormat === post.contentFormat
+        ? prev
+        : post,
+    );
   }, [post]);
 
   const deletePost = useDeletePost({

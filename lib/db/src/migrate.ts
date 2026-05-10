@@ -111,6 +111,7 @@ export async function ensureTables(): Promise<void> {
       updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       last_login_at DATETIME(3) NULL,
       post_count INT NOT NULL DEFAULT 0,
+      preferred_art_piece_vendor VARCHAR(64) NULL,
       UNIQUE KEY users_email_unique (email)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
@@ -129,6 +130,109 @@ export async function ensureTables(): Promise<void> {
         FOREIGN KEY (user_id) REFERENCES users(id)
         ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS art_pieces (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      owner_user_id VARCHAR(191) NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      prompt TEXT NOT NULL,
+      engine VARCHAR(16) NOT NULL DEFAULT 'p5',
+      status VARCHAR(16) NOT NULL DEFAULT 'active',
+      current_version_id INT NULL,
+      thumbnail_url VARCHAR(2048) NULL,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      CONSTRAINT art_pieces_owner_user_id_fk
+        FOREIGN KEY (owner_user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS art_piece_versions (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      art_piece_id INT NOT NULL,
+      prompt TEXT NOT NULL,
+      structured_spec TEXT NOT NULL,
+      generated_code TEXT NOT NULL,
+      engine VARCHAR(16) NOT NULL DEFAULT 'p5',
+      generation_vendor VARCHAR(64) NULL,
+      generation_model VARCHAR(191) NULL,
+      validation_status VARCHAR(32) NOT NULL DEFAULT 'validated',
+      generation_attempt_count INT NOT NULL DEFAULT 1,
+      notes TEXT NULL,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      CONSTRAINT art_piece_versions_art_piece_id_fk
+        FOREIGN KEY (art_piece_id) REFERENCES art_pieces(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await ensureIndex(
+    "art_pieces",
+    "art_pieces_owner_idx",
+    "CREATE INDEX art_pieces_owner_idx ON art_pieces (owner_user_id)",
+  );
+  await ensureIndex(
+    "art_pieces",
+    "art_pieces_status_idx",
+    "CREATE INDEX art_pieces_status_idx ON art_pieces (status)",
+  );
+  await ensureIndex(
+    "art_piece_versions",
+    "art_piece_versions_art_piece_idx",
+    "CREATE INDEX art_piece_versions_art_piece_idx ON art_piece_versions (art_piece_id)",
+  );
+  await ensureColumn("art_piece_versions", "structured_spec", "structured_spec TEXT NULL");
+  await ensureColumn(
+    "art_piece_versions",
+    "validation_status",
+    "validation_status VARCHAR(32) NOT NULL DEFAULT 'validated'",
+  );
+  await ensureColumn(
+    "art_piece_versions",
+    "generation_attempt_count",
+    "generation_attempt_count INT NOT NULL DEFAULT 1",
+  );
+  await mysqlPool.query(`
+    UPDATE art_piece_versions
+    SET structured_spec = JSON_OBJECT(
+      'version', 1,
+      'canvas', JSON_OBJECT('width', 640, 'height', 420, 'frameRate', 30),
+      'background', '#f5f5f5',
+      'elements', JSON_ARRAY()
+    )
+    WHERE structured_spec IS NULL
+  `);
+  // A-Frame generation/rendering was intentionally rolled back. Remove any
+  // saved A-Frame versions, then re-point affected parent pieces to their
+  // newest remaining version or delete the piece if no supported versions remain.
+  await mysqlPool.query(`
+    DELETE FROM art_piece_versions
+    WHERE engine = 'aframe'
+  `);
+  await mysqlPool.query(`
+    UPDATE art_pieces ap
+    LEFT JOIN (
+      SELECT art_piece_id, MAX(id) AS latest_version_id
+      FROM art_piece_versions
+      GROUP BY art_piece_id
+    ) latest ON latest.art_piece_id = ap.id
+    LEFT JOIN art_piece_versions latest_version ON latest_version.id = latest.latest_version_id
+    LEFT JOIN art_piece_versions current_version ON current_version.id = ap.current_version_id
+    SET ap.current_version_id = latest.latest_version_id,
+        ap.engine = COALESCE(latest_version.engine, ap.engine)
+    WHERE ap.engine = 'aframe'
+       OR ap.current_version_id IS NULL
+       OR current_version.id IS NULL
+  `);
+  await mysqlPool.query(`
+    DELETE ap
+    FROM art_pieces ap
+    LEFT JOIN art_piece_versions apv ON apv.art_piece_id = ap.id
+    WHERE apv.id IS NULL
   `);
 
   await mysqlPool.query(`
@@ -356,6 +460,11 @@ export async function ensureTables(): Promise<void> {
     "color_destructive_foreground",
     "color_destructive_foreground VARCHAR(64) NULL",
   );
+  await ensureColumn(
+    "users",
+    "preferred_art_piece_vendor",
+    "preferred_art_piece_vendor VARCHAR(64) NULL",
+  );
 
   await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS site_settings (
@@ -490,6 +599,16 @@ export async function ensureTables(): Promise<void> {
     "feed_sources",
     "author_name",
     "author_name VARCHAR(255) NULL",
+  );
+  await ensureColumn(
+    "feed_sources",
+    "username",
+    "username VARCHAR(100) NULL",
+  );
+  await ensureColumn(
+    "feed_sources",
+    "bio",
+    "bio TEXT NULL",
   );
 
   // FK from `posts.source_feed_id` → `feed_sources.id`. Has to live
