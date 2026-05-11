@@ -98,9 +98,61 @@ export default function AdminPiecesPage() {
   // Initialize code only when the piece or the active version changes
   useEffect(() => {
     if (selected) {
-      setHtmlCode(selected.currentVersion?.htmlCode || "");
-      setCssCode(selected.currentVersion?.cssCode || "");
-      setGeneratedCode(selected.currentVersion?.generatedCode || "");
+      const current = selected.currentVersion;
+      const engine = selected.engine;
+      
+      // Try to recover the intended background color from the legacy spec if possible
+      let recoveredBackground = engine === "three" ? "#000" : "#fff";
+      if (current?.structuredSpec) {
+        try {
+          const spec = typeof current.structuredSpec === "string" 
+            ? JSON.parse(current.structuredSpec) 
+            : current.structuredSpec;
+          const bg = spec.background || spec.scene?.background;
+          if (bg && typeof bg === "string") recoveredBackground = bg;
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+
+      let fallbackHtml = '<div id="canvas-container"></div>';
+      let fallbackCss = `body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: ${recoveredBackground};
+}
+canvas { display: block; }`;
+      
+      if (engine === "three") {
+        fallbackHtml = '<div id="container"></div>';
+        fallbackCss = `body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: ${recoveredBackground};
+}
+#container { width: 100vw; height: 100vh; }`;
+      } else if (engine === "c2") {
+        fallbackHtml = '<canvas id="piece-canvas"></canvas>';
+        fallbackCss = `html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  background: ${recoveredBackground};
+}
+canvas { display: block; }`;
+      }
+      
+      setHtmlCode(current?.htmlCode || fallbackHtml);
+      setCssCode(current?.cssCode || fallbackCss);
+      setGeneratedCode(current?.generatedCode || "");
     }
   }, [selected?.id, selected?.currentVersionId]);
 

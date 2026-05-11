@@ -1267,24 +1267,52 @@ only queried the `users` table and returned 404 → "USER NOT FOUND".
 - No user records are created for feed sources; the distinction between automated
   feed profiles and human user profiles is expressed via `sourceType`.
 
----
-
-## 2026-05-10 — Art Piece Generation Overhaul & Editable Code
+## 2026-05-10 — Art Piece Rendering Overhaul & Editable Source Code
 
 ### Trigger
-Pieces could only be saved via JSON specifications that restricted manual editing and frequently resulted in validation errors due to AI output inconsistencies. The user requested explicitly editable code tabs (HTML, CSS, JS) for pieces and a refactored AI generation process to inject boilerplate code instead of relying on pure JSON specifications. The user also requested to feed failed AI iterations back to the model rather than discarding them, and extending generation attempts.
+Pieces could only be saved via JSON specifications that restricted manual editing and frequently resulted in validation errors due to AI output inconsistencies. The user requested explicitly editable code tabs (HTML, CSS, JS) for pieces and a refactored AI generation process to inject boilerplate code instead of relying on pure JSON specifications. Initial attempts to fix this via software Proxies and `new Function` evaluation proved brittle, leading to "code is not defined" and "illegal invocation" errors, and Three.js pieces frequently rendered as blank screens due to missing camera framing or unserved library chunks.
 
 ### Decisions Confirmed
+
+**Systemic Rendering Overhaul:**
+- Replaced the brittle Proxy-based evaluation with native browser execution inside a sandboxed `<iframe>`. The `ArtPieceRenderer` now uses `iframe srcdoc` for previews, ensuring the Admin preview behaves exactly like the live site.
+- Removed all `mockWindow` and `robustEval` logic. AI-generated code now runs natively in the global scope of the iframe, protected by the `sandbox="allow-scripts allow-same-origin"` attribute.
+- Updated `app.ts` to serve entire library directories (`p5`, `three`, `c2.js`) via `express.static` under `/runtimes`. This allows modular libraries like Three.js to lazily load their own chunks (e.g., `three.core.min.js`), resolving `404` errors.
+- Added a global `window.onerror` listener inside all pieces to provide clear, visible error overlays for debugging.
+
+**AI Generation & Schema Updates:**
 - Added `html_code` and `css_code` to `art_piece_versions` table and made `structured_spec` nullable to allow storing explicit source code per version.
-- Replaced JSON schema validation in the AI piece generation pipeline with markdown code block extraction (\`\`\`html, \`\`\`css, \`\`\`javascript).
-- Modified AI system prompts across P5, C2, and Three.js engines to provide boilerplate code templates.
-- Simplified the server preflight validation to a direct `new Function` parse instead of complex runtime mocking, relaxing strict AI syntax expectations while preserving malicious code checks.
+- Replaced JSON schema constraints in the generation pipeline with Markdown code block extraction (```html, ```css, ```javascript).
+- Modified AI system prompts to provide boilerplate code templates and enforced a **mandatory three-block return** requirement.
+- Added explicit **infinite animation requirements** to prompts (using `Math.sin/cos` and `frameCount`) to prevent pieces from ending on a blank screen.
 - Enhanced the generation retry logic to pass failed code blocks back to the AI for iterative repairs (up to 5 attempts, with a 120s timeout limit).
-- The `POST /api/art-pieces/:id/versions` API endpoint now supports manual overrides for `htmlCode`, `cssCode`, and `generatedCode`, allowing the user to bypass AI generation to explicitly save modifications made in the UI.
-- The Admin UI (`/admin/pieces`) now includes individual tabs for HTML, CSS, and JS areas when viewing a piece. It also adds a "Save manual edits" button.
-- The Draft preview dialog also displays the raw extracted HTML, CSS, and JS.
-- The `/embed/pieces/:id` route was refactored. If a version explicitly defines `htmlCode` and `cssCode`, it builds the iframe document around the user's manual inputs rather than injecting generic engine boilerplate.
+
+**Admin UI & UX Refinements:**
+- The Admin UI (`/admin/pieces`) now includes separate tabs for Metadata, HTML, CSS, and JS.
+- Preview rendering now uses live textarea states, allowing for real-time testing of manual edits before saving.
+- For existing pieces with `null` code, the UI automatically populates textareas by extracting original background colors from the `structuredSpec` and applying engine-specific fallback templates.
+- Constrained all art-piece related dialogs (Library, Draft, Generation) to `90vh` and `90vw` with `overflow-y-auto` to ensure they always fit the screen and remain accessible.
+- Removed version pinning from embed URLs (`/embed/pieces/${id}`) so that edits made in the Admin console are instantly reflected in all posts using that piece.
+
+**Three.js Auto-Fit:**
+- Implemented a robust `autoFit` logic in both the preview and embed templates. It instruments the `Scene` and `PerspectiveCamera` to track all objects (including `Points` and `Lines`) and uses `Box3.setFromObject(scene)` at frame 15 to automatically frame the camera, regardless of AI-generated camera positions.
 
 ### Outcome
-- AI iteration is less prone to validation loop exhaustion and builds on previous attempts.
-- The user can natively edit and store JS, HTML, and CSS directly in the Admin console.
+- AI iteration is robust, uses previous attempts as material, and generates continuously engaging looping animations.
+- The user can natively edit and store JS, HTML, and CSS directly in the Admin console with real-time previewing.
+- Three.js pieces render reliably across all posts with automatic camera framing and full library support.
+
+---
+
+## 2026-05-11 — Home Feed Auto-Update (React Query Invalidation)
+
+### Trigger
+Posting new content, updating posts, or approving items from the review queue did not automatically update the main home feed. Visitors and owners were forced to manually refresh the browser to see their changes.
+
+### Decisions Confirmed
+The home feed utilizes a custom `useInfiniteQuery` with a specific internal key (`"listPosts"`). This key was not being targeted by existing mutations.
+- Updated `ComposePost.tsx`, `PostCard.tsx`, `admin-feeds.tsx`, and `admin-pending.tsx` to explicitly call `queryClient.invalidateQueries({ queryKey: ["listPosts"] })` during the `onSuccess` phase of create, update, delete, and approval mutations.
+- This ensures that any action that modifies the public timeline triggers an immediate, seamless background refetch for the home page feed.
+
+### Outcome
+- The main feed now updates automatically in real-time as content is created or modified, providing a much more intuitive and reactive user experience.

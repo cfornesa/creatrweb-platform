@@ -560,7 +560,9 @@ router.post("/art-pieces", requireAuth, requireOwner, async (req: Request, res: 
       .values({
         artPieceId: pieceId,
         prompt: draft.prompt,
-        structuredSpec: JSON.stringify(draft.structuredSpec),
+        structuredSpec: draft.structuredSpec ? JSON.stringify(draft.structuredSpec) : null,
+        htmlCode: draft.htmlCode,
+        cssCode: draft.cssCode,
         generatedCode: draft.generatedCode,
         engine,
         generationVendor: draft.generationVendor,
