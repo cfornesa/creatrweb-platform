@@ -74,6 +74,7 @@ function pieceEmbedHtml(title: string, engine: string, code: string, htmlCode: s
     });
   `;
 
+  // Standard library paths based on express.static mounts in app.ts
   const libraryScripts: Record<string, string> = {
     p5: '<script src="/runtimes/p5/p5.min.js"></script>',
     three: '<script type="importmap">{"imports":{"three":"/runtimes/three/three.module.min.js"}}</script>',
