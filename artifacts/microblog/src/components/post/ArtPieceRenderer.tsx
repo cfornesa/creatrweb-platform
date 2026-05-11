@@ -71,14 +71,15 @@ function buildArtPieceSrcDoc(
   `;
 
   const libraryScripts: Record<string, string> = {
-    p5: '<script src="/runtimes/p5/p5.min.js"></script>',
-    three: '<script type="importmap">{"imports":{"three":"/runtimes/three/three.module.min.js"}}</script>',
-    c2: '<script src="/runtimes/c2/c2.min.js"></script>',
+    p5: '<script src="/api/runtimes/p5/p5.min.js"></script>',
+    three: '<script type="importmap">{"imports":{"three":"/api/runtimes/three/three.module.min.js"}}</script>',
+    c2: '<script src="/api/runtimes/c2/c2.min.js"></script>',
   };
 
-  const engineInit = engine === "three" 
-    ? `
-      import * as THREE from '/runtimes/three/three.module.min.js';
+  const engineInit =
+    engine === "three"
+      ? `
+      import * as THREE from '/api/runtimes/three/three.module.min.js';
       window.THREE = THREE;
       
       const state = { scene: null, camera: null, objects: [] };

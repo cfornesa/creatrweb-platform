@@ -64,7 +64,7 @@ Key behavior:
 - the UI only opens a draft preview after the draft has been validated
 - saving a piece to the library or adding a new version consumes a one-time validated draft token, so arbitrary client-submitted code is not accepted
 - saved embeds are version-pinned, so older posts keep rendering the version they originally inserted
-- iframe embeds at `/embed/pieces/:id` serve the correct runtime library for the piece's engine via `/runtimes/`
+- iframe embeds at `/embed/pieces/:id` serve the correct runtime library for the piece's engine via `/api/runtimes/`
 
 The owner can manage reusable pieces from `/admin/pieces`, regenerate versions, archive pieces, copy an iframe embed code to clipboard, and reinsert existing embeds from the composer library picker.
 

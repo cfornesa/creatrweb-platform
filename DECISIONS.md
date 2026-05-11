@@ -1277,7 +1277,7 @@ Pieces could only be saved via JSON specifications that restricted manual editin
 **Systemic Rendering Overhaul:**
 - Replaced the brittle Proxy-based evaluation with native browser execution inside a sandboxed `<iframe>`. The `ArtPieceRenderer` now uses `iframe srcdoc` for previews, ensuring the Admin preview behaves exactly like the live site.
 - Removed all `mockWindow` and `robustEval` logic. AI-generated code now runs natively in the global scope of the iframe, protected by the `sandbox="allow-scripts allow-same-origin"` attribute.
-- Updated `app.ts` to serve entire library directories (`p5`, `three`, `c2.js`) via `express.static` under `/runtimes`. This allows modular libraries like Three.js to lazily load their own chunks (e.g., `three.core.min.js`), resolving `404` errors.
+- Updated `app.ts` to serve entire library directories (`p5`, `three`, `c2.js`) via `express.static` under `/api/runtimes`. This allows modular libraries like Three.js to lazily load their own chunks (e.g., `three.core.min.js`), resolving `404` errors.
 - Added a global `window.onerror` listener inside all pieces to provide clear, visible error overlays for debugging.
 
 **AI Generation & Schema Updates:**

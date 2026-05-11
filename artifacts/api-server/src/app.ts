@@ -26,10 +26,23 @@ const nmRoot = path.resolve(__dirname, "../../..", "node_modules");
 const app: Express = express();
 app.set("trust proxy", true);
 
-// Serve art-piece library runtimes from node_modules
-app.use("/runtimes/p5", express.static(path.join(nmRoot, "p5", "lib")));
-app.use("/runtimes/three", express.static(path.join(nmRoot, "three", "build")));
-app.use("/runtimes/c2", express.static(path.join(nmRoot, "c2.js", "dist")));
+// Serve art-piece library runtimes from node_modules. We use /api prefix to bypass
+// Replit proxy interception of .js files on some environments.
+const p5Path = fs.existsSync(path.join(nmRoot, "p5", "lib"))
+  ? path.join(nmRoot, "p5", "lib")
+  : path.resolve(__dirname, "../../..", "artifacts/microblog/node_modules/p5/lib");
+
+const threePath = fs.existsSync(path.join(nmRoot, "three", "build"))
+  ? path.join(nmRoot, "three", "build")
+  : path.resolve(__dirname, "../../..", "artifacts/microblog/node_modules/three/build");
+
+const c2Path = fs.existsSync(path.join(nmRoot, "c2.js", "dist"))
+  ? path.join(nmRoot, "c2.js", "dist")
+  : path.resolve(__dirname, "../../..", "artifacts/microblog/node_modules/c2.js/dist");
+
+app.use("/api/runtimes/p5", express.static(p5Path));
+app.use("/api/runtimes/three", express.static(threePath));
+app.use("/api/runtimes/c2", express.static(c2Path));
 
 app.use(
   pinoHttp({
