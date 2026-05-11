@@ -2649,13 +2649,29 @@ components:
           minLength: 1
           maxLength: 255
           nullable: true
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          nullable: true
+        engine:
+          type: string
+          enum: [p5, c2, three]
+          nullable: true
+        htmlCode:
+          type: string
+          nullable: true
+        cssCode:
+          type: string
+          nullable: true
+        generatedCode:
+          type: string
+          nullable: true
         thumbnailUrl:
           type: string
           format: uri
           maxLength: 2048
           nullable: true
-      required:
-        - draftToken
 
     CreateArtPieceResponse:
       allOf:
@@ -2707,6 +2723,10 @@ components:
           type: string
           minLength: 1
           maxLength: 255
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 4000
         makeCurrent:
           type: boolean
 

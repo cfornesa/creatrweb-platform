@@ -52,8 +52,13 @@ const GenerateArtPieceBody = z.object({
 });
 
 const CreateArtPieceBody = z.object({
-  draftToken: z.string().trim().min(1).max(191),
+  draftToken: z.string().trim().min(1).max(191).optional(),
   title: z.string().trim().min(1).max(255).optional(),
+  prompt: z.string().trim().min(1).max(4000).optional(),
+  engine: artPieceEngineSchema.optional(),
+  htmlCode: z.string().nullable().optional(),
+  cssCode: z.string().nullable().optional(),
+  generatedCode: z.string().optional(),
   thumbnailUrl: z.string().trim().url().max(2048).optional(),
 });
 
@@ -70,6 +75,7 @@ const CreateArtPieceVersionBody = z.object({
   cssCode: z.string().nullable().optional(),
   generatedCode: z.string().min(1).optional(),
   title: z.string().trim().min(1).max(255).optional(),
+  prompt: z.string().trim().min(1).max(4000).optional(),
   makeCurrent: z.boolean().optional(),
 });
 
@@ -522,16 +528,58 @@ router.post("/art-pieces", requireAuth, requireOwner, async (req: Request, res: 
       });
     }
 
-    const draft = consumeValidatedDraftToken(parsed.data.draftToken, req.currentUser!.id);
-    if (!draft) {
-      return res.status(409).json({
-        error: "This validated draft is no longer available. Generate the piece again before saving.",
-      });
-    }
+    let draftPrompt = "";
+    let draftHtmlCode: string | null = null;
+    let draftCssCode: string | null = null;
+    let draftGeneratedCode = "";
+    let draftStructuredSpec: string | null = null;
+    let draftVendor: string | null = null;
+    let draftModel: string | null = null;
+    let draftAttemptCount = 1;
+    let draftNotes: string | null = null;
+    let engine: "p5" | "c2" | "three" = "p5";
+    let draftTitle = "";
 
-    const engine = validateArtPieceEngine(draft.engine);
-    if (!engine) {
-      return res.status(400).json({ error: "Unsupported art piece engine" });
+    if (parsed.data.draftToken) {
+      const draft = consumeValidatedDraftToken(parsed.data.draftToken, req.currentUser!.id);
+      if (!draft) {
+        return res.status(409).json({
+          error: "This validated draft is no longer available. Generate the piece again before saving.",
+        });
+      }
+      const validatedEngine = validateArtPieceEngine(draft.engine);
+      if (!validatedEngine) {
+        return res.status(400).json({ error: "Unsupported art piece engine" });
+      }
+      engine = validatedEngine;
+      draftPrompt = draft.prompt;
+      draftHtmlCode = draft.htmlCode;
+      draftCssCode = draft.cssCode;
+      draftGeneratedCode = draft.generatedCode;
+      draftStructuredSpec = draft.structuredSpec ? JSON.stringify(draft.structuredSpec) : null;
+      draftVendor = draft.generationVendor;
+      draftModel = draft.generationModel;
+      draftAttemptCount = draft.attemptCount;
+      draftNotes = draft.notes;
+      draftTitle = draft.title;
+    } else {
+      // Manual creation
+      if (!parsed.data.engine) {
+        return res.status(400).json({ error: "Engine is required for manual piece creation" });
+      }
+      const manualEngine = validateArtPieceEngine(parsed.data.engine);
+      if (!manualEngine) {
+        return res.status(400).json({ error: "Invalid engine provided" });
+      }
+      if (!parsed.data.generatedCode) {
+        return res.status(400).json({ error: "JavaScript code is required for manual piece creation" });
+      }
+      engine = manualEngine;
+      draftPrompt = parsed.data.prompt || "";
+      draftHtmlCode = parsed.data.htmlCode || null;
+      draftCssCode = parsed.data.cssCode || null;
+      draftGeneratedCode = preflightCompiledArtPieceCode(engine, parsed.data.generatedCode);
+      draftTitle = parsed.data.title || "Untitled Piece";
     }
 
     const now = new Date().toISOString().slice(0, 23).replace("T", " ");
@@ -540,8 +588,8 @@ router.post("/art-pieces", requireAuth, requireOwner, async (req: Request, res: 
       .insert(artPiecesTable)
       .values({
         ownerUserId: req.currentUser!.id,
-        title: parsed.data.title || draft.title,
-        prompt: draft.prompt,
+        title: parsed.data.title || draftTitle,
+        prompt: draftPrompt,
         engine,
         status: "active",
         thumbnailUrl: parsed.data.thumbnailUrl,
@@ -559,17 +607,17 @@ router.post("/art-pieces", requireAuth, requireOwner, async (req: Request, res: 
       .insert(artPieceVersionsTable)
       .values({
         artPieceId: pieceId,
-        prompt: draft.prompt,
-        structuredSpec: draft.structuredSpec ? JSON.stringify(draft.structuredSpec) : null,
-        htmlCode: draft.htmlCode,
-        cssCode: draft.cssCode,
-        generatedCode: draft.generatedCode,
+        prompt: draftPrompt,
+        structuredSpec: draftStructuredSpec,
+        htmlCode: draftHtmlCode,
+        cssCode: draftCssCode,
+        generatedCode: draftGeneratedCode,
         engine,
-        generationVendor: draft.generationVendor,
-        generationModel: draft.generationModel,
-        validationStatus: draft.validationStatus,
-        generationAttemptCount: draft.attemptCount,
-        notes: draft.notes,
+        generationVendor: draftVendor,
+        generationModel: draftModel,
+        validationStatus: "validated",
+        generationAttemptCount: draftAttemptCount,
+        notes: draftNotes,
       })
       .$returningId();
     const versionId = insertVersion[0]?.id;
@@ -752,6 +800,9 @@ router.post("/art-pieces/:id/versions", requireAuth, requireOwner, async (req: R
     };
     if (typeof parsed.data.title === "string") {
       updates.title = parsed.data.title;
+    }
+    if (typeof parsed.data.prompt === "string") {
+      updates.prompt = parsed.data.prompt;
     }
     if (shouldMakeCurrent) {
       updates.currentVersionId = versionId;

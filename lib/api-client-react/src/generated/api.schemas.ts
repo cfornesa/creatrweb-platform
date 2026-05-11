@@ -736,17 +736,35 @@ export interface GeneratedArtPieceDraft {
   wasRepaired: boolean;
 }
 
+export type CreateArtPieceBodyEngine = typeof CreateArtPieceBodyEngine[keyof typeof CreateArtPieceBodyEngine] | null;
+
+
+export const CreateArtPieceBodyEngine = {
+  p5: 'p5',
+  c2: 'c2',
+  three: 'three',
+} as const;
+
 export interface CreateArtPieceBody {
   /**
      * @minLength 1
      * @maxLength 191
      */
-  draftToken: string;
+  draftToken?: string;
   /**
      * @minLength 1
      * @maxLength 255
      */
   title?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  prompt?: string | null;
+  engine?: CreateArtPieceBodyEngine;
+  htmlCode?: string | null;
+  cssCode?: string | null;
+  generatedCode?: string | null;
   /** @maxLength 2048 */
   thumbnailUrl?: string | null;
 }
@@ -794,6 +812,11 @@ export interface CreateArtPieceVersionBody {
      * @maxLength 255
      */
   title?: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  prompt?: string;
   makeCurrent?: boolean;
 }
 

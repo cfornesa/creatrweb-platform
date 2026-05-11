@@ -668,13 +668,20 @@ export const createArtPieceBodyDraftTokenMax = 191;
 
 export const createArtPieceBodyTitleMax = 255;
 
+export const createArtPieceBodyPromptMax = 4000;
+
 export const createArtPieceBodyThumbnailUrlMax = 2048;
 
 
 
 export const CreateArtPieceBody = zod.object({
-  "draftToken": zod.string().min(1).max(createArtPieceBodyDraftTokenMax),
+  "draftToken": zod.string().min(1).max(createArtPieceBodyDraftTokenMax).optional(),
   "title": zod.string().min(1).max(createArtPieceBodyTitleMax).nullish(),
+  "prompt": zod.string().min(1).max(createArtPieceBodyPromptMax).nullish(),
+  "engine": zod.enum(['p5', 'c2', 'three']).nullish(),
+  "htmlCode": zod.string().nullish(),
+  "cssCode": zod.string().nullish(),
+  "generatedCode": zod.string().nullish(),
   "thumbnailUrl": zod.string().url().max(createArtPieceBodyThumbnailUrlMax).nullish()
 })
 
@@ -839,6 +846,8 @@ export const createArtPieceVersionBodyDraftTokenMax = 191;
 
 export const createArtPieceVersionBodyTitleMax = 255;
 
+export const createArtPieceVersionBodyPromptMax = 4000;
+
 
 
 export const CreateArtPieceVersionBody = zod.object({
@@ -847,6 +856,7 @@ export const CreateArtPieceVersionBody = zod.object({
   "cssCode": zod.string().nullish(),
   "generatedCode": zod.string().min(1).optional(),
   "title": zod.string().min(1).max(createArtPieceVersionBodyTitleMax).optional(),
+  "prompt": zod.string().min(1).max(createArtPieceVersionBodyPromptMax).optional(),
   "makeCurrent": zod.boolean().optional()
 })
 

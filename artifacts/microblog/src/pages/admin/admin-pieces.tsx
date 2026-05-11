@@ -30,6 +30,102 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useOwnerAiVendors } from "@/hooks/use-owner-ai-vendors";
 
+const PIECE_TEMPLATES: Record<ArtPieceEngine, { html: string; css: string; js: string }> = {
+  p5: {
+    html: '<div id="canvas-container"></div>',
+    css: `body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+}
+canvas { display: block; }`,
+    js: `window.sketch = (p) => {
+  p.setup = () => {
+    p.createCanvas(800, 400);
+  };
+
+  p.draw = () => {
+    p.background(255);
+    p.fill(255, 0, 0);
+    p.noStroke();
+    
+    let size = 50 + Math.sin(p.frameCount * 0.05) * 20;
+    p.rectMode(p.CENTER);
+    p.rect(p.width / 2, p.height / 2, size, size);
+  };
+};`,
+  },
+  three: {
+    html: '<div id="container"></div>',
+    css: `body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+#container { width: 100vw; height: 100vh; }`,
+    js: `window.sketch = (runtime) => {
+  const { THREE, canvas, startFrame } = runtime;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+  camera.position.z = 5;
+
+  const geometry = new THREE.BoxGeometry(1, 1, 1);
+  const material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+  const cube = new THREE.Mesh(geometry, material);
+  scene.add(cube);
+
+  const light = new THREE.DirectionalLight(0xffffff, 1);
+  light.position.set(1, 1, 2);
+  scene.add(light);
+  scene.add(new THREE.AmbientLight(0x404040));
+
+  const stopFrame = startFrame((frameCount) => {
+    cube.rotation.x += 0.01;
+    cube.rotation.y += 0.01;
+    renderer.render(scene, camera);
+  });
+
+  return () => {
+    stopFrame();
+    renderer.dispose();
+  };
+};`,
+  },
+  c2: {
+    html: '<canvas id="piece-canvas"></canvas>',
+    css: `html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  background: #fff;
+}
+canvas { display: block; }`,
+    js: `window.sketch = (runtime) => {
+  const { c2, canvas, startFrame } = runtime;
+
+  const stopFrame = startFrame((frameCount) => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const size = 50 + Math.sin(frameCount * 0.05) * 20;
+    ctx.fillStyle = '#0000ff';
+    ctx.fillRect(canvas.width / 2 - size / 2, canvas.height / 2 - size / 2, size, size);
+  });
+
+  return stopFrame;
+};`,
+  },
+};
+
 export default function AdminPiecesPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -44,7 +140,7 @@ export default function AdminPiecesPage() {
   const [cssCode, setCssCode] = useState("");
   const [generatedCode, setGeneratedCode] = useState("");
   const [viewTab, setViewTab] = useState<"meta" | "html" | "css" | "js">("meta");
-  const [creating, setCreating] = useState(false);
+  const [creationMode, setCreationMode] = useState<null | "ai" | "manual">(null);
   const [draft, setDraft] = useState<GeneratedArtPieceDraft | null>(null);
   const [draftOpen, setDraftOpen] = useState(false);
   const [generationState, setGenerationState] = useState<ArtPieceGenerationState | null>(null);
@@ -61,10 +157,10 @@ export default function AdminPiecesPage() {
   }, [pieces.data?.pieces, query]);
 
   useEffect(() => {
-    if (!creating && !selectedId && filtered[0]) {
+    if (!creationMode && !selectedId && filtered[0]) {
       setSelectedId(filtered[0].id);
     }
-  }, [creating, filtered, selectedId]);
+  }, [creationMode, filtered, selectedId]);
 
   useEffect(() => {
     if (aiVendors.length > 0 && !aiVendors.some((vendor) => vendor.id === selectedVendor)) {
@@ -88,16 +184,16 @@ export default function AdminPiecesPage() {
 
   // Initialize metadata when selection changes
   useEffect(() => {
-    if (selected) {
+    if (selected && !creationMode) {
       setTitle(selected.title);
       setPrompt(selected.prompt);
       setSelectedEngine(selected.engine);
     }
-  }, [selected?.id]);
+  }, [selected?.id, creationMode]);
 
   // Initialize code only when the piece or the active version changes
   useEffect(() => {
-    if (selected) {
+    if (selected && !creationMode) {
       const current = selected.currentVersion;
       const engine = selected.engine;
       
@@ -154,7 +250,17 @@ canvas { display: block; }`;
       setCssCode(current?.cssCode || fallbackCss);
       setGeneratedCode(current?.generatedCode || "");
     }
-  }, [selected?.id, selected?.currentVersionId]);
+  }, [selected?.id, selected?.currentVersionId, creationMode]);
+
+  // Auto-populate templates for new manual pieces
+  useEffect(() => {
+    if (creationMode === "manual") {
+      const template = PIECE_TEMPLATES[selectedEngine];
+      setHtmlCode(template.html);
+      setCssCode(template.css);
+      setGeneratedCode(template.js);
+    }
+  }, [creationMode, selectedEngine]);
 
   useEffect(() => () => {
     generationAbortRef.current?.abort();
@@ -207,7 +313,7 @@ canvas { display: block; }`;
       onSuccess: (response) => {
         queryClient.invalidateQueries({ queryKey: getListArtPiecesQueryKey() });
         setSelectedId(response.id);
-        setCreating(false);
+        setCreationMode(null);
         setDraftOpen(false);
         setDraft(null);
         toast({ title: "New piece saved" });
@@ -387,14 +493,30 @@ canvas { display: block; }`;
       title="Pieces"
       description="Reusable interactive pieces for embedding into posts."
     >
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex justify-end gap-2">
         <Button
           size="sm"
+          variant="outline"
           onClick={() => {
-            setCreating(true);
+            setCreationMode("ai");
             setSelectedId(null);
             setTitle("");
             setPrompt("");
+          }}
+        >
+          + New AI Piece
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => {
+            setCreationMode("manual");
+            setSelectedId(null);
+            setTitle("");
+            setPrompt("");
+            const template = PIECE_TEMPLATES[selectedEngine];
+            setHtmlCode(template.html);
+            setCssCode(template.css);
+            setGeneratedCode(template.js);
           }}
         >
           + New Piece
@@ -449,7 +571,7 @@ canvas { display: block; }`;
 
         <Card>
           <CardContent className="space-y-5 p-4">
-            {creating && !selected ? (
+            {creationMode === "ai" && !selected ? (
               <>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
@@ -508,13 +630,13 @@ canvas { display: block; }`;
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setCreating(false)}
+                    onClick={() => setCreationMode(null)}
                   >
                     Cancel
                   </Button>
                 </div>
               </>
-            ) : !selected ? (
+            ) : !selected && creationMode !== "manual" ? (
               <p className="text-sm text-muted-foreground">Select a piece to manage it.</p>
             ) : (
               <>
@@ -639,7 +761,7 @@ canvas { display: block; }`;
                   )}
                 </div>
 
-                {selected ? (
+                {selected || creationMode === "manual" ? (
                   <ArtPieceRenderer
                     engine={selectedEngine}
                     code={generatedCode}
@@ -651,81 +773,109 @@ canvas { display: block; }`;
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
-                    onClick={() =>
-                      updatePiece.mutate({
-                        id: selected.id,
-                        data: { title, prompt },
-                      })
-                    }
-                    disabled={updatePiece.isPending}
+                    onClick={() => {
+                      if (creationMode === "manual") {
+                        createPiece.mutate({
+                          data: {
+                            title: title || "Untitled Piece",
+                            prompt,
+                            engine: selectedEngine,
+                            htmlCode,
+                            cssCode,
+                            generatedCode,
+                          },
+                        });
+                      } else if (selected) {
+                        createVersion.mutate({
+                          id: selected.id,
+                          data: {
+                            title,
+                            prompt,
+                            makeCurrent: true,
+                            htmlCode,
+                            cssCode,
+                            generatedCode,
+                          },
+                        });
+                      }
+                    }}
+                    disabled={createPiece.isPending || createVersion.isPending || !generatedCode.trim()}
                   >
-                    Save metadata
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() =>
-                      createVersion.mutate({
-                        id: selected.id,
-                        data: {
-                          title,
-                          makeCurrent: true,
-                          htmlCode,
-                          cssCode,
-                          generatedCode,
-                        },
-                      })
-                    }
-                    disabled={createVersion.isPending || !generatedCode.trim()}
-                  >
-                    Save manual edits
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() =>
-                      updatePiece.mutate({
-                        id: selected.id,
-                        data: { status: selected.status === "active" ? "archived" : "active" },
-                      })
-                    }
-                    disabled={updatePiece.isPending}
-                  >
-                    {selected.status === "active" ? "Archive" : "Restore"}
+                    {createPiece.isPending || createVersion.isPending ? "Saving..." : "Save"}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={!selectedVendor || generationState?.phase === "generating"}
-                    onClick={() => void handleGenerate()}
+                    onClick={() => {
+                      if (creationMode === "manual") {
+                        setCreationMode(null);
+                      } else if (selected) {
+                        setTitle(selected.title);
+                        setPrompt(selected.prompt);
+                        setSelectedEngine(selected.engine);
+                        setHtmlCode(selected.currentVersion?.htmlCode || "");
+                        setCssCode(selected.currentVersion?.cssCode || "");
+                        setGeneratedCode(selected.currentVersion?.generatedCode || "");
+                      }
+                    }}
                   >
-                    {generationState?.phase === "generating" ? "Generating..." : "Generate new version"}
+                    Cancel
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!selected.currentVersion}
-                    onClick={handlePieceEmbed}
-                  >
-                    <Code className="mr-1 h-3.5 w-3.5" /> Embed code
-                  </Button>
+                  {selected && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        updatePiece.mutate({
+                          id: selected.id,
+                          data: { status: selected.status === "active" ? "archived" : "active" },
+                        })
+                      }
+                      disabled={updatePiece.isPending}
+                    >
+                      {selected.status === "active" ? "Archive" : "Restore"}
+                    </Button>
+                  )}
+                  {selected && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!selectedVendor || generationState?.phase === "generating"}
+                      onClick={() => void handleGenerate()}
+                    >
+                      {generationState?.phase === "generating" ? "Generating..." : "Generate new version"}
+                    </Button>
+                  )}
+                  {selected && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!selected.currentVersion}
+                      onClick={handlePieceEmbed}
+                    >
+                      <Code className="mr-1 h-3.5 w-3.5" /> Embed code
+                    </Button>
+                  )}
                 </div>
 
-                <div className="space-y-2">
-                  <h3 className="font-semibold">Versions</h3>
+                {selected && (
                   <div className="space-y-2">
-                    {selected.versions.map((version) => (
-                      <div key={version.id} className="rounded-lg border border-border px-3 py-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-medium">Version #{version.id}</p>
-                          <span className="text-xs text-muted-foreground">{version.createdAt}</span>
+                    <h3 className="font-semibold">Versions</h3>
+                    <div className="space-y-2">
+                      {selected.versions.map((version) => (
+                        <div key={version.id} className="rounded-lg border border-border px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium">Version #{version.id}</p>
+                            <span className="text-xs text-muted-foreground">{version.createdAt}</span>
+                          </div>
+                          {version.notes ? (
+                            <p className="mt-1 text-xs text-muted-foreground">{version.notes}</p>
+                          ) : null}
                         </div>
-                        {version.notes ? (
-                          <p className="mt-1 text-xs text-muted-foreground">{version.notes}</p>
-                        ) : null}
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
           </CardContent>
@@ -759,10 +909,10 @@ canvas { display: block; }`;
         }}
         draft={draft}
         prompt={prompt}
-        isSaving={creating ? createPiece.isPending : createVersion.isPending}
+        isSaving={creationMode === "ai" ? createPiece.isPending : createVersion.isPending}
         onSaveAndInsert={() => {
           if (!draft) return;
-          if (creating) {
+          if (creationMode === "ai") {
             createPiece.mutate({ data: { draftToken: draft.draftToken, title: title || draft.title } });
           } else {
             if (!selected) return;
