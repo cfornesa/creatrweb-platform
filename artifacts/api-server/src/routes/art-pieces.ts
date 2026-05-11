@@ -235,9 +235,18 @@ async function generateValidatedDraft(input: {
         systemPrompt: getArtPieceGenerationSystemPrompt(input.engine),
         signal: input.signal,
       });
-      previousRawResponse = responseText;
 
-      const { htmlCode, cssCode, generatedCode: rawJsCode } = extractCodeBlocks(responseText);
+      previousRawResponse = responseText;
+      let { htmlCode, cssCode, generatedCode: rawJsCode } = extractCodeBlocks(responseText);
+
+      // Provide sensible defaults if the AI omitted them
+      if (!htmlCode) {
+        htmlCode = input.engine === "p5" ? '<div id="canvas-container"></div>' : '<div id="container"></div>';
+      }
+      if (!cssCode) {
+        cssCode = "body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }";
+      }
+
       const generatedCode = preflightCompiledArtPieceCode(input.engine, rawJsCode);
 
       const draftToken = issueValidatedDraftToken({
@@ -738,7 +747,6 @@ router.post("/art-pieces/:id/versions", requireAuth, requireOwner, async (req: R
     const shouldMakeCurrent = parsed.data.makeCurrent !== false;
     const updates: Partial<ArtPiece> = {
       updatedAt: new Date().toISOString().slice(0, 23).replace("T", " "),
-      prompt: draftPrompt,
     };
     if (typeof parsed.data.title === "string") {
       updates.title = parsed.data.title;

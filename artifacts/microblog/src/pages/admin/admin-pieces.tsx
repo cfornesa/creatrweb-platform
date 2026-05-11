@@ -84,24 +84,25 @@ export default function AdminPiecesPage() {
     },
   });
 
+  const selected = detail.data;
+
+  // Initialize metadata when selection changes
   useEffect(() => {
-    if (detail.data) {
-      setTitle(detail.data.title);
-      setPrompt(detail.data.prompt);
-      setSelectedEngine(detail.data.engine);
-      setHtmlCode(detail.data.currentVersion?.htmlCode || "");
-      setCssCode(detail.data.currentVersion?.cssCode || "");
-      setGeneratedCode(detail.data.currentVersion?.generatedCode || "");
+    if (selected) {
+      setTitle(selected.title);
+      setPrompt(selected.prompt);
+      setSelectedEngine(selected.engine);
     }
-  }, [
-    detail.data?.engine,
-    detail.data?.id,
-    detail.data?.title,
-    detail.data?.prompt,
-    detail.data?.currentVersion?.htmlCode,
-    detail.data?.currentVersion?.cssCode,
-    detail.data?.currentVersion?.generatedCode,
-  ]);
+  }, [selected?.id]);
+
+  // Initialize code only when the piece or the active version changes
+  useEffect(() => {
+    if (selected) {
+      setHtmlCode(selected.currentVersion?.htmlCode || "");
+      setCssCode(selected.currentVersion?.cssCode || "");
+      setGeneratedCode(selected.currentVersion?.generatedCode || "");
+    }
+  }, [selected?.id, selected?.currentVersionId]);
 
   useEffect(() => () => {
     generationAbortRef.current?.abort();
@@ -222,7 +223,7 @@ export default function AdminPiecesPage() {
       vendorLabel,
       model: null,
       attemptCount: 1,
-      maxAttempts: 3,
+      maxAttempts: 5,
       message: null,
       startedAt: Date.now(),
       approximateAttempts: false,
@@ -328,8 +329,6 @@ export default function AdminPiecesPage() {
       toast({ title: "Failed to copy", description: embedUrl, variant: "destructive" });
     });
   }
-
-  const selected = detail.data;
 
   return (
     <AdminLayout
@@ -588,10 +587,12 @@ export default function AdminPiecesPage() {
                   )}
                 </div>
 
-                {selected.currentVersion ? (
+                {selected ? (
                   <ArtPieceRenderer
-                    engine={selected.currentVersion.engine}
-                    code={selected.currentVersion.generatedCode}
+                    engine={selectedEngine}
+                    code={generatedCode}
+                    htmlCode={htmlCode}
+                    cssCode={cssCode}
                   />
                 ) : null}
 
@@ -663,7 +664,7 @@ export default function AdminPiecesPage() {
                     {selected.versions.map((version) => (
                       <div key={version.id} className="rounded-lg border border-border px-3 py-2">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-medium">Piece #{version.id}</p>
+                          <p className="text-sm font-medium">Version #{version.id}</p>
                           <span className="text-xs text-muted-foreground">{version.createdAt}</span>
                         </div>
                         {version.notes ? (
@@ -717,7 +718,7 @@ export default function AdminPiecesPage() {
               id: selected.id,
               data: {
                 draftToken: draft.draftToken,
-                title: draft.title,
+                title: title || draft.title,
                 makeCurrent: true,
               },
             });

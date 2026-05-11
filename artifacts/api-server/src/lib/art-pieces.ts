@@ -425,9 +425,12 @@ const ENGINE_ADAPTERS: Record<ArtPieceEngine, EngineAdapter<any>> = {
     schema: structuredP5ArtPieceSpecSchema, // Kept for backwards compatibility parsing
     systemPrompt: [
       "You generate reusable interactive art sketches for a self-hosted p5 runtime.",
-      "Return your response as Markdown code blocks (```html, ```css, ```javascript).",
+      "You MUST return your response as three separate Markdown code blocks (```html, ```css, and ```javascript).",
+      "Include a <div> for the sketch and relevant CSS for centering or sizing, even if they are minimal.",
       "Do NOT use import statements for p5; the runtime provides it globally.",
       "The JS must assign its sketch function to `window.sketch` like this: `window.sketch = (p) => { p.setup = () => {}; p.draw = () => {}; };`.",
+      "CRITICAL: Animations MUST be infinite and engaging. Use periodic functions like Math.sin() or Math.cos() combined with p.frameCount to ensure movement loops or pulsates indefinitely.",
+      "Avoid logic that permanently removes all elements from the screen. If elements are destroyed, they must be periodically respawned.",
       "Keep the composition self-contained and visually intentional.",
     ].join(" "),
     compile: compileP5StructuredSpec, // Kept for backwards compatibility
@@ -437,9 +440,11 @@ const ENGINE_ADAPTERS: Record<ArtPieceEngine, EngineAdapter<any>> = {
     schema: structuredC2ArtPieceSpecSchema,
     systemPrompt: [
       "You generate reusable interactive art sketches for a self-hosted c2.js runtime.",
-      "Return your response as Markdown code blocks (```html, ```css, ```javascript).",
+      "You MUST return your response as three separate Markdown code blocks (```html, ```css, and ```javascript).",
+      "Include a <canvas> for the sketch and relevant CSS for centering or sizing.",
       "Do NOT use import statements for c2; the runtime provides it globally.",
       "The JS must assign its setup function to `window.sketch` like this: `window.sketch = (runtime) => { const { c2, canvas, startFrame } = runtime; /* ... */ };`.",
+      "CRITICAL: Animations MUST be infinite. Use the frameCount passed to startFrame() with periodic functions like Math.sin() to ensure the piece loops or pulsates indefinitely. Respawn elements if they move off-screen or are destroyed.",
       "Keep the work visually intentional.",
     ].join(" "),
     compile: compileC2StructuredSpec,
@@ -449,10 +454,12 @@ const ENGINE_ADAPTERS: Record<ArtPieceEngine, EngineAdapter<any>> = {
     schema: structuredThreeArtPieceSpecSchema,
     systemPrompt: [
       "You generate reusable interactive 3D scenes for a self-hosted Three.js runtime.",
-      "Return your response as Markdown code blocks (```html, ```css, ```javascript).",
+      "You MUST return your response as three separate Markdown code blocks (```html, ```css, and ```javascript).",
+      "Include a container <div> or <canvas> and relevant CSS for centering or sizing.",
       "The runtime provides THREE globally. Do NOT use import statements.",
       "The JS must assign its setup function to `window.sketch` like this:",
       "`window.sketch = (runtime) => { const { THREE, canvas, startFrame } = runtime; /* setup scene, return cleanup function */ return () => {}; };`.",
+      "CRITICAL: Animations MUST be infinite. Use the frameCount passed to startFrame() with Math.sin/cos to create periodic motion or pulsating effects. Ensure elements don't just disappear; the scene must remain visually active indefinitely.",
       "Keep the scene self-contained.",
     ].join(" "),
     normalizeParsed: normalizeThreeStructuredSpecInput,
@@ -470,14 +477,17 @@ export function getArtPieceGenerationSystemPrompt(engine: ArtPieceEngine): strin
 }
 
 export function extractCodeBlocks(raw: string): { htmlCode: string | null; cssCode: string | null; generatedCode: string } {
-  const extract = (lang: string) => {
-    const match = raw.match(new RegExp(`\`\`\`${lang}\\s*\\n([\\s\\S]*?)\`\`\``, "i"));
-    return match ? match[1]!.trim() : null;
+  const extract = (langs: string[]) => {
+    for (const lang of langs) {
+      const match = raw.match(new RegExp("```" + lang + "\\s*([\\s\\S]*?)```", "i"));
+      if (match) return match[1]!.trim();
+    }
+    return null;
   };
 
-  const htmlCode = extract("html");
-  const cssCode = extract("css");
-  let generatedCode = extract("javascript") ?? extract("js");
+  const htmlCode = extract(["html"]);
+  const cssCode = extract(["css"]);
+  const generatedCode = extract(["javascript", "js", "javascript"]);
 
   if (!generatedCode) {
     throw new Error("AI response did not contain a ```javascript code block");
@@ -591,6 +601,7 @@ export function buildArtPieceRepairPrompt(input: {
     `Original prompt: ${input.originalPrompt}`,
     `The previous art-piece attempt failed validation: ${input.failureMessage}`,
     "Return a corrected response that fixes the error while staying visually faithful to the original prompt. Provide the HTML, CSS, and JS in Markdown code blocks.",
+    "CRITICAL: Animations MUST be infinite. They must loop, reset their state, or pulsate continuously. Never allow the piece to end on a blank screen or permanently destroy all elements.",
   ];
   if (input.previousRawResponse) {
     segments.push(`Previous invalid response: ${input.previousRawResponse}`);
