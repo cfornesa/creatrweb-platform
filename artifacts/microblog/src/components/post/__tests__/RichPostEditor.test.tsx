@@ -26,6 +26,7 @@ const setLinkRun = vi.fn();
 const unsetLinkRun = vi.fn();
 const setImageRun = vi.fn();
 const insertIframeRun = vi.fn();
+const insertIframe = vi.fn(() => ({ run: insertIframeRun }));
 const undoRun = vi.fn();
 const redoRun = vi.fn();
 const processMutateAsync = vi.fn();
@@ -61,7 +62,7 @@ vi.mock("@tiptap/react", () => ({
         extendMarkRange: () => ({ setLink: () => ({ run: setLinkRun }) }),
         unsetLink: () => ({ run: unsetLinkRun }),
         setImage: () => ({ run: setImageRun }),
-        insertIframe: () => ({ run: insertIframeRun }),
+        insertIframe,
         undo: () => ({ run: undoRun }),
         redo: () => ({ run: redoRun }),
       }),
@@ -231,6 +232,7 @@ describe("RichPostEditor AI action", () => {
     setLinkRun.mockClear();
     unsetLinkRun.mockClear();
     setImageRun.mockClear();
+    insertIframe.mockClear();
     insertIframeRun.mockClear();
     undoRun.mockClear();
     redoRun.mockClear();
@@ -406,6 +408,23 @@ describe("RichPostEditor AI action", () => {
 
     expect(insertIframeRun).toHaveBeenCalled();
     expect(promptSpy).toHaveBeenCalled();
+    promptSpy.mockRestore();
+  });
+
+  it("normalizes pasted piece embeds to the live piece URL", async () => {
+    const user = userEvent.setup();
+    const promptSpy = vi
+      .spyOn(window, "prompt")
+      .mockReturnValue('<iframe src="http://localhost:4000/embed/pieces/5?version=64" width="100%"></iframe>');
+    renderEditor([]);
+
+    await user.click(screen.getByLabelText("Insert iframe embed"));
+
+    expect(insertIframe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        src: "http://localhost:4000/embed/pieces/5",
+      }),
+    );
     promptSpy.mockRestore();
   });
 

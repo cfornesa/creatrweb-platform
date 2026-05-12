@@ -81,12 +81,60 @@ function ensureParagraphHtml(html: string) {
     return "<p></p>";
   }
   if (/<[a-z][\s\S]*>/i.test(trimmed)) {
-    return trimmed;
+    return normalizePieceEmbedUrls(trimmed);
   }
-  return trimmed
+  return normalizePieceEmbedUrls(
+    trimmed
     .split(/\n{2,}/)
     .map((paragraph) => `<p>${paragraph.replace(/\n/g, "<br>")}</p>`)
-    .join("");
+    .join(""),
+  );
+}
+
+function normalizePieceEmbedSrc(src: string) {
+  const trimmed = src.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  try {
+    const url = trimmed.startsWith("http://") || trimmed.startsWith("https://")
+      ? new URL(trimmed)
+      : new URL(trimmed, window.location.origin);
+    const match = url.pathname.match(/^\/embed\/pieces\/(\d+)$/);
+    if (!match) {
+      return trimmed;
+    }
+    return `${url.origin}/embed/pieces/${match[1]}`;
+  } catch {
+    const match = trimmed.match(/^(\/embed\/pieces\/\d+)(?:\?[^#]*)?(#.*)?$/);
+    if (!match) {
+      return trimmed;
+    }
+    return `${match[1]}${match[2] ?? ""}`;
+  }
+}
+
+function normalizePieceEmbedUrls(html: string) {
+  if (!/<iframe\b/i.test(html)) {
+    return html;
+  }
+
+  const document = new DOMParser().parseFromString(html, "text/html");
+  let mutated = false;
+  document.querySelectorAll("iframe[src]").forEach((iframe) => {
+    const currentSrc = iframe.getAttribute("src");
+    if (!currentSrc) {
+      return;
+    }
+    const normalizedSrc = normalizePieceEmbedSrc(currentSrc);
+    if (normalizedSrc !== currentSrc) {
+      iframe.setAttribute("src", normalizedSrc);
+      mutated = true;
+    }
+  });
+
+  return mutated ? document.body.innerHTML : html;
 }
 
 function parseIframeEmbed(embedCode: string) {
@@ -97,7 +145,7 @@ function parseIframeEmbed(embedCode: string) {
   }
 
   return {
-    src: iframe.getAttribute("src") ?? "",
+    src: normalizePieceEmbedSrc(iframe.getAttribute("src") ?? ""),
     width: iframe.getAttribute("width") ?? "100%",
     height: iframe.getAttribute("height") ?? "420",
     title: iframe.getAttribute("title") ?? "Embedded content",
@@ -370,7 +418,7 @@ export function RichPostEditor({
       return;
     }
 
-    const html = editor.getHTML();
+    const html = normalizePieceEmbedUrls(editor.getHTML());
     const meaningfulHtml = html
       .replace(/<p><\/p>/g, "")
       .replace(/<p>\s*<\/p>/g, "")

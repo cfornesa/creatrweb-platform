@@ -48,6 +48,8 @@ export default function PieceEmbed() {
       <ArtPieceRenderer
         engine={data.version.engine}
         code={data.version.generatedCode}
+        htmlCode={data.version.htmlCode}
+        cssCode={data.version.cssCode}
         height={460}
       />
     </div>

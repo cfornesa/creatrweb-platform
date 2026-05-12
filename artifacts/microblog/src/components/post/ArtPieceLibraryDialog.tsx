@@ -99,6 +99,8 @@ export function ArtPieceLibraryDialog({
                 <ArtPieceRenderer
                   engine={selected.currentVersion.engine}
                   code={selected.currentVersion.generatedCode}
+                  htmlCode={selected.currentVersion.htmlCode}
+                  cssCode={selected.currentVersion.cssCode}
                 />
               </>
             ) : (

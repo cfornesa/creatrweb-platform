@@ -247,7 +247,7 @@ describe("art piece helpers", () => {
     expect(helpers.consumeValidatedDraftToken(draftToken, "owner-1")).toBeNull();
   });
 
-  it("builds a version-pinned iframe embed snippet", () => {
+  it("builds a live iframe embed snippet that resolves the current piece version", () => {
     expect(
       helpers.buildInteractivePieceIframeHtml({
         origin: "https://creatr.example",
@@ -255,6 +255,14 @@ describe("art piece helpers", () => {
         versionId: 34,
         title: "Orbit Bloom",
       }),
-    ).toContain("/embed/pieces/12?version=34");
+    ).toContain("/embed/pieces/12");
+    expect(
+      helpers.buildInteractivePieceIframeHtml({
+        origin: "https://creatr.example",
+        pieceId: 12,
+        versionId: 34,
+        title: "Orbit Bloom",
+      }),
+    ).not.toContain("?version=");
   });
 });

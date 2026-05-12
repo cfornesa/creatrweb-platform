@@ -296,6 +296,12 @@ canvas { display: block; }`;
   const createVersion = useCreateArtPieceVersion({
     mutation: {
       onSuccess: (response) => {
+        setTitle(response.piece.title);
+        setPrompt(response.piece.prompt);
+        setSelectedEngine(response.version.engine);
+        setHtmlCode(response.version.htmlCode || "");
+        setCssCode(response.version.cssCode || "");
+        setGeneratedCode(response.version.generatedCode || "");
         queryClient.invalidateQueries({ queryKey: getListArtPiecesQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetArtPieceQueryKey(response.piece.id) });
         setDraftOpen(false);
@@ -478,7 +484,7 @@ canvas { display: block; }`;
   }
 
   function handlePieceEmbed() {
-    if (!detail.data) return;
+    if (!detail.data?.currentVersionId) return;
     const embedUrl = `${window.location.origin}/embed/pieces/${detail.data.id}`;
     const iframeCode = `<iframe src="${embedUrl}" width="100%" height="480" frameborder="0" style="border: 1px solid #e5e7eb; border-radius: 12px;"></iframe>`;
     navigator.clipboard.writeText(iframeCode).then(() => {

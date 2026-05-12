@@ -112,6 +112,8 @@ export function ArtPieceDraftDialog({
               <ArtPieceRenderer
                 engine={draft.engine}
                 code={draft.generatedCode}
+                htmlCode={draft.htmlCode}
+                cssCode={draft.cssCode}
                 onStatusChange={handleStatusChange}
               />
               {previewError ? (
