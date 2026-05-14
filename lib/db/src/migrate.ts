@@ -3,6 +3,7 @@ import { mysqlPool } from "./index.ts";
 
 type ColumnRow = RowDataPacket & {
   COLUMN_NAME: string;
+  IS_NULLABLE?: "YES" | "NO";
 };
 
 async function getColumnNames(tableName: string): Promise<Set<string>> {
@@ -19,6 +20,25 @@ async function getColumnNames(tableName: string): Promise<Set<string>> {
   return new Set(rows.map((row) => row.COLUMN_NAME));
 }
 
+async function getColumnMetadata(
+  tableName: string,
+  columnName: string,
+): Promise<ColumnRow | null> {
+  const [rows] = await mysqlPool.query<ColumnRow[]>(
+    `
+      SELECT COLUMN_NAME, IS_NULLABLE
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = ?
+        AND COLUMN_NAME = ?
+      LIMIT 1
+    `,
+    [tableName, columnName],
+  );
+
+  return rows[0] ?? null;
+}
+
 async function ensureColumn(
   tableName: string,
   columnName: string,
@@ -30,6 +50,24 @@ async function ensureColumn(
   }
 
   await mysqlPool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN ${definition}`);
+}
+
+async function ensureNullableColumn(
+  tableName: string,
+  columnName: string,
+  definition: string,
+): Promise<void> {
+  const column = await getColumnMetadata(tableName, columnName);
+  if (!column) {
+    await mysqlPool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN ${definition}`);
+    return;
+  }
+
+  if (column.IS_NULLABLE === "YES") {
+    return;
+  }
+
+  await mysqlPool.query(`ALTER TABLE \`${tableName}\` MODIFY COLUMN ${definition}`);
 }
 
 type IndexRow = RowDataPacket & { INDEX_NAME: string };
@@ -155,7 +193,7 @@ export async function ensureTables(): Promise<void> {
       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
       art_piece_id INT NOT NULL,
       prompt TEXT NOT NULL,
-      structured_spec TEXT NOT NULL,
+      structured_spec TEXT NULL,
       generated_code TEXT NOT NULL,
       engine VARCHAR(16) NOT NULL DEFAULT 'p5',
       generation_vendor VARCHAR(64) NULL,
@@ -185,7 +223,7 @@ export async function ensureTables(): Promise<void> {
     "art_piece_versions_art_piece_idx",
     "CREATE INDEX art_piece_versions_art_piece_idx ON art_piece_versions (art_piece_id)",
   );
-  await ensureColumn("art_piece_versions", "structured_spec", "structured_spec TEXT NULL");
+  await ensureNullableColumn("art_piece_versions", "structured_spec", "structured_spec TEXT NULL");
   await ensureColumn("art_piece_versions", "html_code", "html_code TEXT NULL");
   await ensureColumn("art_piece_versions", "css_code", "css_code TEXT NULL");
   await ensureColumn(

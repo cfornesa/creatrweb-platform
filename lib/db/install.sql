@@ -223,7 +223,7 @@ CREATE TABLE IF NOT EXISTS `art_piece_versions` (
   `id`                INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `art_piece_id`      INT NOT NULL,                                -- FK -> art_pieces.id
   `prompt`            TEXT NOT NULL,                               -- prompt used for this specific version
-  `structured_spec`   TEXT NOT NULL,                               -- normalized structured sketch spec as JSON
+  `structured_spec`   TEXT,                                        -- optional normalized structured sketch spec as JSON
   `generated_code`    TEXT NOT NULL,                               -- validated p5 sketch function source
   `engine`            VARCHAR(16) NOT NULL DEFAULT 'p5',          -- confirmed enum: 'p5'
   `generation_vendor` VARCHAR(64),                                 -- AI vendor slug used for generation

@@ -138,7 +138,6 @@
 
 ## Medium API v1
 
-- **Status:** Backend adapter retained for existing connections; the platform is no longer offered as a new connection option in the admin UI (removed from the `PLATFORMS` constant in `admin-platforms.tsx`) due to API access restrictions that make reliable cross-posting impractical for most account types.
 - **Purpose:** POSSE syndication — publishing owner-authored posts to a connected Medium account via a self-integration token stored encrypted in the database. Medium deprecated its public OAuth API for new integrations; the app uses a personal self-integration token instead.
 - **Sends data off-domain:** Yes, to `api.medium.com` when the owner publishes a post with Medium selected as a syndication target.
 - **Outbound payload note:** The submitted content includes an appended visible source line in the form `Original source at {Site Title}: {Canonical URL}`, and the request also sends Medium's native `canonicalUrl` field.
