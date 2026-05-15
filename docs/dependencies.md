@@ -37,23 +37,23 @@
 
 ## p5
 
-- **Purpose:** Self-hosted runtime for owner-authored interactive art pieces rendered inside app-owned iframe embeds, with the API compiling validated structured sketches into `p5` instance-mode code before any draft is shown.
+- **Purpose:** Self-hosted runtime for owner-authored interactive art pieces rendered inside app-owned iframe embeds, with generated or manual `p5` instance-mode code preflighted before any draft is shown.
 - **Sends data off-domain:** No.
-- **What breaks if it changes or is removed:** Saved interactive `p5` pieces stop rendering and the validated piece-generation pipeline cannot complete its runtime preflight until a compatible local runtime is restored, but the stored piece prompts, structured specs, generated code, and surrounding post content remain intact.
+- **What breaks if it changes or is removed:** Saved interactive `p5` pieces stop rendering and the validated piece-generation pipeline cannot complete its runtime preflight until a compatible local runtime is restored, but stored piece prompts, HTML/CSS/JS code, legacy structured specs, and surrounding post content remain intact.
 - **Self-hosting alternative:** A custom in-repo canvas runtime maintained by the app.
 
 ## c2.js
 
-- **Purpose:** Self-hosted creative-coding runtime for owner-authored 2D interactive pieces, used alongside the app-owned structured-spec compiler and preview/embed renderer.
+- **Purpose:** Self-hosted creative-coding runtime for owner-authored 2D interactive pieces, used by the app-owned preview/embed renderer and server-side preflight path.
 - **Sends data off-domain:** No.
-- **What breaks if it changes or is removed:** Saved interactive `c2` pieces stop rendering and new `c2` piece drafts cannot be previewed until a compatible local runtime is restored, but the stored prompts, structured specs, generated code, and post content remain intact.
+- **What breaks if it changes or is removed:** Saved interactive `c2` pieces stop rendering and new `c2` piece drafts cannot be previewed until a compatible local runtime is restored, but stored prompts, HTML/CSS/JS code, legacy structured specs, and post content remain intact.
 - **Self-hosting alternative:** A custom in-repo 2D geometry/canvas runtime maintained by the app.
 
 ## Three.js
 
-- **Purpose:** Self-hosted imperative 3D runtime for owner-authored interactive pieces, used for app-owned structured scene compilation, preview, and embed rendering.
+- **Purpose:** Self-hosted imperative 3D runtime for owner-authored interactive pieces, used for app-owned 3D preview, embed rendering, and runtime preflight.
 - **Sends data off-domain:** No.
-- **What breaks if it changes or is removed:** Saved interactive `three` pieces stop rendering and new `three` drafts cannot be previewed until a compatible local runtime is restored, but the stored prompts, structured specs, generated code, and post content remain intact.
+- **What breaks if it changes or is removed:** Saved interactive `three` pieces stop rendering and new `three` drafts cannot be previewed until a compatible local runtime is restored, but stored prompts, HTML/CSS/JS code, legacy structured specs, and post content remain intact.
 - **Self-hosting alternative:** A custom in-repo WebGL scene runtime maintained by the app.
 
 ## sanitize-html

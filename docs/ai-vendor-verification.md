@@ -93,7 +93,7 @@ Confirm the `user_ai_vendor_settings` row for the owner/vendor pair has:
 - Confirm the logged vendor and model match the selected vendor's saved settings.
 - Confirm no fallback-to-wrong-endpoint behavior occurs.
 - Confirm any upstream failure returns an understandable status and error message.
-- Confirm invalid structured outputs trigger bounded repair attempts rather than surfacing a broken draft preview.
+- Confirm invalid HTML/CSS/JS code-block outputs trigger bounded repair attempts rather than surfacing a broken draft preview.
 
 ### Pass Or Fail
 
@@ -133,7 +133,7 @@ Unknown Zen model slugs must fail fast before any outbound request.
 - Verify documented Go endpoint routing:
   - `glm-5.1`, `glm-5`, `kimi-k2.6`, `kimi-k2.5`, `deepseek-v4-pro`, `deepseek-v4-flash`, `mimo-v2-pro`, `mimo-v2-omni`, `mimo-v2.5-pro`, `mimo-v2.5`, `qwen3.6-plus`, `qwen3.5-plus` -> `/zen/go/v1/chat/completions`
   - `minimax-m2.7`, `minimax-m2.5` -> `/zen/go/v1/messages`
-- Confirm both raw model IDs and `opencode-go/<model-id>` prefixed slugs behave correctly when saved in Settings.
+- Confirm both raw model IDs and `opencode-go/<model-id>` prefixed slugs behave correctly when saved in `/admin/ai`.
 - Unknown Go model slugs must fail fast before any outbound request.
 
 ### Google

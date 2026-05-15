@@ -1,13 +1,13 @@
-# Microblog
+# CreatrWeb
 
-A full-stack microblogging platform enabling users to create, share, and discover content, with robust administration features for owners.
+An author-owned microblogging platform for one canonical publisher, with authenticated visitors participating through comments and reactions.
 
 ## Run & Operate
 
 - `npm run typecheck`: Type-check all packages.
 - `npm run build`: Type-check and build all packages.
 - `npm run codegen --workspace=@workspace/api-spec`: Regenerate API hooks and Zod schemas.
-- `npm run push --workspace=@workspace/db`: Push DB schema changes (development only).
+- `npm run push-force --workspace=@workspace/db`: Force-push DB schema changes for manual inspection only; normal startup reconciliation happens through `ensureTables()`.
 - `npm run dev`: One-port development run, serving frontend and API/Auth routes from the API server.
 - `npm run dev:hot`: Two-port hot-reload workflow for API server and Vite frontend.
 - `npm run list-users --workspace=@workspace/scripts`: List local users.
@@ -29,7 +29,7 @@ A full-stack microblogging platform enabling users to create, share, and discove
 - **TypeScript**: 5.9
 - **API**: Express 5
 - **Database**: MySQL (mysql2) + Drizzle ORM
-- **Validation**: Zod (v4), drizzle-zod
+- **Validation**: Zod (v3), drizzle-zod
 - **API Codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild
 - **Auth**: Auth.js (GitHub, Google OAuth, local sessions)
@@ -61,11 +61,12 @@ A full-stack microblogging platform enabling users to create, share, and discove
 
 ## Product
 
-- **Microblogging**: Users can create, view, and comment on posts.
+- **Microblogging**: The owner can create, edit, and syndicate canonical posts; signed-in members can comment and edit their own comments.
 - **User Profiles**: Authenticated users can manage their public identity, including name, username, bio, website, and social links.
 - **Site Customization**: Owners can customize site-wide identity, theme, color palette, and individual colors.
 - **Per-User Profile Theming**: Signed-in users can personalize their individual profile page's theme, palette, and colors, which applies only to their profile content.
 - **Rich Post Editor**: Provides owners with a WYSIWYG editor for posts, supporting text formatting, image uploads, and embedded media (YouTube, generic iframes).
+- **Interactive Pieces**: Owners can generate and manage reusable `p5`, `c2`, and `three` pieces. AI generation returns mandatory HTML/CSS/JS code blocks, the API preflights drafts before display, and embed snippets resolve the current piece version live at `/embed/pieces/:id`.
 - **Inbound Feeds (PESOS)**: Owners can subscribe to external RSS/Atom feeds, review imported items, and manage their publication status.
 - **Outbound Feeds**: The site publishes Atom (`/api/feeds/atom`), JSON Feed (`/api/feeds/json`), and Microformats2 export (`/api/feeds/mf2`). Per-category and per-page variants follow the same pattern (e.g. `/api/categories/:slug/feeds/atom`, `/api/p/:slug/feeds/atom`). The legacy extension-based and extension-free routes (`/feed.xml`, `/feed.json`, `/atom`, `/jsonfeed`, etc.) are kept as backward-compatible aliases.
 - **Full-Text Search**: Provides a search interface for posts with filters for categories, sources, author, and content format.

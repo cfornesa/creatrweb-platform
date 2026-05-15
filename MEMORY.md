@@ -11,8 +11,8 @@ or rejection. -->
 2026-04-28 · ROLES · The initial local capability model is `owner` plus `member`, with owner bootstrap handled by manual promotion after the owner's first successful login.
     [Verified from CONSTRAINTS.md and docs/auth-setup.md.]
 
-2026-04-28 · DEV SETUP · Local development expects separate frontend and backend processes, with the frontend on `http://localhost:3000`, the backend on `http://localhost:8080`, and frontend proxying for `/api/*` and `/auth/*`.
-    [Verified from docs/auth-setup.md and DECISIONS.md.]
+2026-04-28 · DEV SETUP · Current local development uses root `npm run dev` as the standard one-port workflow at `http://localhost:4000`; `npm run dev:hot` is the two-port Vite hot-reload workflow with the frontend at `http://localhost:3000` proxying API/Auth routes to the API server on `PORT`.
+    [Updated 2026-05-15 from docs/auth-setup.md, README.md, replit.md, and package scripts.]
 
 2026-04-28 · STACK · The current repo is an npm workspaces TypeScript monorepo with an Express 5 API, a React 19 + Vite frontend, and MySQL via Drizzle ORM.
     [Verified from package.json and DECISIONS.md.]
@@ -47,8 +47,8 @@ or rejection. -->
 2026-05-02 · POST UX · Posts in the feed now support a "Maximize" (Expand) action to view the post detail page and a "Code" (Embed) action to copy a frameless iframe snippet for external use.
     [Verified from the current PostCard hover actions and the new /embed/posts/:id route.]
 
-2026-05-02 · AUTH · Auth.js routing has been restored to the default `/api/auth` path to ensure compatibility with existing OAuth provider configurations.
-    [Verified from the updated app.ts mount point and the requirement for a full URL in AUTH_URL.]
+2026-05-02 · AUTH · Auth.js routing uses the default `/api/auth` path. The runtime deletes `AUTH_URL` and `NEXTAUTH_URL` so request origin and callback URLs are derived from the incoming host and Express mount point.
+    [Updated 2026-05-15 from `auth/config.ts`, docs/auth-setup.md, and README.md.]
 
 2026-05-02 · USER PROFILES · Users can now customize their profile with a username, bio, website, and social links via a new Settings page, with the UI supporting @username routing and rich profile displays.
     [Verified from the new SettingsPage, updated UserProfile layout, and the backend /users routes.]
@@ -92,11 +92,11 @@ or rejection. -->
 2026-05-04 · RUNTIME · Root `npm run dev` is now the standard one-port local/Replit development command; the app listens on `PORT`, and `npm run dev:hot` is reserved for Vite hot reload. `.env` sets `PORT=4000` for local development (macOS AirPlay Receiver occupies 5000). On Replit, the workflow sets `PORT=5000` inline, overriding `.env`; `externalPort = 80` routes the default webview URL there. Direct port access via `:5000` is also mapped (`externalPort = 5000`). `platform.creatrweb.com` is a CNAME to `*.replit.dev` (not a Replit production deployment), so it is subject to the same proxy interception as the dev URL.
     [Updated 2026-05-06 after Replit port routing investigation, proxy root-cause analysis, and local port change to 4000.]
 
-2026-05-04 · AI · Opt-in AI writing assistance is now per-user, disabled by default, and gated by saved vendor/model/key configuration before any AI action should appear in the UI.
-    [Confirmed by the human during the AI assistant implementation session and verified from the new `/api/users/me/ai-settings` + `/api/ai/process` backend contract.]
+2026-05-04 · AI · Opt-in AI assistance is owner-only, disabled by default per vendor, and gated by saved vendor/model/key configuration before any AI action appears in the composer or admin piece flows.
+    [Updated 2026-05-15 from `/admin/ai`, `/api/ai/settings`, `/api/ai/process`, and owner AI vendor hooks.]
 
-2026-05-04 · AI · Backend AI vendor identifiers use the stable slug set `mistral`, `opencode-zen`, `opencode-go`, `chatgpt`, `claude`, and `google`, while human-readable labels are exposed for frontend display.
-    [Confirmed by the human during the AI assistant implementation session and verified from the new AI settings utilities, OpenAPI schema, and generated client types.]
+2026-05-04 · AI · Backend AI vendor identifiers use the current stable slug set `openrouter`, `opencode-zen`, `opencode-go`, and `google`, while human-readable labels are exposed for frontend display.
+    [Updated 2026-05-15 from `ai-settings.ts`, OpenAPI enums, and generated client types.]
 
 2026-05-05 · AI · AI provider failures are now classified explicitly as `timeout`, `upstream_http`, `parse`, `network`, or `unknown_model`, with structured safe logging that includes vendor, model, transport kind, endpoint family, URL, and real upstream status when available.
     [Confirmed by the human during the AI hardening session and verified from `artifacts/api-server/src/lib/ai-providers.ts` plus the focused provider/route tests.]
@@ -104,8 +104,8 @@ or rejection. -->
 2026-05-05 · AI UX · The composer AI failure path now reads generated `ApiError` payloads instead of assuming Axios-style errors, preserves the current draft on failure, and shows a user-friendly timeout message when the provider takes too long.
     [Confirmed by the human during the AI hardening session and verified from `RichPostEditor.tsx`, `ai-error.ts`, and the focused editor test coverage.]
 
-2026-05-05 · AI SETTINGS · AI configuration is now owner-only and managed from `/admin/ai`, with one saved model slug and one encrypted API key per supported vendor row in `user_ai_vendor_settings`. The supported vendor set is now hard-restricted to `kilo-gateway`, `opencode-zen`, `opencode-go`, and `google`.
-    [Confirmed by the human during the Phase 4 AI settings rework and verified from the new schema, AI routes, OpenAPI contract, and Admin AI page.]
+2026-05-05 · AI SETTINGS · AI configuration is owner-only and managed from `/admin/ai`, with one saved model slug and one encrypted API key per supported vendor row in `user_ai_vendor_settings`. The supported vendor set is hard-restricted to `openrouter`, `opencode-zen`, `opencode-go`, and `google`.
+    [Updated 2026-05-15 after OpenRouter replaced Kilo Gateway; verified from `ai-settings.ts`, AI routes, OpenAPI contract, and Admin AI page.]
 
 2026-05-05 · AI EDITOR · The owner post composer and owner post-edit flows now expose an AI vendor dropdown plus the `AI` button, and each request explicitly selects a configured vendor while using that vendor’s saved model/key from Admin settings.
     [Confirmed by the human during the Phase 4 AI editor rework and verified from `ComposePost.tsx`, `PostCard.tsx`, `admin-pending.tsx`, `RichPostEditor.tsx`, and focused frontend tests.]
@@ -128,8 +128,8 @@ or rejection. -->
 2026-05-08 · PLATFORMS UI · Medium is no longer offered as a connection option in the admin Platforms page — removed from the `PLATFORMS` constant, `MediumTokenDialog` deleted, `"medium"` dropped from `credentialKind` union. Reason: Medium's API restrictions make reliable cross-posting impossible. The backend adapter and any existing DB rows are untouched; the entry can be restored to the UI if Medium improves API access. The Blogger credentials dialog now includes: API enablement instruction, scope addition step (`https://www.googleapis.com/auth/blogger` on the consent screen), and an amber callout explaining Testing vs. Production mode and the test-user requirement.
     [Implemented 2026-05-08; verified from `admin-platforms.tsx` PLATFORMS array, PlatformDef type, PlatformCard, and OAuthAppCredentialsDialog.]
 
-2026-05-09 · INTERACTIVE PIECES · AI-generated interactive pieces no longer accept raw model-authored JavaScript as a trusted draft surface. The owner-facing generation flow now asks the model for a structured sketch spec, compiles that spec into app-owned `p5` code, and only surfaces a draft after server-side syntax and runtime preflight validation succeed.
-    [Implemented 2026-05-09; verified from `artifacts/api-server/src/lib/art-pieces.ts`, `routes/art-pieces.ts`, and the updated composer/admin UI flow.]
+2026-05-09 · INTERACTIVE PIECES · AI-generated interactive pieces no longer accept unvalidated model output as a trusted draft surface. The current generation flow requires `html`, `css`, and `javascript` Markdown code blocks, extracts them server-side, preflights the JavaScript against the selected runtime, and only surfaces a draft after validation succeeds.
+    [Updated 2026-05-15 from `art-pieces.ts`, `routes/art-pieces.ts`, `piece-embed-html.ts`, `ArtPieceRenderer.tsx`, and the composer/admin UI flow.]
 
 2026-05-10 · INTERACTIVE PIECES · The supported AI-generated interactive-piece engines are now `p5`, `c2`, and `three`. A-Frame was explicitly rolled back from the product: it is no longer a valid saved/API engine, no longer appears in owner generation UIs, and existing A-Frame content is intentionally not supported.
     [Confirmed by the owner during the 2026-05-10 interactive-piece rollback session; implementation recorded in DECISIONS.md and docs/dependencies.md.]

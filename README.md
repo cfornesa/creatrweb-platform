@@ -21,7 +21,7 @@ At a high level, the app provides:
 - owner-managed post categories with public archive pages and search filtering
 - owner-managed external navigation links and a sitewide footer surfacing the owner's social profiles
 - standardized public feeds (Atom, JSON Feed, mf2-JSON) and per-category/per-page feed variants
-- AI-assisted post rewriting and validated interactive piece generation — p5, Three.js, and C2.js (optional, owner-configured) via OpenRouter, OpenCode Zen, OpenCode Go, or Google Gemini
+- AI-assisted post rewriting and validated interactive piece generation - p5, Three.js, and C2.js (optional, owner-configured) via OpenRouter, OpenCode Zen, OpenCode Go, or Google Gemini
 - a single canonical MySQL database shared by local and deployed app instances
 
 ## Product
@@ -55,15 +55,15 @@ HTML is sanitized on the server before storage. The frontend renders rich conten
 
 ### Interactive Pieces
 
-The owner can generate reusable interactive pieces and embed them into posts through app-owned iframe routes. Three engines are supported: **p5** (p5.js instance-mode sketches), **Three.js** (structured 3D scenes), and **C2.js** (2D geometry and simulation pieces).
+The owner can generate reusable interactive pieces and embed them into posts through app-owned iframe routes. Three engines are supported: **p5** (p5.js instance-mode sketches), **Three.js** (3D scenes), and **C2.js** (2D geometry and simulation pieces).
 
 Key behavior:
 
-- generated pieces are produced from a structured spec interpreted per engine — not raw AI-authored JavaScript
-- the API compiles that spec into engine-specific code and runs a server-side preflight before any draft is shown
+- generated pieces are returned as mandatory `html`, `css`, and `javascript` Markdown code blocks
+- the API extracts those blocks, validates the JavaScript against the selected engine, and runs a server-side preflight before any draft is shown
 - the UI only opens a draft preview after the draft has been validated
 - saving a piece to the library or adding a new version consumes a one-time validated draft token, so arbitrary client-submitted code is not accepted
-- saved embeds are version-pinned, so older posts keep rendering the version they originally inserted
+- embed snippets are live (`/embed/pieces/:id` without a `?version=` pin), so admin edits to a piece's current version are reflected anywhere that piece is embedded
 - iframe embeds at `/embed/pieces/:id` serve the correct runtime library for the piece's engine via `/api/runtimes/`
 
 The owner can manage reusable pieces from `/admin/pieces`, regenerate versions, archive pieces, copy an iframe embed code to clipboard, and reinsert existing embeds from the composer library picker.
@@ -85,7 +85,7 @@ OAuth app credentials (CLIENT_ID + CLIENT_SECRET) are stored encrypted in the da
 
 Every outbound share from a post authored on this application appends a reader-visible canonical source line to the syndicated copy in the form `Original source at {Site Title}: {Canonical URL}`. Where a target also supports native canonical/source metadata, the app sends that too.
 
-After a post is cross-posted successfully, its card on the home feed shows platform badges ("Also on Medium", "Also on WordPress.com", etc.) linking to the syndicated copy.
+After a post is cross-posted successfully, its card on the home feed shows platform badges ("Also on WordPress.com", "Also on Blogger", etc.) linking to the syndicated copy. Existing Medium syndication rows can still appear if a legacy connection remains in the database.
 
 ### Inbound Feed Aggregation (PESOS)
 
@@ -156,7 +156,7 @@ AI is owner-only and disabled per vendor by default. Saved API keys are encrypte
 | `/admin/ai` | Configure AI writing assistant vendors |
 | `/admin/pieces` | Manage reusable p5, Three.js, and C2.js pieces, regenerate versions, and copy iframe embed codes |
 | `/admin/pages` | Create and manage static pages |
-| `/settings` | Site customization (theme, palette, colors, site copy) |
+| `/settings` | User profile settings plus owner-only site customization (theme, palette, colors, site copy) |
 
 ## Developer
 
@@ -237,13 +237,13 @@ The API server runs `ensureTables()` automatically on every startup via `lib/db/
 For interactive schema inspection during development:
 
 ```bash
-DB_HOST=... DB_USER=... DB_PASS=... DB_NAME=... DB_SSL=true npm run push-force --workspace=lib/db
+DB_HOST=... DB_USER=... DB_PASS=... DB_NAME=... DB_SSL=true npm run push-force --workspace=@workspace/db
 ```
 
 After any change to `lib/api-spec/openapi.yaml`, regenerate API clients:
 
 ```bash
-npm run codegen --workspace=lib/api-spec
+npm run codegen --workspace=@workspace/api-spec
 ```
 
 ### Scheduled Feed Refresh With GitHub Actions
@@ -286,7 +286,7 @@ npm run start       # start the built API server
    npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com
    ```
 
-5. **Platform syndication** — visit `/admin/platforms` to connect external publishing targets. WordPress.com and Blogger require an OAuth app registered in their respective developer consoles. The admin UI generates the exact redirect URIs to register, derived from your `ALLOWED_ORIGINS` value. Medium requires a self-integration token from your Medium account settings. New outbound shares append a visible `Original source at {Site Title}: {Canonical URL}` line to the syndicated copy.
+5. **Platform syndication** — visit `/admin/platforms` to connect external publishing targets. WordPress.com and Blogger require an OAuth app registered in their respective developer consoles. The admin UI generates the exact redirect URIs to register, derived from your `ALLOWED_ORIGINS` value. Self-hosted WordPress uses an application password, and Substack uses publication-scoped cookie credentials. New outbound shares append a visible `Original source at {Site Title}: {Canonical URL}` line to the syndicated copy.
 
 ### Optional Creatrweb Framework Files
 

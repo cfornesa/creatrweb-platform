@@ -1316,3 +1316,27 @@ The home feed utilizes a custom `useInfiniteQuery` with a specific internal key 
 
 ### Outcome
 - The main feed now updates automatically in real-time as content is created or modified, providing a much more intuitive and reactive user experience.
+
+---
+
+## 2026-05-15 — Markdown Alignment With Current Runtime
+
+### Trigger
+The root README, Replit project notes, dependency registry, AI vendor runbook,
+and MEMORY.md contained current-state statements that had been superseded by
+later code changes: live art-piece embed URLs, mandatory HTML/CSS/JS piece
+generation blocks, OpenRouter replacing Kilo Gateway, one-port local dev on
+`PORT=4000`, and Medium being removed from the owner-facing platform UI.
+
+### Decisions Confirmed
+- User-facing operational docs should describe the current runtime behavior,
+  not older implementation phases.
+- Historical `DECISIONS.md` entries remain chronological and are not rewritten
+  when later entries supersede them.
+- `MEMORY.md` current-state entries may be updated directly after explicit
+  human approval when they conflict with the codebase and newer decisions.
+
+### Outcome
+- README, Replit notes, dependency docs, AI verification notes, and MEMORY.md
+  now describe current art-piece generation/rendering, AI vendors, local dev,
+  and platform UI behavior.
