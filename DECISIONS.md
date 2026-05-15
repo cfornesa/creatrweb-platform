@@ -1603,3 +1603,22 @@ Posts published by the scheduler showed the wrong "posted at" time — the draft
 
 ### Outcome
 Published post cards display the correct local publish time. Scheduler-published posts show when they went live, not when the draft was originally saved.
+
+---
+
+## 2026-05-15 — Revert toUtcIso on createdAt (Post Timestamp Regression)
+
+### Problem
+Applying `toUtcIso(createdAt)` to all API responses caused every post timestamp to shift 5 hours earlier. A post showing "2 hours ago" began showing "9:45 PM last night."
+
+### Root Cause
+`createdAt` is stored by `formatMysqlDateTime()`, which uses the Replit server's local timezone (CDT = UTC-5). The values are CDT-local strings, not UTC. Adding a `Z` suffix made `parseISO` interpret them as UTC, then convert to local CDT — a net 5-hour backward shift. This is different from `scheduledAt`, which is explicitly stored as UTC via `formatMysqlDateTimeUtc()` and correctly uses `toUtcIso`.
+
+### Decisions
+- Removed `createdAt: toUtcIso(...)` from all 8 API response locations in `posts.ts`. `createdAt` now passes through as the raw server-local string, consistent with how it was always stored and parsed.
+- Reverted the two `withSyndications.map()` wrappers that existed solely to inject the (now-removed) `createdAt` transform — those routes return `withSyndications` directly again.
+- The scheduler's `publishedAt` was changed from `formatMysqlDateTimeUtc()` to `formatMysqlDateTime()` so the publish-time stamp written to `createdAt` uses the same local-timezone format as every other `createdAt` write. The scheduler still overwrites `createdAt` with the actual publish time, fixing the "shows draft creation time instead of publish time" issue.
+- `toUtcIso(scheduledAt)` is unchanged — `scheduledAt` is UTC-stored and needs the `Z`.
+
+### Outcome
+All post timestamps display correctly. Scheduled posts show the actual publish time (not the draft creation time) after the scheduler fires.

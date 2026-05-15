@@ -176,3 +176,6 @@ or rejection. -->
 
 2026-05-15 · POST TIMESTAMPS · All `createdAt` fields in post API responses are now returned via `toUtcIso()` (appends `T` and `Z`). This fixes `parseISO` in the browser treating UTC-stored naive strings as local time. The scheduler's publish UPDATE now also sets `createdAt = formatMysqlDateTimeUtc()` so that scheduler-published posts show the actual publish time on the post card, not the draft creation time.
     [Fixed 2026-05-15; api-server typecheck passes.]
+
+2026-05-15 · POST TIMESTAMPS (CORRECTION) · `createdAt` must NOT use `toUtcIso`. It is stored by `formatMysqlDateTime()` in the server's local timezone (CDT on Replit), not UTC. Adding `Z` causes a 5-hour backward shift. Only `scheduledAt` uses `toUtcIso` because it is explicitly stored as UTC via `formatMysqlDateTimeUtc()`. The scheduler stamps `createdAt = formatMysqlDateTime()` (local time) at publish time so scheduled posts display the actual publish time, not the draft creation time.
+    [Corrected 2026-05-15 after regression; api-server typecheck passes.]

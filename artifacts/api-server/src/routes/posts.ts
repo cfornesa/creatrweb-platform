@@ -143,7 +143,6 @@ router.get("/posts/drafts", requireAuth, requireOwner, async (req: Request, res:
     return res.json({
       posts: hydrated.map((p) => ({
         ...p,
-        createdAt: toUtcIso(p.createdAt),
         scheduledAt: toUtcIso(p.scheduledAt),
         pendingPlatformIds: p.pendingPlatformIds ? (JSON.parse(p.pendingPlatformIds) as number[]) : null,
         syndications: [],
@@ -195,15 +194,7 @@ router.get("/posts/user/:userId", async (req: Request, res: Response) => {
 
     const hydrated = await attachCategoriesToPosts(posts);
     const withSyndications = await attachSyndications(hydrated);
-    return res.json({
-      posts: withSyndications.map((p) => ({
-        ...p,
-        createdAt: toUtcIso((p as { createdAt?: string | null }).createdAt),
-      })),
-      total,
-      page,
-      limit,
-    });
+    return res.json({ posts: withSyndications, total, page, limit });
   } catch (err) {
     return res.status(400).json({ error: "Invalid request" });
   }
@@ -431,7 +422,7 @@ router.get("/posts/search", async (req: Request, res: Response) => {
         sourceFeedName: row.sourceFeedName,
         sourceCanonicalUrl: row.sourceCanonicalUrl,
         categories: categoriesMap.get(Number(row.id)) ?? [],
-        createdAt: toUtcIso(row.createdAt as string | null | undefined),
+        createdAt: row.createdAt,
         snippet,
       };
       if (hasFulltext && row.score !== undefined) {
@@ -528,7 +519,6 @@ router.get("/posts", async (req: Request, res: Response) => {
       return res.json({
         posts: withSyndications.map((p) => ({
           ...p,
-          createdAt: toUtcIso((p as { createdAt?: string | null }).createdAt),
           scheduledAt: toUtcIso((p as { scheduledAt?: string | null }).scheduledAt),
           pendingPlatformIds: (p as { pendingPlatformIds?: string | null }).pendingPlatformIds
             ? (JSON.parse((p as { pendingPlatformIds: string }).pendingPlatformIds) as number[])
@@ -618,15 +608,7 @@ router.get("/posts", async (req: Request, res: Response) => {
 
     const hydrated = await attachCategoriesToPosts(posts);
     const withSyndications = await attachSyndications(hydrated);
-    return res.json({
-      posts: withSyndications.map((p) => ({
-        ...p,
-        createdAt: toUtcIso((p as { createdAt?: string | null }).createdAt),
-      })),
-      total,
-      page,
-      limit,
-    });
+    return res.json({ posts: withSyndications, total, page, limit });
   } catch (err) {
     return res.status(400).json({ error: "Invalid request" });
   }
@@ -721,7 +703,6 @@ router.post("/posts", requireAuth, requireOwner, async (req: Request, res: Respo
 
     return res.status(201).json({
       ...post[0],
-      createdAt: toUtcIso(post[0].createdAt),
       scheduledAt: toUtcIso(post[0].scheduledAt),
       pendingPlatformIds: post[0].pendingPlatformIds
         ? (JSON.parse(post[0].pendingPlatformIds) as number[])
@@ -786,7 +767,6 @@ router.get("/posts/:id", async (req: Request, res: Response) => {
     return res.json({
       post: {
         ...withSyndication,
-        createdAt: toUtcIso((withSyndication as { createdAt?: string | null }).createdAt),
         scheduledAt: toUtcIso((withSyndication as { scheduledAt?: string | null }).scheduledAt),
         pendingPlatformIds: (withSyndication as { pendingPlatformIds?: string | null }).pendingPlatformIds
           ? (JSON.parse((withSyndication as { pendingPlatformIds: string }).pendingPlatformIds) as number[])
@@ -949,7 +929,6 @@ router.patch("/posts/:id", requireAuth, requireOwner, async (req: Request, res: 
 
     return res.json({
       ...withSyndication,
-      createdAt: toUtcIso(updatedPost[0].createdAt),
       scheduledAt: toUtcIso(updatedPost[0].scheduledAt),
       commentCount: commentCountResult[0]?.count ?? 0,
       pendingPlatformIds: updatedPost[0].pendingPlatformIds

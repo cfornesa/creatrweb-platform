@@ -1,4 +1,4 @@
-import { db, postsTable, eq, and, lte, formatMysqlDateTimeUtc } from "@workspace/db";
+import { db, postsTable, eq, and, lte, formatMysqlDateTimeUtc, formatMysqlDateTime } from "@workspace/db";
 import { enqueueSyndication } from "./syndication/index";
 
 const SCHEDULER_INTERVAL_MS = 60_000;
@@ -33,7 +33,7 @@ async function publishDuePosts(): Promise<void> {
   const origin = resolveOrigin();
   for (const post of duePosts) {
     try {
-      const publishedAt = formatMysqlDateTimeUtc();
+      const publishedAt = formatMysqlDateTime();
       await db
         .update(postsTable)
         .set({ status: "published", scheduledAt: null, pendingPlatformIds: null, createdAt: publishedAt })
