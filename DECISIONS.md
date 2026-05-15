@@ -1340,3 +1340,224 @@ generation blocks, OpenRouter replacing Kilo Gateway, one-port local dev on
 - README, Replit notes, dependency docs, AI verification notes, and MEMORY.md
   now describe current art-piece generation/rendering, AI vendors, local dev,
   and platform UI behavior.
+
+---
+
+### 2026-05-14 — Scheduled Posts + Admin Posts UI
+
+### Decisions Confirmed
+- `posts.status` enum extended with `"draft"` and `"scheduled"` (owner confirmed 2026-05-14). Values `"published"` and `"pending"` retained as-is.
+- New columns: `posts.scheduled_at DATETIME(3) NULL` (set only when status='scheduled') and `posts.pending_platform_ids TEXT NULL` (JSON array of platform connection IDs to syndicate at publish time).
+- Compound index `posts_scheduled_idx ON posts (status, scheduled_at)` added for efficient scheduler queries.
+- In-process `setInterval(60s)` scheduler in `artifacts/api-server/src/lib/post-scheduler.ts`, started in `index.ts` after the server begins listening. Fires syndication with `enqueueSyndication` when scheduled posts become due.
+- `GET /posts?view=owner` returns all owner-authored non-draft posts + all RSS-imported published posts for a given week range (`from`/`to` ISO date params). Auth-gated to owner role.
+- `GET /posts/drafts` returns all `status='draft'` owner posts, sorted newest-first.
+- `POST /posts` accepts `status` (default "published") and `scheduledAt` (required when status="scheduled", validated ≥1 hour ahead). Platform IDs stored as `pendingPlatformIds` for non-published posts; syndication fires only on immediate publish.
+- `PATCH /posts/:id` handles status transitions: draft→published fires syndication, draft→scheduled validates date, scheduled→draft clears scheduledAt. published→draft is logged only (no recall from external platforms).
+- `isPostVisibleToReader` updated: only `status='published'` is public; all other statuses are owner-only.
+- ComposePost UI: three-way toggle (Publish Now / Save as Draft / Schedule) with inline react-day-picker (v9) + `<input type="time">` when Schedule is selected.
+- Admin `/admin/posts` page: Drafts section (horizontal card scroll) + weekly calendar grid (7-column, Mon-Sun). Week navigation arrows + "Today" reset button. "Schedule" button per day opens ComposePost pre-seeded with that day's date.
+- PostEditDrawer: Radix Sheet slide-in, shows status selector + schedule picker + RichPostEditor for owner posts; read-only message for RSS-imported posts.
+- Calendar scope: all posts (owner-authored + RSS imports). RSS posts shown read-only with "Imported" badge.
+- Post status badges: Published (green), Planned/Scheduled (amber), Draft (gray), Imported (blue).
+
+### Implementation Notes
+- DB migration: `lib/db/src/migrate.ts` uses `ensureColumn` pattern (idempotent ALTER TABLE ADD COLUMN IF NOT EXISTS) — safe to deploy on existing databases.
+- API routes: `GET /posts/drafts` registered before `GET /posts/:id` in the Express router to avoid `:id` capturing "drafts".
+- `pendingPlatformIds` stored as JSON text in DB; deserialized to `number[]` in API responses.
+- `react-day-picker@9.14.0` already installed in `@workspace/microblog`; CSS imported via `react-day-picker/style.css` (valid package export).
+- OpenAPI updated and orval codegen re-run; all generated types reflect new schema.
+
+### Unresolved Checkpoints Entering Next Session
+- [ ] Syndication badges ("Also on: WordPress.com") on post cards in the calendar view now show historical syndications from `post_syndications`. Verify that cards with `pendingPlatformIds` correctly show "Sync pending" for draft/scheduled posts not yet published.
+- [ ] The "Schedule Post" button in the calendar opens ComposePost with the day pre-populated as the scheduled date, but the time defaults to 2 hours from now — consider defaulting to a more useful time (e.g. 9am next day).
+- [ ] Decide whether the Admin Posts redirect (`/admin` → `/admin/site`) should also offer a "Posts" quick-link on the admin index page.
+
+---
+
+## 2026-05-14 — Posts UI Fixes and Inline Editor
+
+### Trigger
+After the initial Scheduled Posts + Admin Posts UI implementation, several bugs and UX issues were identified during first use of the `/admin/posts` page.
+
+### Decisions Confirmed
+- Post editing in the admin Posts UI must never use a slide-in sidebar (Sheet) in any viewport — desktop, tablet, or mobile. All editing uses an inline panel rendered at the top of the content area.
+- `PostEditDrawer` is now always-inline: the Radix `Sheet` wrapper and all Sheet-related imports have been removed. The component renders a bordered card with a title, status badge, and ✕ close button.
+- A single `editingPost: Post | null` state (and `openEditor()` helper) replaces the prior split between `editPost` (Sheet) and `editingDraft` (inline-only) states. All post types — draft, scheduled, published — open the same inline editor.
+- `ComposePost` receives two new optional props: `defaultExpanded` (skip the collapsed placeholder and show the editor immediately) and `onSuccess` (called after a successful mutation so parent panels can close). The homepage does not pass either prop and continues to work as before.
+- The "New Post" button in the Drafts section header passes `defaultExpanded` so clicking it opens the editor directly without a secondary "Start a post" click.
+- The Admin Posts page uses `openEditor()`, `openCompose()`, and `openComposeForDay()` helpers that close every other open panel before opening the requested one — only one editor/composer is ever visible at a time.
+
+### Bug Fixes
+- **Calendar posts not appearing**: The OpenAPI spec defined `from`/`to` query params with `format: date`, which caused orval to generate `zod.date()`. Because HTTP query params arrive as strings, Zod threw on every `?view=owner` request, silently returning empty results. Fixed by removing `format: date` (params are now plain `type: string`), re-running codegen, and updating the route to use direct string comparison against MySQL datetime columns (`YYYY-MM-DD` and `YYYY-MM-DD 23:59:59.999`).
+- **Draft not appearing after creation**: `ComposePost` was invalidating the stale key `["drafts"]` instead of `getGetDraftPostsQueryKey()`, which is the actual key `useGetDraftPosts` subscribes to. Fixed.
+- **"New Post" did not open editor immediately**: `ComposePost` initialises `isExpanded` from `!!initialScheduledDate`, so without a date it started collapsed. The new `defaultExpanded` prop bypasses the placeholder.
+
+### UX / Design Changes
+- **Post card layout**: Status badge is now on its own line; time appears on the next line below it (previously inline).
+- **Mobile/tablet calendar view** (`< lg`): the 7-column grid is replaced with a `lg:hidden` vertical list that shows only days with posts. Each card includes the day name inline (`"Thu, May 14 · 6:27 PM"`). The per-day "Schedule" buttons are hidden on mobile/tablet.
+- **Desktop calendar** (`lg+`): 7-column grid unchanged; "Schedule" buttons remain.
+- **Calendar heading**: "Calendar" is now a standalone `h3` row (same weight as "Drafts") above the date-range + nav row, rather than inline with them.
+- **Week label**: Always shows the full date range (e.g. `"May 10–May 16, 2026 (This week)"`) instead of just `"This week"` for the current week.
+
+### Implementation Notes
+- `PostEditDrawer` props simplified: `inline` prop removed (it was added mid-session and then superseded by the full removal of the Sheet). Component signature is now `{ post, open, onClose }`.
+- `closeAll()` helper in `admin-posts.tsx` resets all three panel states at once, keeping the mutual-exclusion logic in one place.
+- The unresolved checkpoints from the prior session remain open (syndication badge verification, schedule time default, admin index quick-link).
+
+---
+
+## 2026-05-15 — Performance Fixes, Auth Correctness, and Safe Migration
+
+### Trigger
+Three independent issues surfaced during functional testing:
+1. Page load times were slow across all requests.
+2. Scheduler was emitting EPIPE / ECONNRESET errors after periods of inactivity.
+3. Copying the `artifacts/` and `lib/` folders to three sibling sites required any SQL schema changes (indexes) to apply automatically on `npm run build` + start without crashing the server or blocking the port from opening.
+
+An auth-correctness audit was also requested after a prior change to `auth/config.ts` introduced a version-dependent dependency on DrizzleAdapter internals.
+
+---
+
+### PostEditor Unification (completion of prior session)
+
+- `ComposePost.tsx` and `PostEditDrawer.tsx` deleted; replaced by the unified `PostEditor` component that branches on `isEditMode = !!initialPost`.
+- Default platform selection changed from auto-select-all to empty array (`useState<number[]>([])`).
+- All call sites updated: `home.tsx` uses `<PostEditor />`; `admin-posts.tsx` uses `<PostEditor initialPost={…} />`, `<PostEditor defaultExpanded />`, and `<PostEditor initialScheduledDate={…} />`.
+- `PostEditor.test.tsx` created; `ComposePost.test.tsx` deleted.
+
+---
+
+### Performance Root Causes Identified
+
+Three root causes for slow load times:
+
+| Cause | Cost per request |
+|---|---|
+| Session callback issued `db.select()` for role/status on every authenticated request | +1 DB round trip |
+| `loadCurrentUser` issued `db.select()` on every authenticated request | +1 DB round trip |
+| `meta-injection.ts` called `fs.readFileSync` up to 5 times per page | Synchronous disk I/O |
+
+---
+
+### Fixes Applied
+
+**1. 30s user cache in `loadCurrentUser`** (`artifacts/api-server/src/lib/current-user.ts`)
+- `Map<string, { user, expiresAt }>` with 30s TTL. On cache hit, DB fetch is skipped entirely.
+- Cache miss falls through to `db.select().from(usersTable)` as before.
+- When the DB returns no user (deleted account), the stale cache entry is cleared.
+- `invalidateUserCache(userId: string)` exported for call sites that write user data.
+
+**2. Cache invalidation on profile update** (`artifacts/api-server/src/routes/users.ts`)
+- `invalidateUserCache(currentUser.id)` called immediately after the `db.update(usersTable)` write in `PATCH /users/me`, before the fresh-fetch and response.
+- Ensures the next request to any route that calls `loadCurrentUser` gets the just-updated data rather than a 30s-stale record.
+
+**3. HTML template cache** (`artifacts/api-server/src/lib/meta-injection.ts`)
+- `readHtml(path: string)` helper with module-level `Map<string, string>` cache.
+- First call per unique path reads disk; subsequent calls return the cached string.
+- The `readFileSync` call sits inside `readHtml`, not at the call site — avoids the recursion trap described below.
+
+**4. MySQL keepAlive** (`lib/db/src/index.ts`)
+- `enableKeepAlive: true, keepAliveInitialDelay: 10000` added to pool options.
+- Managed MySQL services close idle connections after ~20–30 min; keepAlive prevents the scheduler's periodic connections from dying silently.
+
+---
+
+### Auth Correctness — Session Callback Reverted
+
+A prior change had replaced the explicit DB fetch in the session callback with a direct cast of the DrizzleAdapter `user` param, relying on undocumented internal behavior that the adapter would populate custom columns (`role`, `status`) on that object.
+
+**Decision**: Reverted to the original explicit `db.select().from(usersTable)` in the session callback. The explicit fetch is version-independent and correct regardless of DrizzleAdapter internals.
+
+**Audit finding**: No route uses `req.authSession` for authorization decisions. All authorization checks use `req.currentUser` from `loadCurrentUser`, which fetches from DB on cache miss. Session callback role/status are cosmetic (used only for the session object client-side). The reversion is defensive correctness, not an active permissions fix.
+
+---
+
+### Safe Automatic DB Index Migration (`lib/db/src/migrate.ts`)
+
+**Constraint**: Three index declarations exist in Drizzle schema files (`posts_author_id_idx`, `posts_status_created_idx`, `sessions_user_id_idx`) but were not applied at startup. Adding them via `ensureIndex` (which throws on failure) caused `ensureTables()` to throw, which propagated to `process.exit(1)` in `index.ts`, blocking `app.listen()` — the port never opened.
+
+**Solution**: Added `tryEnsureIndex` helper that wraps `ensureIndex` in try-catch. On failure it logs to stderr and returns normally, allowing startup to continue.
+
+```
+async function tryEnsureIndex(tableName, indexName, createSql): Promise<void>
+  try → ensureIndex(...)
+  catch → console.error("[migrate] Non-fatal: could not create index …", err)
+```
+
+**Placement of calls**:
+- After sessions `CREATE TABLE IF NOT EXISTS`: `tryEnsureIndex("sessions", "sessions_user_id_idx", …)`
+- After `posts_content_text_fulltext` ensureIndex: `tryEnsureIndex("posts", "posts_author_id_idx", …)` and `tryEnsureIndex("posts", "posts_status_created_idx", …)`
+
+**Multi-site deployment**: The pattern is idempotent (`ensureIndex` checks `INFORMATION_SCHEMA.STATISTICS` first) and non-fatal. Copying `artifacts/` and `lib/` to three sibling sites and running `npm run build` + server start will apply any missing indexes on each DB independently, log failures to stderr if they occur, and never block the port.
+
+**Existing `ensureIndex` calls are unchanged** — structural indexes (primary keys, unique constraints, full-text) where failure indicates a real DB problem should still surface.
+
+---
+
+### Bugs Introduced and Fixed
+
+**Port never opening** (introduced, then fixed):
+- Cause: Added three `ensureIndex` calls during the first migration attempt; any index creation failure caused `ensureTables()` → `process.exit(1)`.
+- Fix: Removed the three `ensureIndex` calls, then re-added them as `tryEnsureIndex`.
+
+**`readHtml` infinite recursion** (`RangeError: Maximum call stack size exceeded`, 500 on all pages):
+- Cause: Used `replace_all: true` to replace `fs.readFileSync(htmlPath, "utf-8")` → `readHtml(htmlPath)`. This also replaced the call inside the newly-added `readHtml` function itself, creating infinite recursion.
+- Fix: Changed line 8 of `meta-injection.ts`: the `readHtml` body reads via `fs.readFileSync(htmlPath, "utf-8")` directly, not via `readHtml(htmlPath)`.
+- Lesson: `replace_all: true` is unsafe when the replacement string appears inside the function being introduced. Use targeted single-occurrence edits for new function internals.
+
+**Scheduler EPIPE / ECONNRESET**:
+- Cause: Pool had no keepAlive; managed MySQL services drop idle connections after ~20–30 min; the scheduler's 60s interval is shorter than the query cadence on a low-traffic site, so some pool connections are aged-out by the time the scheduler fires.
+- Fix: `enableKeepAlive: true, keepAliveInitialDelay: 10000` in pool options.
+
+---
+
+### Outcome
+
+| Scenario | Result |
+|---|---|
+| Authenticated page load (cache warm) | 2 fewer DB queries vs. cold path |
+| HTML template after first request | Served from in-process Map — no disk I/O |
+| Scheduler after 30+ min idle | Pool connections stay alive via TCP keepAlive |
+| Profile update → next request | Cache invalidated immediately; fresh data served |
+| Index already exists on startup | INFORMATION_SCHEMA check short-circuits; no SQL issued |
+| Index creation fails | Logged to stderr; server continues; port opens |
+| 3-site copy-paste deploy | Each site independently and safely applies or skips each index |
+
+---
+
+## 2026-05-15 — Platform Selection on Post Edit (PostCard inline editor)
+
+### Trigger
+Editing a post via the pencil icon on any post card (home feed, user profile, post detail) showed no "Share to:" platform selector, making it impossible to syndicate when editing.
+
+### Root Cause
+`PostCard.tsx` maintains its own inline edit mode (`isEditing` state) that renders `RichPostEditor` directly — bypassing `PostEditor`. The `RichPostEditor` in PostCard was called without the `platformConnections` prop, so the platform multi-select never rendered. The `PostEditor` used in the admin Posts page was already wired correctly; only the home-feed / post-card edit path was missing it.
+
+Additionally, the backend `PATCH /posts/:id` only fired syndication on `isTransitioningToPublished` (draft→published or scheduled→published). Editing an already-published post with `platformIds` stored them as `pendingPlatformIds` but never dispatched them — contradicting the OpenAPI spec description for `UpdatePostBody.platformIds`:
+> "For already-published posts: triggers immediate syndication (same as create)."
+
+### Decisions Confirmed
+- Platform selection must be available in every owner edit surface: the admin Posts inline panel (`PostEditor`) and the home-feed post card (`PostCard` inline editor).
+- Editing an already-published post with explicit `platformIds` fires immediate syndication. This aligns the implementation with the documented API contract.
+
+### Changes Made
+
+**`artifacts/microblog/src/components/post/PostCard.tsx`**
+- Added `useEnabledPlatformConnections` hook.
+- Pass `platformConnections={platformConnections}` to the inline `RichPostEditor`.
+- Updated `onSubmit` handler to forward `platformIds` to `updatePost.mutate` (omitting the field when the array is empty to avoid unnecessary API noise).
+
+**`artifacts/api-server/src/routes/posts.ts` — `PATCH /posts/:id`**
+- Added a second syndication branch after the existing `isTransitioningToPublished` block:
+  ```
+  if (!isTransitioningToPublished && post.status === "published"
+      && !newStatus && rawPlatformIds && rawPlatformIds.length > 0)
+    enqueueSyndication(id, rawPlatformIds, …)
+  ```
+- Both paths pass `substackSendNewsletter: false` (the `UpdatePostBody` schema does not carry this field for edits).
+
+### Outcome
+- Platform selector now appears in all post edit surfaces.
+- Selecting platforms and saving an already-published post dispatches syndication immediately.
+- Draft and scheduled post edits continue to store platform IDs as `pendingPlatformIds` for dispatch at publish time (unchanged).

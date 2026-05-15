@@ -26,10 +26,14 @@ export const ListPostsQueryParams = zod.object({
   "page": zod.coerce.number().default(listPostsQueryPageDefault),
   "limit": zod.coerce.number().default(listPostsQueryLimitDefault),
   "category": zod.coerce.string().optional().describe('Filter by category slug, or the special token \"uncategorized\" for posts with no assigned category. Omit or pass \"all\" for no filter.'),
-  "source": zod.coerce.string().optional().describe('Filter by source. \"original\" for posts with no feed source (native + deleted-source posts), or a numeric feed source ID. Omit or pass \"all\" for no filter.')
+  "source": zod.coerce.string().optional().describe('Filter by source. \"original\" for posts with no feed source (native + deleted-source posts), or a numeric feed source ID. Omit or pass \"all\" for no filter.'),
+  "view": zod.enum(['owner']).optional().describe('When set to \"owner\" (owner auth required), returns all owner-authored\nposts regardless of status (draft, scheduled, published) plus all\nRSS-imported published posts. Used by the Admin Posts calendar.\n'),
+  "from": zod.coerce.string().optional().describe('ISO date (YYYY-MM-DD). When combined with view=owner, filters posts whose createdAt\/scheduledAt falls on or after this date.'),
+  "to": zod.coerce.string().optional().describe('ISO date (YYYY-MM-DD). When combined with view=owner, filters posts whose createdAt\/scheduledAt falls on or before this date.')
 })
 
 export const listPostsResponsePostsItemTitleMax = 500;
+
 
 
 
@@ -54,6 +58,9 @@ export const ListPostsResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
+  "status": zod.enum(['published', 'pending', 'draft', 'scheduled']).optional().describe('Publication status of the post. \'published\' = live on the public timeline;\n\'pending\' = RSS moderation queue; \'draft\' = saved but not yet published;\n\'scheduled\' = auto-publish at scheduledAt.\n'),
+  "scheduledAt": zod.coerce.date().nullish().describe('ISO 8601 datetime when a \'scheduled\' post will be auto-published. Null for non-scheduled posts.'),
+  "pendingPlatformIds": zod.array(zod.number().min(1)).nullish().describe('Platform connection IDs to syndicate when this draft\/scheduled post is published. Null after publishing.'),
   "syndications": zod.array(zod.object({
   "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger', 'substack']),
   "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')
@@ -75,7 +82,7 @@ export const createPostBodyContentMax = 40000;
 
 
 
-
+export const createPostBodyStatusDefault = `published`;
 
 export const CreatePostBody = zod.object({
   "title": zod.string().max(createPostBodyTitleMax).optional().describe('Optional post title. Omit or send empty string for title-less microblog posts.'),
@@ -83,7 +90,52 @@ export const CreatePostBody = zod.object({
   "contentFormat": zod.enum(['plain', 'html']),
   "categoryIds": zod.array(zod.number().min(1)).optional().describe('Optional list of `categories.id` values to attach to the new post.\nEvery id must be a positive integer; any unknown or malformed id\ncauses the request to fail with 400 and no post is created.\nOmitting the field (or sending an empty array) leaves the post\nuncategorized.\n'),
   "platformIds": zod.array(zod.number().min(1)).optional().describe('Optional list of `platform_connections.id` values to syndicate to\nafter the post is created (POSSE). Only connections owned by the\nauthenticated user and with `enabled=true` are dispatched.\nOmitting the field (or sending an empty array) skips syndication.\n'),
-  "substackSendNewsletter": zod.boolean().optional().describe('Optional Substack-only delivery mode. When true and a selected\nSubstack connection is included in `platformIds`, the post is both\npublished on Substack and sent as a newsletter. Defaults to false.\n')
+  "substackSendNewsletter": zod.boolean().optional().describe('Optional Substack-only delivery mode. When true and a selected\nSubstack connection is included in `platformIds`, the post is both\npublished on Substack and sent as a newsletter. Defaults to false.\n'),
+  "status": zod.enum(['published', 'draft', 'scheduled']).default(createPostBodyStatusDefault).describe('\'published\' (default) = immediately visible on the public timeline.\n\'draft\' = saved but not published; platformIds stored as pendingPlatformIds.\n\'scheduled\' = auto-publish at scheduledAt; platformIds stored as pendingPlatformIds.\n'),
+  "scheduledAt": zod.coerce.date().optional().describe('Required when status=\'scheduled\'. Must be at least 1 hour in the future (ISO 8601).')
+})
+
+
+/**
+ * Returns all posts with status='draft', sorted by createdAt descending. Used by the Admin Posts drafts section.
+ * @summary List owner's draft posts (owner only)
+ */
+export const getDraftPostsResponsePostsItemTitleMax = 500;
+
+
+
+
+export const GetDraftPostsResponse = zod.object({
+  "posts": zod.array(zod.object({
+  "id": zod.number(),
+  "authorId": zod.string(),
+  "authorName": zod.string(),
+  "authorImageUrl": zod.string().nullish(),
+  "title": zod.string().max(getDraftPostsResponsePostsItemTitleMax).nullish().describe('Optional post title. Null for title-less microblog posts.'),
+  "content": zod.string(),
+  "contentFormat": zod.enum(['plain', 'html']),
+  "commentCount": zod.number(),
+  "sourceFeedId": zod.number().nullish().describe('ID of the feed_sources row that imported this post (PESOS); null for owner-authored posts.'),
+  "sourceFeedName": zod.string().nullish().describe('Display name of the originating feed source (joined from feed_sources). Null for owner-authored posts.'),
+  "sourceCanonicalUrl": zod.string().nullish().describe('Permalink of the post on its origin site (PESOS attribution).'),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
+  "status": zod.enum(['published', 'pending', 'draft', 'scheduled']).optional().describe('Publication status of the post. \'published\' = live on the public timeline;\n\'pending\' = RSS moderation queue; \'draft\' = saved but not yet published;\n\'scheduled\' = auto-publish at scheduledAt.\n'),
+  "scheduledAt": zod.coerce.date().nullish().describe('ISO 8601 datetime when a \'scheduled\' post will be auto-published. Null for non-scheduled posts.'),
+  "pendingPlatformIds": zod.array(zod.number().min(1)).nullish().describe('Platform connection IDs to syndicate when this draft\/scheduled post is published. Null after publishing.'),
+  "syndications": zod.array(zod.object({
+  "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger', 'substack']),
+  "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')
+}).describe('Lightweight summary of a successful cross-post, embedded in post list responses.')).optional().describe('Platforms this post was successfully cross-posted to (POSSE). Omitted when none.'),
+  "createdAt": zod.coerce.date()
+})),
+  "total": zod.number()
 })
 
 
@@ -95,6 +147,7 @@ export const GetPostParams = zod.object({
 })
 
 export const getPostResponsePostTitleMax = 500;
+
 
 
 
@@ -119,6 +172,9 @@ export const GetPostResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
+  "status": zod.enum(['published', 'pending', 'draft', 'scheduled']).optional().describe('Publication status of the post. \'published\' = live on the public timeline;\n\'pending\' = RSS moderation queue; \'draft\' = saved but not yet published;\n\'scheduled\' = auto-publish at scheduledAt.\n'),
+  "scheduledAt": zod.coerce.date().nullish().describe('ISO 8601 datetime when a \'scheduled\' post will be auto-published. Null for non-scheduled posts.'),
+  "pendingPlatformIds": zod.array(zod.number().min(1)).nullish().describe('Platform connection IDs to syndicate when this draft\/scheduled post is published. Null after publishing.'),
   "syndications": zod.array(zod.object({
   "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger', 'substack']),
   "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')
@@ -151,14 +207,19 @@ export const updatePostBodyContentMax = 40000;
 
 
 
+
 export const UpdatePostBody = zod.object({
   "title": zod.string().max(updatePostBodyTitleMax).optional().describe('Optional post title. Omit to leave unchanged; send empty string to clear.'),
   "content": zod.string().max(updatePostBodyContentMax),
   "contentFormat": zod.enum(['plain', 'html']),
-  "categoryIds": zod.array(zod.number().min(1)).optional().describe('Replaces the post\'s category set. Sending an empty array clears all\ncategories; omitting the field leaves the existing set untouched.\nEvery id must be a positive integer; any unknown or malformed id\ncauses the request to fail with 400 and the post stays unchanged.\n')
+  "categoryIds": zod.array(zod.number().min(1)).optional().describe('Replaces the post\'s category set. Sending an empty array clears all\ncategories; omitting the field leaves the existing set untouched.\nEvery id must be a positive integer; any unknown or malformed id\ncauses the request to fail with 400 and the post stays unchanged.\n'),
+  "platformIds": zod.array(zod.number().min(1)).optional().describe('For draft\/scheduled posts: replaces the pending platform connection IDs\nto syndicate when the post is published. For already-published posts:\ntriggers immediate syndication (same as create). Omitting the field\nleaves the existing pendingPlatformIds untouched.\n'),
+  "status": zod.enum(['published', 'draft', 'scheduled']).optional().describe('Transition the post\'s publication status. Allowed transitions:\ndraft→published (fires syndication), draft→scheduled,\nscheduled→published (fires syndication), scheduled→draft.\npublished→draft is logged but does not recall external syndications.\n'),
+  "scheduledAt": zod.coerce.date().nullish().describe('Required when transitioning to status=\'scheduled\'. Send null to clear when moving to draft or published.')
 })
 
 export const updatePostResponseTitleMax = 500;
+
 
 
 
@@ -182,6 +243,9 @@ export const UpdatePostResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
+  "status": zod.enum(['published', 'pending', 'draft', 'scheduled']).optional().describe('Publication status of the post. \'published\' = live on the public timeline;\n\'pending\' = RSS moderation queue; \'draft\' = saved but not yet published;\n\'scheduled\' = auto-publish at scheduledAt.\n'),
+  "scheduledAt": zod.coerce.date().nullish().describe('ISO 8601 datetime when a \'scheduled\' post will be auto-published. Null for non-scheduled posts.'),
+  "pendingPlatformIds": zod.array(zod.number().min(1)).nullish().describe('Platform connection IDs to syndicate when this draft\/scheduled post is published. Null after publishing.'),
   "syndications": zod.array(zod.object({
   "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger', 'substack']),
   "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')
@@ -273,6 +337,7 @@ export const getPostsByUserResponsePostsItemTitleMax = 500;
 
 
 
+
 export const GetPostsByUserResponse = zod.object({
   "posts": zod.array(zod.object({
   "id": zod.number(),
@@ -294,6 +359,9 @@ export const GetPostsByUserResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
+  "status": zod.enum(['published', 'pending', 'draft', 'scheduled']).optional().describe('Publication status of the post. \'published\' = live on the public timeline;\n\'pending\' = RSS moderation queue; \'draft\' = saved but not yet published;\n\'scheduled\' = auto-publish at scheduledAt.\n'),
+  "scheduledAt": zod.coerce.date().nullish().describe('ISO 8601 datetime when a \'scheduled\' post will be auto-published. Null for non-scheduled posts.'),
+  "pendingPlatformIds": zod.array(zod.number().min(1)).nullish().describe('Platform connection IDs to syndicate when this draft\/scheduled post is published. Null after publishing.'),
   "syndications": zod.array(zod.object({
   "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger', 'substack']),
   "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')
@@ -1430,6 +1498,7 @@ export const getCategoryPostsResponsePostsItemTitleMax = 500;
 
 
 
+
 export const GetCategoryPostsResponse = zod.object({
   "posts": zod.array(zod.object({
   "id": zod.number(),
@@ -1451,6 +1520,9 @@ export const GetCategoryPostsResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('Owner-managed taxonomy entry. Slug is the canonical identifier in URLs.')).describe('Categories this post belongs to (owner-managed taxonomy).'),
+  "status": zod.enum(['published', 'pending', 'draft', 'scheduled']).optional().describe('Publication status of the post. \'published\' = live on the public timeline;\n\'pending\' = RSS moderation queue; \'draft\' = saved but not yet published;\n\'scheduled\' = auto-publish at scheduledAt.\n'),
+  "scheduledAt": zod.coerce.date().nullish().describe('ISO 8601 datetime when a \'scheduled\' post will be auto-published. Null for non-scheduled posts.'),
+  "pendingPlatformIds": zod.array(zod.number().min(1)).nullish().describe('Platform connection IDs to syndicate when this draft\/scheduled post is published. Null after publishing.'),
   "syndications": zod.array(zod.object({
   "platform": zod.enum(['wordpress_com', 'wordpress_self', 'medium', 'blogger', 'substack']),
   "externalUrl": zod.string().nullish().describe('The post\'s URL on the external platform, if available.')

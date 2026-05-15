@@ -242,10 +242,7 @@ export function RichPostEditor({
   const [title, setTitle] = useState(initialTitle);
   const [textLength, setTextLength] = useState(getEditorTextLength(initialContent));
   const [categoryIds, setCategoryIds] = useState<number[]>(initialCategoryIds);
-  const [platformIds, setPlatformIds] = useState<number[]>(
-    // Default: all enabled connections are selected.
-    () => (platformConnections ?? []).map((c) => c.id),
-  );
+  const [platformIds, setPlatformIds] = useState<number[]>([]);
   const [substackSendNewsletter, setSubstackSendNewsletter] = useState(false);
   const [selectedAiVendor, setSelectedAiVendor] = useState<ProcessAiTextBodyVendor | "">(aiVendors[0]?.id ?? "");
   const [selectedAiMode, setSelectedAiMode] = useState<"text" | "piece">("text");

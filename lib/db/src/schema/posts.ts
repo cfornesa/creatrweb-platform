@@ -9,15 +9,17 @@ export const postContentFormatSchema = z.enum(["plain", "html"]);
 
 /**
  * `posts.status` — persisted string enum. Values:
- *   - `published` — visible on the public timeline (default for owner-authored posts).
- *   - `pending`   — sitting in the moderation queue (created by the RSS
- *                   ingest worker; never shown publicly until an owner
- *                   approves it).
+ *   - `published`  — visible on the public timeline (default for owner-authored posts).
+ *   - `pending`    — sitting in the moderation queue (created by the RSS
+ *                    ingest worker; never shown publicly until an owner approves it).
+ *   - `draft`      — saved by the owner but not yet queued for publishing.
+ *   - `scheduled`  — set to auto-publish at a future `scheduled_at` datetime.
  *
  * Per AGENTS.md these values are part of the data contract; renaming or
  * adding values requires an explicit migration of every existing row.
+ * New values confirmed by the owner on 2026-05-14.
  */
-export const postStatusSchema = z.enum(["published", "pending"]);
+export const postStatusSchema = z.enum(["published", "pending", "draft", "scheduled"]);
 export type PostStatus = z.infer<typeof postStatusSchema>;
 
 export const postsTable = mysqlTable(
@@ -45,11 +47,22 @@ export const postsTable = mysqlTable(
     }),
     sourceGuid: varchar("source_guid", { length: 1024 }),
     sourceCanonicalUrl: varchar("source_canonical_url", { length: 2048 }),
+    // Nullable: only set when status='scheduled'. The post-scheduler
+    // checks this column every 60s and flips status → 'published' once
+    // the datetime has passed.
+    scheduledAt: datetime("scheduled_at", { mode: "string", fsp: 3 }),
+    // JSON-encoded number[] of platform_connection IDs to syndicate to
+    // when the post transitions to 'published' (draft→published or
+    // scheduler fires). Cleared after syndication is dispatched.
+    pendingPlatformIds: text("pending_platform_ids"),
     createdAt: datetime("created_at", { mode: "string", fsp: 3 }).notNull().default(sql`CURRENT_TIMESTAMP(3)`),
   },
   (t) => ({
     statusIdx: index("posts_status_idx").on(t.status),
     sourceFeedIdx: index("posts_source_feed_idx").on(t.sourceFeedId),
+    scheduledIdx: index("posts_scheduled_idx").on(t.status, t.scheduledAt),
+    authorIdIdx: index("posts_author_id_idx").on(t.authorId),
+    statusCreatedIdx: index("posts_status_created_idx").on(t.status, t.createdAt),
   }),
 );
 

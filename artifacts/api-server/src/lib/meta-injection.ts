@@ -1,6 +1,15 @@
 import fs from "fs";
 import { db, postsTable, categoriesTable, pagesTable, siteSettingsTable, usersTable, eq, and, siteSettingsDefaults } from "@workspace/db";
 
+const _htmlCache = new Map<string, string>();
+function readHtml(htmlPath: string): string {
+  const cached = _htmlCache.get(htmlPath);
+  if (cached !== undefined) return cached;
+  const content = fs.readFileSync(htmlPath, "utf-8");
+  _htmlCache.set(htmlPath, content);
+  return content;
+}
+
 const KNOWN_THEMES = new Set([
   "bauhaus",
   "traditional",
@@ -144,7 +153,7 @@ function applyThemeToHtml(html: string, themeId: string, css: string): string {
 }
 
 export async function injectThemeData(htmlPath: string): Promise<string> {
-  const html = fs.readFileSync(htmlPath, "utf-8");
+  const html = readHtml(htmlPath);
   try {
     const settings = await loadSettings();
     const { themeId, css } = buildThemeInjection(settings);
@@ -329,7 +338,7 @@ export async function injectUserTheme(
 
     const settings = await loadSettings();
     const { themeId, css } = buildThemeInjection(settings);
-    let html = fs.readFileSync(htmlPath, "utf-8");
+    let html = readHtml(htmlPath);
     html = applyThemeToHtml(html, themeId, css);
 
     if (userHasCustomization(user) && typeof user.id === "string") {
@@ -403,7 +412,7 @@ export async function injectCategoryFeedLinks(
 
     const settings = await loadSettings();
     const { themeId, css } = buildThemeInjection(settings);
-    let html = fs.readFileSync(htmlPath, "utf-8");
+    let html = readHtml(htmlPath);
     html = applyThemeToHtml(html, themeId, css);
 
     const safeName = cat.name
@@ -446,7 +455,7 @@ export async function injectPageFeedLinks(
 
     const settings = await loadSettings();
     const { themeId, css } = buildThemeInjection(settings);
-    let html = fs.readFileSync(htmlPath, "utf-8");
+    let html = readHtml(htmlPath);
     html = applyThemeToHtml(html, themeId, css);
 
     const safeTitle = page.title
@@ -501,7 +510,7 @@ export async function injectPostMetadata(htmlPath: string, postId: string): Prom
     <meta name="twitter:image" content="${ogImageUrl}">
     `;
 
-    let html = fs.readFileSync(htmlPath, "utf-8");
+    let html = readHtml(htmlPath);
 
     const { themeId, css } = buildThemeInjection(settings);
     html = applyThemeToHtml(html, themeId, css);

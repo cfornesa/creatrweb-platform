@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, postsTable, usersTable, feedSourcesTable, eq, count, and, ne, isNull, formatMysqlDateTime } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
+import { invalidateUserCache } from "../lib/current-user";
 import { UpdateMeBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -287,6 +288,8 @@ router.patch("/users/me", requireAuth, async (req: Request, res: Response) => {
         .set({ authorName: name })
         .where(eq(postsTable.authorUserId, currentUser.id));
     }
+
+    invalidateUserCache(currentUser.id);
 
     // Fetch updated user
     const updatedUserResult = await db

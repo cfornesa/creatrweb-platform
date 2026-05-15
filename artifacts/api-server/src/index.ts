@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { ensureTables } from "@workspace/db";
 import { ensureMediaRoot } from "./lib/media";
 import { backfillPostContentText } from "./lib/html";
+import { startPostScheduler } from "./lib/post-scheduler";
 
 const rawPort = process.env["PORT"] ?? "5000";
 
@@ -23,6 +24,7 @@ ensureTables()
       }
 
       logger.info({ port }, "Server listening");
+      startPostScheduler();
     });
   })
   .catch((err) => {

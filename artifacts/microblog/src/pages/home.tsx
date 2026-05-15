@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { listPosts, useListCategories, useListPublicFeedSources } from "@workspace/api-client-react";
 import { PostCard } from "@/components/post/PostCard";
-import { ComposePost } from "@/components/post/ComposePost";
+import { PostEditor } from "@/components/post/PostEditor";
 import { FeedStatsWidget } from "@/components/layout/FeedStatsWidget";
 import { MiniProfile } from "@/components/layout/MiniProfile";
 import { Link } from "wouter";
@@ -124,7 +124,7 @@ export default function Home() {
         <main className="space-y-6">
           <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
             {isAuthenticated ? (
-              <ComposePost />
+              <PostEditor />
             ) : null}
 
             {!isAuthenticated ? (

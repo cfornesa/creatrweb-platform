@@ -48,6 +48,7 @@ import type {
   GenerateArtPieceBody,
   GeneratedArtPieceDraft,
   GetCategoryPostsParams,
+  GetDraftPosts200,
   GetEmbeddedArtPieceParams,
   GetPostsByUserParams,
   HealthStatus,
@@ -340,6 +341,84 @@ export const useCreatePost = <TError = ErrorType<void>,
       > => {
       return useMutation(getCreatePostMutationOptions(options));
     }
+
+/**
+ * Returns all posts with status='draft', sorted by createdAt descending. Used by the Admin Posts drafts section.
+ * @summary List owner's draft posts (owner only)
+ */
+export const getGetDraftPostsUrl = () => {
+
+
+
+
+  return `/api/posts/drafts`
+}
+
+export const getDraftPosts = async ( options?: RequestInit): Promise<GetDraftPosts200> => {
+
+  return customFetch<GetDraftPosts200>(getGetDraftPostsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDraftPostsQueryKey = () => {
+    return [
+    `/api/posts/drafts`
+    ] as const;
+    }
+
+
+export const getGetDraftPostsQueryOptions = <TData = Awaited<ReturnType<typeof getDraftPosts>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDraftPostsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDraftPosts>>> = ({ signal }) => getDraftPosts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDraftPosts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDraftPostsQueryResult = NonNullable<Awaited<ReturnType<typeof getDraftPosts>>>
+export type GetDraftPostsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List owner's draft posts (owner only)
+ */
+
+export function useGetDraftPosts<TData = Awaited<ReturnType<typeof getDraftPosts>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDraftPostsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 /**
  * @summary Get a single post with its comments

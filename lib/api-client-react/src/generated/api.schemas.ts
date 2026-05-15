@@ -63,6 +63,22 @@ export const PostContentFormat = {
   html: 'html',
 } as const;
 
+/**
+ * Publication status of the post. 'published' = live on the public timeline;
+'pending' = RSS moderation queue; 'draft' = saved but not yet published;
+'scheduled' = auto-publish at scheduledAt.
+
+ */
+export type PostStatus = typeof PostStatus[keyof typeof PostStatus];
+
+
+export const PostStatus = {
+  published: 'published',
+  pending: 'pending',
+  draft: 'draft',
+  scheduled: 'scheduled',
+} as const;
+
 export type PostSyndicationBadgePlatform = typeof PostSyndicationBadgePlatform[keyof typeof PostSyndicationBadgePlatform];
 
 
@@ -104,6 +120,15 @@ export interface Post {
   sourceCanonicalUrl?: string | null;
   /** Categories this post belongs to (owner-managed taxonomy). */
   categories: Category[];
+  /** Publication status of the post. 'published' = live on the public timeline;
+  'pending' = RSS moderation queue; 'draft' = saved but not yet published;
+  'scheduled' = auto-publish at scheduledAt.
+   */
+  status?: PostStatus;
+  /** ISO 8601 datetime when a 'scheduled' post will be auto-published. Null for non-scheduled posts. */
+  scheduledAt?: string | null;
+  /** Platform connection IDs to syndicate when this draft/scheduled post is published. Null after publishing. */
+  pendingPlatformIds?: number[] | null;
   /** Platforms this post was successfully cross-posted to (POSSE). Omitted when none. */
   syndications?: PostSyndicationBadge[];
   createdAt: string;
@@ -185,6 +210,21 @@ export const CreatePostBodyContentFormat = {
   html: 'html',
 } as const;
 
+/**
+ * 'published' (default) = immediately visible on the public timeline.
+'draft' = saved but not published; platformIds stored as pendingPlatformIds.
+'scheduled' = auto-publish at scheduledAt; platformIds stored as pendingPlatformIds.
+
+ */
+export type CreatePostBodyStatus = typeof CreatePostBodyStatus[keyof typeof CreatePostBodyStatus];
+
+
+export const CreatePostBodyStatus = {
+  published: 'published',
+  draft: 'draft',
+  scheduled: 'scheduled',
+} as const;
+
 export interface CreatePostBody {
   /**
      * Optional post title. Omit or send empty string for title-less microblog posts.
@@ -212,6 +252,13 @@ export interface CreatePostBody {
   published on Substack and sent as a newsletter. Defaults to false.
    */
   substackSendNewsletter?: boolean;
+  /** 'published' (default) = immediately visible on the public timeline.
+  'draft' = saved but not published; platformIds stored as pendingPlatformIds.
+  'scheduled' = auto-publish at scheduledAt; platformIds stored as pendingPlatformIds.
+   */
+  status?: CreatePostBodyStatus;
+  /** Required when status='scheduled'. Must be at least 1 hour in the future (ISO 8601). */
+  scheduledAt?: string;
 }
 
 export type UpdatePostBodyContentFormat = typeof UpdatePostBodyContentFormat[keyof typeof UpdatePostBodyContentFormat];
@@ -220,6 +267,22 @@ export type UpdatePostBodyContentFormat = typeof UpdatePostBodyContentFormat[key
 export const UpdatePostBodyContentFormat = {
   plain: 'plain',
   html: 'html',
+} as const;
+
+/**
+ * Transition the post's publication status. Allowed transitions:
+draft→published (fires syndication), draft→scheduled,
+scheduled→published (fires syndication), scheduled→draft.
+published→draft is logged but does not recall external syndications.
+
+ */
+export type UpdatePostBodyStatus = typeof UpdatePostBodyStatus[keyof typeof UpdatePostBodyStatus];
+
+
+export const UpdatePostBodyStatus = {
+  published: 'published',
+  draft: 'draft',
+  scheduled: 'scheduled',
 } as const;
 
 export interface UpdatePostBody {
@@ -237,6 +300,20 @@ export interface UpdatePostBody {
   causes the request to fail with 400 and the post stays unchanged.
    */
   categoryIds?: number[];
+  /** For draft/scheduled posts: replaces the pending platform connection IDs
+  to syndicate when the post is published. For already-published posts:
+  triggers immediate syndication (same as create). Omitting the field
+  leaves the existing pendingPlatformIds untouched.
+   */
+  platformIds?: number[];
+  /** Transition the post's publication status. Allowed transitions:
+  draft→published (fires syndication), draft→scheduled,
+  scheduled→published (fires syndication), scheduled→draft.
+  published→draft is logged but does not recall external syndications.
+   */
+  status?: UpdatePostBodyStatus;
+  /** Required when transitioning to status='scheduled'. Send null to clear when moving to draft or published. */
+  scheduledAt?: string | null;
 }
 
 export interface CreateCommentBody {
@@ -1568,6 +1645,33 @@ category?: string;
  * Filter by source. "original" for posts with no feed source (native + deleted-source posts), or a numeric feed source ID. Omit or pass "all" for no filter.
  */
 source?: string;
+/**
+ * When set to "owner" (owner auth required), returns all owner-authored
+posts regardless of status (draft, scheduled, published) plus all
+RSS-imported published posts. Used by the Admin Posts calendar.
+
+ */
+view?: ListPostsView;
+/**
+ * ISO date (YYYY-MM-DD). When combined with view=owner, filters posts whose createdAt/scheduledAt falls on or after this date.
+ */
+from?: string;
+/**
+ * ISO date (YYYY-MM-DD). When combined with view=owner, filters posts whose createdAt/scheduledAt falls on or before this date.
+ */
+to?: string;
+};
+
+export type ListPostsView = typeof ListPostsView[keyof typeof ListPostsView];
+
+
+export const ListPostsView = {
+  owner: 'owner',
+} as const;
+
+export type GetDraftPosts200 = {
+  posts: Post[];
+  total: number;
 };
 
 export type SearchPostsParams = {

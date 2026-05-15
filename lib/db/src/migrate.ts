@@ -97,6 +97,18 @@ async function ensureIndex(
   await mysqlPool.query(createSql);
 }
 
+async function tryEnsureIndex(
+  tableName: string,
+  indexName: string,
+  createSql: string,
+): Promise<void> {
+  try {
+    await ensureIndex(tableName, indexName, createSql);
+  } catch (err) {
+    console.error(`[migrate] Non-fatal: could not create index ${indexName} on ${tableName}:`, err);
+  }
+}
+
 type ConstraintRow = RowDataPacket & { CONSTRAINT_NAME: string };
 
 async function getConstraintNames(tableName: string): Promise<Set<string>> {
@@ -306,6 +318,12 @@ export async function ensureTables(): Promise<void> {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  await tryEnsureIndex(
+    "sessions",
+    "sessions_user_id_idx",
+    "CREATE INDEX sessions_user_id_idx ON sessions (user_id)",
+  );
+
   await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS verification_tokens (
       identifier VARCHAR(191) NOT NULL,
@@ -396,6 +414,23 @@ export async function ensureTables(): Promise<void> {
   // retroactively titles an existing post via the edit flow.
   await ensureColumn("posts", "title", "title VARCHAR(500) NULL");
 
+  // Scheduled publishing columns. Confirmed by owner on 2026-05-14.
+  // `scheduled_at` is only set when status='scheduled'; the in-process
+  // post-scheduler checks every 60s and transitions overdue rows to
+  // 'published'. `pending_platform_ids` stores JSON-encoded platform
+  // connection IDs to syndicate at publish time (avoids early dispatch).
+  await ensureColumn("posts", "scheduled_at", "scheduled_at DATETIME(3) NULL");
+  await ensureColumn(
+    "posts",
+    "pending_platform_ids",
+    "pending_platform_ids TEXT NULL",
+  );
+  await ensureIndex(
+    "posts",
+    "posts_scheduled_idx",
+    "CREATE INDEX posts_scheduled_idx ON posts (status, scheduled_at)",
+  );
+
   // Plain-text shadow of `content`, populated by every write path that
   // touches `content`. Backs the FULLTEXT index that powers
   // `/api/posts/search`. Nullable so adding the column on an existing
@@ -429,6 +464,17 @@ export async function ensureTables(): Promise<void> {
     "posts",
     "posts_content_text_fulltext",
     "CREATE FULLTEXT INDEX posts_content_text_fulltext ON posts (content_text)",
+  );
+
+  await tryEnsureIndex(
+    "posts",
+    "posts_author_id_idx",
+    "CREATE INDEX posts_author_id_idx ON posts (author_id)",
+  );
+  await tryEnsureIndex(
+    "posts",
+    "posts_status_created_idx",
+    "CREATE INDEX posts_status_created_idx ON posts (status, created_at)",
   );
 
   await ensureColumn(
