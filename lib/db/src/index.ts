@@ -45,6 +45,6 @@ export const mysqlPool = mysql.createPool(getMysqlConnectionOptions());
 export const db = drizzle(mysqlPool, { schema, mode: "default" });
 
 export * from "./schema/index.ts";
-export { formatMysqlDateTime } from "./mysql-datetime.ts";
+export { formatMysqlDateTime, formatMysqlDateTimeUtc } from "./mysql-datetime.ts";
 export { eq, desc, asc, and, or, count, sql, like, ne, gt, lt, gte, lte, isNull, isNotNull, inArray, notInArray, notExists } from "drizzle-orm";
 export { ensureTables } from "./migrate.ts";

@@ -43,6 +43,8 @@ type RichPostEditorProps = {
   isSubmitting?: boolean;
   /** Initial selected category ids (empty array == no categories). */
   initialCategoryIds?: number[];
+  /** Initial selected platform ids (empty array == no platforms pre-selected). */
+  initialPlatformIds?: number[];
   /**
    * When omitted, the category multiselect is hidden — used by
    * non-owner edit surfaces (none today) and by tests that want a
@@ -229,6 +231,7 @@ export function RichPostEditor({
   cancelLabel = "Cancel",
   isSubmitting = false,
   initialCategoryIds = [],
+  initialPlatformIds = [],
   showCategories = true,
   aiVendors = [],
   platformConnections,
@@ -242,7 +245,7 @@ export function RichPostEditor({
   const [title, setTitle] = useState(initialTitle);
   const [textLength, setTextLength] = useState(getEditorTextLength(initialContent));
   const [categoryIds, setCategoryIds] = useState<number[]>(initialCategoryIds);
-  const [platformIds, setPlatformIds] = useState<number[]>([]);
+  const [platformIds, setPlatformIds] = useState<number[]>(initialPlatformIds ?? []);
   const [substackSendNewsletter, setSubstackSendNewsletter] = useState(false);
   const [selectedAiVendor, setSelectedAiVendor] = useState<ProcessAiTextBodyVendor | "">(aiVendors[0]?.id ?? "");
   const [selectedAiMode, setSelectedAiMode] = useState<"text" | "piece">("text");

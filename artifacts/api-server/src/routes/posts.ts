@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, mysqlPool, postsTable, commentsTable, feedSourcesTable, categoriesTable, postCategoriesTable, eq, desc, count, and, or, isNull, inArray, notExists, sql, gte, lte, formatMysqlDateTime } from "@workspace/db";
+import { db, mysqlPool, postsTable, commentsTable, feedSourcesTable, categoriesTable, postCategoriesTable, eq, desc, count, and, or, isNull, inArray, notExists, sql, gte, lte, formatMysqlDateTime, formatMysqlDateTimeUtc } from "@workspace/db";
 import {
   attachCategoriesToPosts,
   hydratePostCategories,
@@ -31,6 +31,13 @@ import {
 import { enqueueSyndication } from "../lib/syndication/index";
 import { getOrigin } from "./feeds";
 import type { RowDataPacket } from "mysql2/promise";
+
+// Convert a naive MySQL DATETIME string ("YYYY-MM-DD HH:mm:ss.mmm" stored as UTC)
+// to a proper UTC ISO 8601 string so browser parseISO treats it correctly.
+function toUtcIso(s: string | null | undefined): string | null {
+  if (!s) return null;
+  return s.replace(" ", "T") + "Z";
+}
 
 // Attach successful syndication badges to a list of posts in-place.
 async function attachSyndications<T extends { id: number }>(
@@ -136,6 +143,7 @@ router.get("/posts/drafts", requireAuth, requireOwner, async (req: Request, res:
     return res.json({
       posts: hydrated.map((p) => ({
         ...p,
+        scheduledAt: toUtcIso(p.scheduledAt),
         pendingPlatformIds: p.pendingPlatformIds ? (JSON.parse(p.pendingPlatformIds) as number[]) : null,
         syndications: [],
       })),
@@ -511,6 +519,7 @@ router.get("/posts", async (req: Request, res: Response) => {
       return res.json({
         posts: withSyndications.map((p) => ({
           ...p,
+          scheduledAt: toUtcIso((p as { scheduledAt?: string | null }).scheduledAt),
           pendingPlatformIds: (p as { pendingPlatformIds?: string | null }).pendingPlatformIds
             ? (JSON.parse((p as { pendingPlatformIds: string }).pendingPlatformIds) as number[])
             : null,
@@ -623,8 +632,8 @@ router.post("/posts", requireAuth, requireOwner, async (req: Request, res: Respo
         return res.status(400).json({ error: "scheduledAt is required when status is 'scheduled'" });
       }
       const scheduledMs = (body.scheduledAt as Date).getTime();
-      if (scheduledMs < Date.now() + 3_600_000) {
-        return res.status(400).json({ error: "scheduledAt must be at least 1 hour in the future" });
+      if (scheduledMs < Date.now() + 1_800_000) {
+        return res.status(400).json({ error: "scheduledAt must be at least 30 minutes in the future" });
       }
     }
 
@@ -661,7 +670,7 @@ router.post("/posts", requireAuth, requireOwner, async (req: Request, res: Respo
           contentFormat: body.contentFormat,
           status: postStatus,
           scheduledAt: postStatus === "scheduled" && body.scheduledAt
-            ? formatMysqlDateTime(body.scheduledAt as Date)
+            ? formatMysqlDateTimeUtc(body.scheduledAt as Date)
             : null,
           // Store platform IDs for later dispatch if not publishing immediately.
           pendingPlatformIds: postStatus !== "published" && rawPlatformIds.length > 0
@@ -694,6 +703,10 @@ router.post("/posts", requireAuth, requireOwner, async (req: Request, res: Respo
 
     return res.status(201).json({
       ...post[0],
+      scheduledAt: toUtcIso(post[0].scheduledAt),
+      pendingPlatformIds: post[0].pendingPlatformIds
+        ? (JSON.parse(post[0].pendingPlatformIds) as number[])
+        : null,
       commentCount: 0,
       categories: categoriesMap.get(insertedId) ?? [],
       syndications: [],
@@ -752,7 +765,13 @@ router.get("/posts/:id", async (req: Request, res: Response) => {
     const categoriesMap = await hydratePostCategories([id]);
     const [withSyndication] = await attachSyndications([{ ...post, categories: categoriesMap.get(id) ?? [] }]);
     return res.json({
-      post: withSyndication,
+      post: {
+        ...withSyndication,
+        scheduledAt: toUtcIso((withSyndication as { scheduledAt?: string | null }).scheduledAt),
+        pendingPlatformIds: (withSyndication as { pendingPlatformIds?: string | null }).pendingPlatformIds
+          ? (JSON.parse((withSyndication as { pendingPlatformIds: string }).pendingPlatformIds) as number[])
+          : null,
+      },
       comments,
     });
   } catch (err) {
@@ -785,8 +804,8 @@ router.patch("/posts/:id", requireAuth, requireOwner, async (req: Request, res: 
       if (!newScheduledAt) {
         return res.status(400).json({ error: "scheduledAt is required when transitioning to 'scheduled'" });
       }
-      if ((newScheduledAt as Date).getTime() < Date.now() + 3_600_000) {
-        return res.status(400).json({ error: "scheduledAt must be at least 1 hour in the future" });
+      if ((newScheduledAt as Date).getTime() < Date.now() + 1_800_000) {
+        return res.status(400).json({ error: "scheduledAt must be at least 30 minutes in the future" });
       }
     }
 
@@ -824,7 +843,7 @@ router.patch("/posts/:id", requireAuth, requireOwner, async (req: Request, res: 
     if (newStatus) {
       statusPatch.status = newStatus;
       if (newStatus === "scheduled" && newScheduledAt) {
-        statusPatch.scheduledAt = formatMysqlDateTime(newScheduledAt as Date);
+        statusPatch.scheduledAt = formatMysqlDateTimeUtc(newScheduledAt as Date);
       } else if (newStatus === "published" || newStatus === "draft") {
         statusPatch.scheduledAt = null;
       }
@@ -910,6 +929,7 @@ router.patch("/posts/:id", requireAuth, requireOwner, async (req: Request, res: 
 
     return res.json({
       ...withSyndication,
+      scheduledAt: toUtcIso(updatedPost[0].scheduledAt),
       commentCount: commentCountResult[0]?.count ?? 0,
       pendingPlatformIds: updatedPost[0].pendingPlatformIds
         ? (JSON.parse(updatedPost[0].pendingPlatformIds) as number[])

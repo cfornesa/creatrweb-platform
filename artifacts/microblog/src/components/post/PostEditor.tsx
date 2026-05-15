@@ -22,7 +22,7 @@ import { useOwnerAiVendors } from "@/hooks/use-owner-ai-vendors";
 import { useEnabledPlatformConnections } from "@/hooks/use-enabled-platform-connections";
 import { RichPostEditor } from "./RichPostEditor";
 import { DayPicker } from "react-day-picker";
-import { addHours, format, parseISO } from "date-fns";
+import { addHours, addMinutes, format, parseISO } from "date-fns";
 import { Clock, FileText, PenSquare, Send, Trash2, X } from "lucide-react";
 import "react-day-picker/style.css";
 
@@ -96,7 +96,7 @@ export function PostEditor({
     if (initialPost?.scheduledAt) {
       try { return format(parseISO(initialPost.scheduledAt), "HH:mm"); } catch { /* fall through */ }
     }
-    return format(addHours(new Date(), 2), "HH:mm");
+    return format(addMinutes(new Date(), 30), "HH:mm");
   });
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -173,7 +173,7 @@ export function PostEditor({
   if (!currentUser || !isOwner) return null;
   if (isEditMode && !initialPost) return null;
 
-  const minScheduleDate = addHours(new Date(), 1);
+  const minScheduleDate = addMinutes(new Date(), 30);
   const isRssPost = isEditMode && !!initialPost!.sourceFeedId;
 
   type SubmitPayload = {
@@ -190,8 +190,8 @@ export function PostEditor({
       if (!scheduledDay) { setScheduleError("Please select a date."); return; }
       const scheduledAt = buildScheduledAt(scheduledDay, scheduledTime);
       if (!scheduledAt) { setScheduleError("Please enter a valid time."); return; }
-      if (scheduledAt.getTime() < Date.now() + 3_600_000) {
-        setScheduleError("Scheduled time must be at least 1 hour in the future.");
+      if (scheduledAt.getTime() < Date.now() + 1_800_000) {
+        setScheduleError("Scheduled time must be at least 30 minutes in the future.");
         return;
       }
       setScheduleError(null);
@@ -342,6 +342,8 @@ export function PostEditor({
     <RichPostEditor
       initialContent={initialPost?.content ?? ""}
       initialTitle={initialPost?.title ?? undefined}
+      initialCategoryIds={initialPost?.categories?.map((c) => c.id) ?? []}
+      initialPlatformIds={initialPost?.pendingPlatformIds ?? []}
       placeholder={isEditMode ? "Edit post content…" : "Publish a post with formatting, images, or embeds..."}
       submitLabel={submitLabel}
       cancelLabel="Cancel"

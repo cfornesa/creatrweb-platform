@@ -14,3 +14,15 @@ export function formatMysqlDateTime(date: Date = new Date()): string {
   const time = `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
   return `${day} ${time}`;
 }
+
+/**
+ * Format a JS Date as a naive UTC timestamp for MySQL DATETIME(3) columns.
+ * Use this for `scheduledAt` so the stored value and scheduler comparison
+ * are both UTC regardless of the server's local timezone (Replit = UTC,
+ * local dev = any timezone).
+ */
+export function formatMysqlDateTimeUtc(date: Date = new Date()): string {
+  const day = `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+  const time = `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}.${pad(date.getUTCMilliseconds(), 3)}`;
+  return `${day} ${time}`;
+}

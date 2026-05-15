@@ -1561,3 +1561,28 @@ Additionally, the backend `PATCH /posts/:id` only fired syndication on `isTransi
 - Platform selector now appears in all post edit surfaces.
 - Selecting platforms and saving an already-published post dispatches syndication immediately.
 - Draft and scheduled post edits continue to store platform IDs as `pendingPlatformIds` for dispatch at publish time (unchanged).
+
+---
+
+## 2026-05-15 — Scheduling Timezone Fix, 30-Minute Minimum, and Category/Platform Edit Restoration
+
+### Problem
+Three bugs present on Replit deployment (UTC server, user in CST = UTC-5):
+1. Scheduled posts displayed 5 hours later than entered — `scheduledAt` was stored as local server time but had no timezone marker in API responses, so `parseISO` in the browser interpreted it as local CDT time, adding a 5-hour offset on display.
+2. Minimum scheduling lead time was 1 hour; user wants 30 minutes.
+3. Categories and platforms were cleared every time a draft or scheduled post was opened for editing — PostEditor never passed `initialCategoryIds`/`initialPlatformIds` to RichPostEditor, and RichPostEditor had no `initialPlatformIds` prop.
+
+### Decisions
+- Added `formatMysqlDateTimeUtc` helper (uses `getUTC*` methods) to `lib/db/src/mysql-datetime.ts` and exported it from `lib/db/src/index.ts`. The db package dist declarations were regenerated via `tsc -p lib/db/tsconfig.json`.
+- All `scheduledAt` writes in `artifacts/api-server/src/routes/posts.ts` switched from `formatMysqlDateTime` to `formatMysqlDateTimeUtc`.
+- Scheduler comparison in `artifacts/api-server/src/lib/post-scheduler.ts` switched to `formatMysqlDateTimeUtc` so now-string and stored value are both UTC-naive, internally consistent on any server timezone.
+- Added `toUtcIso` helper in `posts.ts` that appends `T` and `Z` to the stored naive string; applied to all `scheduledAt` fields in API responses (drafts list, owner calendar, GET by id, POST response, PATCH response).
+- Frontend `parseISO` naturally handles `Z`-suffixed strings as UTC and `format()` renders them in the user's local browser timezone — no frontend parsing changes needed.
+- 30-minute minimum applied in both backend validation guards (POST and PATCH in `posts.ts`) and frontend guard + error message in `PostEditor.tsx`. Default draft time changed from +2 hours to +30 minutes.
+- Added `initialPlatformIds?: number[]` prop to `RichPostEditor` with state initialized from it. PostEditor now passes `initialCategoryIds` and `initialPlatformIds` derived from `initialPost.categories` and `initialPost.pendingPlatformIds`.
+
+### Outcome
+- Scheduled times display correctly in the user's local timezone on both local dev and Replit.
+- Posts can be scheduled as soon as 30 minutes ahead.
+- Draft and scheduled posts retain their categories and platforms when opened for editing.
+- Both workspaces pass typecheck with zero errors.
