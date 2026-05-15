@@ -173,3 +173,6 @@ or rejection. -->
 
 2026-05-15 · POST EDITOR · When editing a draft or scheduled post, `PostEditor` now passes `initialCategoryIds` (from `initialPost.categories`) and `initialPlatformIds` (from `initialPost.pendingPlatformIds`) to `RichPostEditor`. `RichPostEditor` has an `initialPlatformIds?: number[]` prop that seeds the `platformIds` state. Without these props, both selections reset to empty on every edit open.
     [Fixed 2026-05-15; verified from PostEditor.tsx and RichPostEditor.tsx; microblog typecheck passes.]
+
+2026-05-15 · POST TIMESTAMPS · All `createdAt` fields in post API responses are now returned via `toUtcIso()` (appends `T` and `Z`). This fixes `parseISO` in the browser treating UTC-stored naive strings as local time. The scheduler's publish UPDATE now also sets `createdAt = formatMysqlDateTimeUtc()` so that scheduler-published posts show the actual publish time on the post card, not the draft creation time.
+    [Fixed 2026-05-15; api-server typecheck passes.]

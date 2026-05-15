@@ -33,9 +33,10 @@ async function publishDuePosts(): Promise<void> {
   const origin = resolveOrigin();
   for (const post of duePosts) {
     try {
+      const publishedAt = formatMysqlDateTimeUtc();
       await db
         .update(postsTable)
-        .set({ status: "published", scheduledAt: null, pendingPlatformIds: null })
+        .set({ status: "published", scheduledAt: null, pendingPlatformIds: null, createdAt: publishedAt })
         .where(eq(postsTable.id, post.id));
 
       const platformIds: number[] =

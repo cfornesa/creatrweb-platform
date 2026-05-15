@@ -1586,3 +1586,20 @@ Three bugs present on Replit deployment (UTC server, user in CST = UTC-5):
 - Posts can be scheduled as soon as 30 minutes ahead.
 - Draft and scheduled posts retain their categories and platforms when opened for editing.
 - Both workspaces pass typecheck with zero errors.
+
+---
+
+## 2026-05-15 — Published Post Timestamp Display Fix (createdAt UTC)
+
+### Problem
+Posts published by the scheduler showed the wrong "posted at" time — the draft creation time (with incorrect timezone) rather than the actual publish time. Root causes:
+1. `createdAt` was returned from all API routes without a `Z` suffix, so `parseISO` in the browser interpreted UTC storage as local browser time (UTC-7 for this user), displaying the time 7 hours late.
+2. The scheduler's publish UPDATE did not touch `createdAt`, leaving it as the draft creation timestamp rather than the actual publish time.
+
+### Decisions
+- Applied `toUtcIso(p.createdAt)` in all post API response maps (drafts, user posts, search, owner calendar, public feed, POST, GET /posts/:id, PATCH /posts/:id).
+- In the scheduler's publish UPDATE, added `createdAt: formatMysqlDateTimeUtc()` so that when a scheduled post goes live, `createdAt` is stamped with the actual publish time rather than the original draft creation time. For immediately published posts, `createdAt` was already set to publish time at INSERT — this only affects the scheduled → published transition.
+- No schema changes required; `createdAt` is a plain DATETIME(3) column with a default that is freely updatable.
+
+### Outcome
+Published post cards display the correct local publish time. Scheduler-published posts show when they went live, not when the draft was originally saved.
