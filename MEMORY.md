@@ -179,3 +179,15 @@ or rejection. -->
 
 2026-05-15 · POST TIMESTAMPS (CORRECTION) · `createdAt` must NOT use `toUtcIso`. It is stored by `formatMysqlDateTime()` in the server's local timezone (CDT on Replit), not UTC. Adding `Z` causes a 5-hour backward shift. Only `scheduledAt` uses `toUtcIso` because it is explicitly stored as UTC via `formatMysqlDateTimeUtc()`. The scheduler stamps `createdAt = formatMysqlDateTime()` (local time) at publish time so scheduled posts display the actual publish time, not the draft creation time.
     [Corrected 2026-05-15 after regression; api-server typecheck passes.]
+
+2026-05-20 · SYNDICATION · API-based POSSE configuration is stabilized for the already-implemented target set: WordPress.com, self-hosted WordPress, Blogger, Substack, Bluesky, LinkedIn, Facebook Page, and Instagram. Admin → Platforms exposes those targets; Bluesky uses an AT Protocol App Password; LinkedIn and Meta use stored OAuth app credentials; Facebook and Instagram share the Meta OAuth flow.
+    [Implemented 2026-05-20; verified from `admin-platforms.tsx`, `platform-oauth-apps.ts`, `platform-oauth.ts`, `syndication/index.ts`, OpenAPI/codegen output, full workspace typecheck, and focused platform/editor/syndication tests.]
+
+2026-05-20 · SYNDICATION · Visitor-facing share links and post/embed sharing are distinct from owner-controlled API POSSE. Future work should treat public share/intent links as regression scope only when changing POSSE, unless the human explicitly asks to modify visitor sharing.
+    [Confirmed by the human on 2026-05-20 during POSSE stabilization clarification.]
+
+2026-05-20 · SYNDICATION · POSSE social adapters use platform-native defaults: Bluesky, LinkedIn, and Facebook prefer canonical link cards, while Instagram remains image-first and includes the canonical URL in the caption. Custom social captions are normalized so the canonical post URL is not dropped. LinkedIn uses REST API version `202605` by default, with optional `LINKEDIN_API_VERSION` override.
+    [Implemented 2026-05-20; verified from `syndication/content.ts`, `bluesky.ts`, `linkedin.ts`, `facebook.ts`, `instagram.ts`, focused adapter/content tests, and successful local LinkedIn + Bluesky posting.]
+
+2026-05-20 · POST EDITOR · Featured images can be uploaded directly or auto-selected from the first uploaded content image. Manual featured image selection has precedence over later content uploads; clearing the featured image re-enables automatic first-image selection. Media uploads remain self-hosted and capped at 8 MB, with oversized uploads returning a clear `413` response and editor toast.
+    [Implemented 2026-05-20; verified from `RichPostEditor.tsx`, `media.ts`, `upload-error.ts`, focused editor tests, and workspace typechecks.]

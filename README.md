@@ -15,7 +15,7 @@ This repository is a TypeScript monorepo with three main layers:
 At a high level, the app provides:
 
 - owner-only post publishing and editing with a rich WYSIWYG editor
-- POSSE outbound syndication to WordPress.com, self-hosted WordPress, Blogger, and Substack, with per-post syndication badges on post cards
+- POSSE outbound syndication to WordPress.com, self-hosted WordPress, Blogger, Substack, Bluesky, LinkedIn, Facebook Page, and Instagram, with per-post syndication badges on post cards
 - inbound feed aggregation (PESOS) — subscribe to external RSS/Atom feeds, import posts for review, and publish a profile page for each subscribed blog
 - authenticated member comments and reactions
 - owner-managed post categories with public archive pages and search filtering
@@ -45,7 +45,8 @@ Rich posts support:
 
 - formatting through a compact WYSIWYG-style toolbar with square controls
 - heading levels `H1` through `H6`
-- local image uploads
+- local image uploads, including direct featured-image uploads
+- automatic featured-image selection from the first content image unless a manual featured image is already set
 - direct YouTube URL insertion that converts a watch/share link into an embedded video
 - owner-trusted `https:` iframe embeds
 - optional AI-assisted rewrite from the composer and edit flow, once the owner configures vendors in `/admin/ai`
@@ -78,12 +79,16 @@ The owner can cross-post to external platforms from the post composer. Supported
 | WordPress (self-hosted) | Application password |
 | Blogger | Google OAuth 2.0 (CLIENT_ID + CLIENT_SECRET stored in DB) |
 | Substack | Session cookie + publication ID (stored encrypted in DB) |
+| Bluesky | Handle + App Password |
+| LinkedIn | OAuth 2.0 app credentials stored in DB |
+| Facebook Page | Meta OAuth app credentials stored in DB |
+| Instagram Business/Creator | Meta OAuth app credentials stored in DB, linked to a Facebook Page |
 
 > Medium's backend adapter remains in the codebase for existing connections, but the platform is not offered as a new connection option in the admin UI due to API access restrictions.
 
 OAuth app credentials (CLIENT_ID + CLIENT_SECRET) are stored encrypted in the database via `/admin/platforms` — no server-side environment variable required. The encryption key is `AI_SETTINGS_ENCRYPTION_KEY`.
 
-Every outbound share from a post authored on this application appends a reader-visible canonical source line to the syndicated copy in the form `Original source at {Site Title}: {Canonical URL}`. Where a target also supports native canonical/source metadata, the app sends that too.
+Every outbound share from a post authored on this application keeps the canonical post URL attached to the syndicated copy. Article-style targets append a reader-visible canonical source line in the form `Original source at {Site Title}: {Canonical URL}`. Social targets use platform-native defaults: Bluesky, LinkedIn, and Facebook prefer canonical link cards with title/excerpt/featured-image metadata, while Instagram remains image-first with the canonical URL in the caption.
 
 After a post is cross-posted successfully, its card on the home feed shows platform badges ("Also on WordPress.com", "Also on Blogger", etc.) linking to the syndicated copy. Existing Medium syndication rows can still appear if a legacy connection remains in the database.
 
@@ -286,7 +291,7 @@ npm run start       # start the built API server
    npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com
    ```
 
-5. **Platform syndication** — visit `/admin/platforms` to connect external publishing targets. WordPress.com and Blogger require an OAuth app registered in their respective developer consoles. The admin UI generates the exact redirect URIs to register, derived from your `ALLOWED_ORIGINS` value. Self-hosted WordPress uses an application password, and Substack uses publication-scoped cookie credentials. New outbound shares append a visible `Original source at {Site Title}: {Canonical URL}` line to the syndicated copy.
+5. **Platform syndication** — visit `/admin/platforms` to connect external publishing targets. WordPress.com, Blogger, LinkedIn, Facebook, and Instagram require OAuth app credentials registered in their respective developer consoles. The admin UI generates the exact redirect URIs to register, derived from your `ALLOWED_ORIGINS` value. Self-hosted WordPress uses an application password, Bluesky uses an App Password, and Substack uses publication-scoped cookie credentials. New outbound shares preserve the canonical post URL either as a source footer, structured canonical/source metadata, a link card, or caption text depending on platform capability.
 
 ### Optional Creatrweb Framework Files
 
