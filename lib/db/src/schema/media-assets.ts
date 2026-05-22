@@ -13,6 +13,7 @@ export const mediaAssetsTable = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     url: varchar("url", { length: 2048 }).notNull(),
     filename: varchar("filename", { length: 255 }).notNull(),
+    title: varchar("title", { length: 255 }),
     mimeType: varchar("mime_type", { length: 64 }).notNull(),
     uploadedAt: datetime("uploaded_at", { mode: "string", fsp: 3 })
       .notNull()

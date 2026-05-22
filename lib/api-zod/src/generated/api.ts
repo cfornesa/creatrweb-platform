@@ -1049,6 +1049,7 @@ export const ListMediaResponseItem = zod.object({
   "id": zod.number(),
   "url": zod.string(),
   "filename": zod.string(),
+  "title": zod.string().nullish(),
   "mimeType": zod.string(),
   "altText": zod.string().nullish(),
   "uploadedAt": zod.string()
@@ -1061,6 +1062,19 @@ export const ListMediaResponse = zod.array(ListMediaResponseItem)
  */
 export const UploadMediaBody = zod.object({
   "file": zod.instanceof(File)
+})
+
+
+/**
+ * @summary Import a remote image URL into the media library (owner only)
+ */
+export const importMediaBodyAltTextMax = 500;
+
+
+
+export const ImportMediaBody = zod.object({
+  "imageUrl": zod.string().url(),
+  "altText": zod.string().max(importMediaBodyAltTextMax).nullish()
 })
 
 
@@ -1915,17 +1929,20 @@ export const ListSiteFeedsResponse = zod.object({
 
 
 /**
- * @summary Update the alt text for an uploaded media asset (owner only)
+ * @summary Update title and alt text for an uploaded media asset (owner only)
  */
 export const UpdateMediaAltTextParams = zod.object({
   "fileName": zod.coerce.string()
 })
+
+export const updateMediaAltTextBodyTitleMax = 255;
 
 export const updateMediaAltTextBodyAltTextMax = 500;
 
 
 
 export const UpdateMediaAltTextBody = zod.object({
+  "title": zod.string().max(updateMediaAltTextBodyTitleMax).nullish(),
   "altText": zod.string().max(updateMediaAltTextBodyAltTextMax).nullish()
 })
 
@@ -1933,6 +1950,7 @@ export const UpdateMediaAltTextResponse = zod.object({
   "id": zod.number(),
   "url": zod.string(),
   "filename": zod.string(),
+  "title": zod.string().nullish(),
   "mimeType": zod.string(),
   "altText": zod.string().nullish(),
   "uploadedAt": zod.string()

@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { ImagePlus } from "lucide-react";
 import {
   useDeleteMedia,
   useDescribeImage,
@@ -8,6 +10,8 @@ import {
   type MediaAsset,
 } from "@workspace/api-client-react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
+import { Button } from "@/components/ui/button";
+import { FeaturedImagePicker } from "@/components/media/FeaturedImagePicker";
 import { MediaGrid } from "@/components/media/MediaGrid";
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +22,7 @@ export default function AdminLibraryPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isOwner } = useCurrentUser();
+  const [isAddImageOpen, setIsAddImageOpen] = useState(false);
 
   const { data: assets = [], isLoading } = useListMedia({
     query: { queryKey: getListMediaQueryKey() },
@@ -57,8 +62,14 @@ export default function AdminLibraryPage() {
   const firstEnabledVendor = aiSettings?.settings.find((s) => s.enabled && s.configured)?.vendor ?? null;
   const altTextVendor = preferredVendor ?? firstEnabledVendor;
 
-  async function handleSaveAltText(asset: MediaAsset, altText: string) {
-    await updateAltText({ fileName: asset.filename, data: { altText: altText || null } });
+  async function handleSaveDetails(asset: MediaAsset, values: { title: string; altText: string }) {
+    await updateAltText({
+      fileName: asset.filename,
+      data: {
+        title: values.title.trim() || null,
+        altText: values.altText.trim() || null,
+      },
+    });
   }
 
   async function handleGenerateAltText(asset: MediaAsset, currentAltText?: string): Promise<string> {
@@ -95,6 +106,29 @@ export default function AdminLibraryPage() {
       title="Image Library"
       description={assets.length > 0 ? `${assets.length} image${assets.length === 1 ? "" : "s"}` : undefined}
     >
+      <div className="mb-4 flex justify-end">
+        <Button
+          type="button"
+          onClick={() => setIsAddImageOpen(true)}
+          className="gap-2"
+        >
+          <ImagePlus className="h-4 w-4" />
+          Upload or import image
+        </Button>
+      </div>
+      <FeaturedImagePicker
+        open={isAddImageOpen}
+        onOpenChange={setIsAddImageOpen}
+        dialogTitle="Add Image to Library"
+        finalActionLabel="Done"
+        closeWarningDescription="You have selected an image or started an upload/import, but have not finished adding it to the library."
+        altTextVendor={altTextVendor}
+        onSelect={() => {
+          queryClient.invalidateQueries({ queryKey: getListMediaQueryKey() });
+          setIsAddImageOpen(false);
+          toast({ title: "Image added to library" });
+        }}
+      />
       {isLoading ? (
         <div className="flex h-40 items-center justify-center">
           <Spinner className="h-5 w-5" />
@@ -108,7 +142,7 @@ export default function AdminLibraryPage() {
             const fileName = asset.filename;
             deleteMedia({ fileName });
           }}
-          onSaveAltText={handleSaveAltText}
+          onSaveDetails={handleSaveDetails}
           onGenerateAltText={altTextVendor ? handleGenerateAltText : undefined}
         />
       )}

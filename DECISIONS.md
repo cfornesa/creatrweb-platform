@@ -1934,3 +1934,42 @@ Added `mysqlPool.on("connection", ...)` in `lib/db/src/index.ts` to SET SESSION 
 
 ### Outcome
 TypeScript type-checks pass on both `lib/db` and `artifacts/api-server` with zero errors. New uploads write to MySQL; existing on-disk files are backfilled into the DB on next startup. `GET /api/media/:fileName` now serves from DB — survives container restarts on Replit.
+
+---
+
+## 2026-05-22 — Media URL Imports, Media Titles, and Library Dialog
+
+### Trigger
+External image URLs inserted through the image picker remained remote URLs. They did not create `media_assets` rows, could not be reused from the Image Library, and could not be used by AI visual-description generation because `/api/ai/describe-image` only accepts local `/api/media/...` images.
+
+### Decisions
+- Pasted image URLs now import by default. The owner-facing URL picker fetches the remote image through the API, stores a local MySQL-backed media asset, and inserts the returned `/api/media/...` URL.
+- The app does not keep a hotlink option in this pass. Original external source URL is not persisted.
+- `media_assets` gains `title VARCHAR(255) NULL`. New uploads derive the initial title from the original filename; URL imports derive it from the URL filename/slug; missing values fall back to `Untitled image`.
+- Direct uploads and URL imports share the 8 MB cap. Oversized direct uploads and remote imports return clear user-facing errors instead of generic failures.
+- Admin Image Library manage mode now opens a centered image-detail dialog instead of inline tile controls. The dialog manages title, alt text, AI alt-text generation, copy URL, delete, and metadata display.
+
+### Security and validation
+- Remote imports accept only `http`/`https` URLs.
+- Localhost, private, link-local, and otherwise non-public IP targets are blocked before fetch.
+- Redirect destinations are revalidated before following.
+- Remote fetches are time-bounded and response reads are capped at 8 MB.
+- Image type is still validated by magic bytes through the existing `file-type` path before storage.
+
+### Documentation
+- README now describes the Admin Image Library, local uploaded/imported media, AI visual descriptions for local media, and the 8 MB image cap.
+- `docs/dependencies.md` now records that URL import causes the app server to fetch owner-provided external image URLs and then store a local MySQL-backed copy.
+
+### Verification
+- Focused backend media tests cover title derivation, successful public URL fetch, invalid URL, oversized remote response, private/local target blocking, and private redirect blocking.
+- Focused frontend media tests cover URL import selection and the Image Library dialog title/alt/copy behavior.
+
+### Follow-up UI refinement
+- The Featured Image picker dialog is scrollable (`max-height` + overflow) so tall URL previews and metadata controls cannot push the import/use actions off-screen.
+- Upload and URL import are now staged actions. Choosing a file does not upload immediately; the owner clicks "Upload image". Importing a URL also keeps the dialog open. Both paths select the newly local image and expose image description, Save, and AI visual-description controls before the owner clicks "Use this image".
+- Admin Image Library now has an "Upload or import image" button above the gallery that reuses the same picker workflow for adding images directly to the library.
+- The picker warns before closing when a file has been chosen but not uploaded, a URL has been entered but not imported, an image has been selected/imported/uploaded but not finalized, or an image description has unsaved edits.
+- Image Library "Copy URL" copies an absolute URL using the current browser origin rather than the relative `/api/media/...` path.
+- After upload or import, the staged image panel shows editable Title and Image description fields. The AI Sparkles button applies only to the description field; title remains manually edited metadata.
+- Deleting an image from the Image Library now requires an "Are you sure?" confirmation dialog before the delete mutation is called.
+- The Image Library detail dialog now warns before closing with unsaved title or alt text changes, matching the broader post image insertion safeguards.

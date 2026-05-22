@@ -978,6 +978,12 @@ export async function ensureTables(): Promise<void> {
 
   await ensureColumn(
     "media_assets",
+    "title",
+    "title VARCHAR(255) NULL",
+  );
+
+  await ensureColumn(
+    "media_assets",
     "alt_text",
     "alt_text VARCHAR(500) NULL",
   );

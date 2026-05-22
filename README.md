@@ -19,6 +19,7 @@ At a high level, the app provides:
 - inbound feed aggregation (PESOS) — subscribe to external RSS/Atom feeds, import posts for review, and publish a profile page for each subscribed blog
 - authenticated member comments and reactions
 - owner-managed post categories with public archive pages and search filtering
+- owner-managed Image Library for reusable local post media
 - owner-managed external navigation links and a sitewide footer surfacing the owner's social profiles
 - standardized public feeds (Atom, JSON Feed, mf2-JSON) and per-category/per-page feed variants
 - AI-assisted post rewriting and validated interactive piece generation - p5, Three.js, and C2.js (optional, owner-configured) via OpenRouter, OpenCode Zen, OpenCode Go, or Google Gemini
@@ -45,7 +46,9 @@ Rich posts support:
 
 - formatting through a compact WYSIWYG-style toolbar with square controls
 - heading levels `H1` through `H6`
-- local image uploads, including direct featured-image uploads
+- local image uploads and imported image URLs, including direct featured-image selection
+- reusable image library metadata: title, alt text, MIME type, upload date, local URL, and preview dimensions
+- image uploads and URL imports capped at 8 MB per file
 - automatic featured-image selection from the first content image unless a manual featured image is already set
 - direct YouTube URL insertion that converts a watch/share link into an embedded video
 - owner-trusted `https:` iframe embeds
@@ -148,13 +151,14 @@ Configured per vendor from `/admin/ai`. Supported vendors:
 - OpenCode Go
 - Google Gemini
 
-AI is owner-only and disabled per vendor by default. Saved API keys are encrypted at rest using `AI_SETTINGS_ENCRYPTION_KEY`. The same saved vendor credentials power both text rewriting and validated piece generation (p5, Three.js, and C2.js). Piece generation is cancellable, bounded by a one-minute server timeout, and surfaces attempts used during generation and repair. See [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md) before treating any vendor as production-ready.
+AI is owner-only and disabled per vendor by default. Saved API keys are encrypted at rest using `AI_SETTINGS_ENCRYPTION_KEY`. The same saved vendor credentials power text rewriting, visual descriptions for local media alt text, and validated piece generation (p5, Three.js, and C2.js). Piece generation is cancellable, bounded by a one-minute server timeout, and surfaces attempts used during generation and repair. See [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md) before treating any vendor as production-ready.
 
 ### Admin Pages
 
 | Path | Purpose |
 |---|---|
 | `/admin/pending` | Review and approve pending feed imports |
+| `/admin/library` | Manage reusable images, titles, alt text, AI visual descriptions, and local media URLs |
 | `/admin/categories` | Create and manage post categories |
 | `/admin/platforms` | Connect and configure outbound syndication platforms |
 | `/admin/feeds` | Manage inbound feed subscriptions; set username, bio, and site URL for each source's profile page |

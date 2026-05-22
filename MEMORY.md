@@ -209,3 +209,6 @@ or rejection. -->
 
 2026-05-21 · POST EDITOR · All three `window.prompt()` calls in `RichPostEditor` are replaced by proper modal dialogs in `components/post/dialogs/`: `LinkDialog` (URL + open-in-new-tab + remove), `EmbedDialog` (monospace textarea + validation), `YouTubeDialog` (URL + live thumbnail). Shared helpers `parseIframeEmbed` and `parseYouTubeUrl` were extracted from `RichPostEditor.tsx` into `embed-utils.ts`. The toolbar `ImagePlus` button now opens `ImageInsertDialog` (wraps `FeaturedImagePicker`) instead of a hidden file input; the hidden input and `handleFileChange` were removed.
     [Implemented 2026-05-21; full microblog typecheck passes.]
+
+2026-05-22 · MEDIA LIBRARY · Pasted image URLs now import into local MySQL-backed media by default, direct uploads and URL imports share an 8 MB cap, and Image Library assets have editable titles plus alt text managed through a detail dialog.
+    [Implemented 2026-05-22; verified from media import route, media schema, FeaturedImagePicker, MediaGrid, README, docs/dependencies.md, focused tests, and full workspace typecheck.]

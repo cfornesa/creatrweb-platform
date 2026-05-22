@@ -55,6 +55,7 @@ import type {
   GetEmbeddedArtPieceParams,
   GetPostsByUserParams,
   HealthStatus,
+  ImportMediaBody,
   ListArtPiecesResponse,
   ListNavLinksParams,
   ListPagesParams,
@@ -2384,6 +2385,77 @@ export const useUploadMedia = <TError = ErrorType<void>,
     }
 
 /**
+ * @summary Import a remote image URL into the media library (owner only)
+ */
+export const getImportMediaUrl = () => {
+
+
+
+
+  return `/api/media/import`
+}
+
+export const importMedia = async (importMediaBody: ImportMediaBody, options?: RequestInit): Promise<UploadedMedia> => {
+
+  return customFetch<UploadedMedia>(getImportMediaUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      importMediaBody,)
+  }
+);}
+
+
+
+
+export const getImportMediaMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMedia>>, TError,{data: BodyType<ImportMediaBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importMedia>>, TError,{data: BodyType<ImportMediaBody>}, TContext> => {
+
+const mutationKey = ['importMedia'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importMedia>>, {data: BodyType<ImportMediaBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  importMedia(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportMediaMutationResult = NonNullable<Awaited<ReturnType<typeof importMedia>>>
+    export type ImportMediaMutationBody = BodyType<ImportMediaBody>
+    export type ImportMediaMutationError = ErrorType<void>
+
+    /**
+ * @summary Import a remote image URL into the media library (owner only)
+ */
+export const useImportMedia = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importMedia>>, TError,{data: BodyType<ImportMediaBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importMedia>>,
+        TError,
+        {data: BodyType<ImportMediaBody>},
+        TContext
+      > => {
+      return useMutation(getImportMediaMutationOptions(options));
+    }
+
+/**
  * @summary Get site-wide settings (title, copy, palette)
  */
 export const getGetSiteSettingsUrl = () => {
@@ -4655,7 +4727,7 @@ export function useListSiteFeeds<TData = Awaited<ReturnType<typeof listSiteFeeds
 
 
 /**
- * @summary Update the alt text for an uploaded media asset (owner only)
+ * @summary Update title and alt text for an uploaded media asset (owner only)
  */
 export const getUpdateMediaAltTextUrl = (fileName: string,) => {
 
@@ -4713,7 +4785,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateMediaAltTextMutationError = ErrorType<void>
 
     /**
- * @summary Update the alt text for an uploaded media asset (owner only)
+ * @summary Update title and alt text for an uploaded media asset (owner only)
  */
 export const useUpdateMediaAltText = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMediaAltText>>, TError,{fileName: string;data: BodyType<UpdateMediaAltTextBody>}, TContext>, request?: SecondParameter<typeof customFetch>}

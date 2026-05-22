@@ -1027,18 +1027,28 @@ export interface MediaAsset {
   id: number;
   url: string;
   filename: string;
+  title?: string | null;
   mimeType: string;
   altText?: string | null;
   uploadedAt: string;
 }
 
+export interface ImportMediaBody {
+  imageUrl: string;
+  /** @maxLength 500 */
+  altText?: string | null;
+}
+
 export interface UpdateMediaAltTextBody {
+  /** @maxLength 255 */
+  title?: string | null;
   /** @maxLength 500 */
   altText?: string | null;
 }
 
 export interface UploadedMedia {
   url: string;
+  title?: string | null;
   mimeType: string;
   width?: number | null;
   height?: number | null;
