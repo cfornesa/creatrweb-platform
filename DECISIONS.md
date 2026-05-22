@@ -1622,3 +1622,284 @@ Applying `toUtcIso(createdAt)` to all API responses caused every post timestamp 
 
 ### Outcome
 All post timestamps display correctly. Scheduled posts show the actual publish time (not the draft creation time) after the scheduler fires.
+
+---
+
+## 2026-05-21 — Media Library Enhancements + Editor UX Improvements
+
+### Scope
+Eight distinct improvements implemented across the media library, post editor, and AI settings.
+
+---
+
+### 1. Backfill existing uploads at startup
+
+**Decision:** On server boot, `backfillMediaAssetsFromFilesystem()` scans `MEDIA_ROOT` and inserts any files missing from `media_assets` with `mimeType` detected via `fileTypeFromBuffer`. The call is chained after `backfillPostContentText()` in `src/index.ts`. Idempotent — safe to run on every boot.
+
+**Why:** Images uploaded before the `media_assets` table existed were not appearing in the Library. A filesystem backfill avoids a separate migration or manual import step.
+
+---
+
+### 2. Alt text on media assets
+
+**Schema:** `media_assets` gains `alt_text VARCHAR(500) NULL` (nullable, non-breaking). Provisioned by `ensureColumn` in `migrate.ts`; `install.sql` and Drizzle schema updated.
+
+**API:** `PATCH /api/media/:fileName` — owner-only, body `{ altText: string | null }`, returns updated `MediaAsset`.
+
+**AI endpoint:** `POST /api/ai/describe-image` — body `{ imageUrl, vendor }`, returns `{ altText: string }`. Uses `AI_ALT_TEXT_SYSTEM_PROMPT` asking for ≤125-character plain alt text.
+
+**OpenAPI / codegen:** `MediaAsset.altText` (nullable string), `UpdateMediaAltTextBody`, `PATCH /media/{fileName}`, and `POST /ai/describe-image` added. Orval regenerated → `useUpdateMediaAltText()` and `useDescribeImage()` hooks.
+
+---
+
+### 3. Per-task AI vendor preferences
+
+**Schema:** `users` gains `preferred_vendor_text_improve VARCHAR(64) NULL` and `preferred_vendor_alt_text VARCHAR(64) NULL` (both nullable, `preferred_art_piece_vendor` was already present). Provisioned by two `ensureColumn` calls; `install.sql` and Drizzle schema updated.
+
+**API:** `GET /users/me/ai-settings` now returns `preferredVendorTextImprove` and `preferredVendorAltText`. `PATCH /users/me/ai-settings` now accepts and persists all three preference fields (art piece + text improve + alt text).
+
+**Admin UI (`admin-ai.tsx`):** A "Task Preferences" card appears when at least one vendor is enabled + configured. Three `<select>` dropdowns — Text improvement, Image alt text, Art pieces — with a "None (ask each time)" sentinel. All three preferences are saved in the same form submit as the vendor credentials.
+
+---
+
+### 4. Unsaved post warning
+
+**Dirty-state tracking:** `isDirty` is computed after each render as a comparison of `title`, `featuredImageUrl`, `categoryIds`, `socialPostDrafts`, and editor HTML against the initial props (or `htmlSource` when in HTML mode).
+
+**`beforeunload`:** A `useEffect` registers/removes the browser's `beforeunload` guard whenever `isDirty` changes.
+
+**Cancel button:** When `isDirty`, clicking Cancel opens an `AlertDialog` ("Discard unsaved changes?") before calling `onCancel()`. The dialog uses the existing `AlertDialog` component — no new UI primitives needed.
+
+---
+
+### 5. AI improvement preserves non-text content + returns HTML
+
+**`partitionEditorContent(html)`** (`src/lib/editor-utils.ts`): Uses `DOMParser` to split editor HTML into `preservedHtml` (images, iframes, figures, art pieces, elements with `data-type`, and block containers that hold any embedded descendant) and `textOnlyContent` (plain text from pure text blocks). Runs in the browser — no server change.
+
+**AI improvement handler (`handleImproveWithAi`):** Calls `partitionEditorContent` on the current HTML, sends only `textOnlyContent` to the AI, then reconstructs `preservedHtml + aiResponse.text` as the new editor content.
+
+**AI system prompt (`AI_SYSTEM_PROMPT`):** Updated to instruct HTML output (`<h2>`, `<h3>`, `<p>`, `<strong>`, `<em>`, `<ul>`, `<li>`). Tiptap accepts this natively via `setContent`.
+
+**Preferred vendor:** When `preferredVendorTextImprove` is set (from AI settings), the handler uses it automatically and skips the vendor dropdown.
+
+---
+
+### 6. Inline editor dialogs (replace `window.prompt`)
+
+Three `window.prompt` / `window.alert` calls in `RichPostEditor` replaced with Radix Dialog-based modals:
+
+| Dialog | Location | Key features |
+|---|---|---|
+| `LinkDialog` | `dialogs/LinkDialog.tsx` | URL input, "Open in new tab" checkbox, "Remove link" button when editing an existing link; pre-fills `editor.getAttributes("link").href` |
+| `EmbedDialog` | `dialogs/EmbedDialog.tsx` | Monospace textarea; validates via `parseIframeEmbed`; inline error message |
+| `YouTubeDialog` | `dialogs/YouTubeDialog.tsx` | URL input; live thumbnail preview extracted from YouTube video ID; validates via `parseYouTubeUrl` |
+
+Shared helpers `parseIframeEmbed` and `parseYouTubeUrl` extracted from `RichPostEditor.tsx` into `embed-utils.ts` so dialogs can import them without creating a circular dep.
+
+---
+
+### 7. HTML source view toggle
+
+A `</>` (`Code2` icon) toolbar button in `RichPostEditor` toggles between:
+- **WYSIWYG mode** — standard `<EditorContent>` from Tiptap
+- **HTML source mode** — full-height monospace `<textarea>` showing raw HTML (`htmlSource` state)
+
+Switching WYSIWYG → HTML captures `editor.getHTML()` into `htmlSource`. Switching back calls `editor.commands.setContent(htmlSource)`. `handleSubmit` reads from `htmlSource` when in HTML mode. The AI improvement and dirty-state checks also account for HTML mode.
+
+---
+
+### 8. Image insert dialog (replaces file input)
+
+The toolbar `ImagePlus` button previously triggered a hidden `<input type="file">`. It now opens `ImageInsertDialog` (`dialogs/ImageInsertDialog.tsx`), which wraps `FeaturedImagePicker` (Library / Upload / URL tabs). After the user confirms a URL, `editor.chain().focus().setImage({ src: url })` is called. The auto-featured-image logic (first inserted image becomes featured if none set) is preserved.
+
+The hidden file input and `handleFileChange` handler were removed. `onUpload` prop on `RichPostEditor` is retained — it is called by `FeaturedImagePicker`'s Upload tab internally.
+
+---
+
+### Files modified or created (this session)
+
+| File | Change |
+|---|---|
+| `lib/db/src/schema/media-assets.ts` | `altText` column added |
+| `lib/db/src/schema/users.ts` | `preferredVendorTextImprove`, `preferredVendorAltText` added |
+| `lib/db/src/migrate.ts` | Three `ensureColumn` calls + `media_assets` CREATE TABLE block |
+| `lib/db/install.sql` | Updated to match schema |
+| `lib/api-spec/openapi.yaml` | New schemas + operations; `MyAiSettings` extended |
+| `lib/api-client-react/src/generated/api.ts` | Regenerated (orval) |
+| `lib/api-zod/src/generated/api.ts` | Regenerated (orval) |
+| `artifacts/api-server/src/lib/media.ts` | `backfillMediaAssetsFromFilesystem` added |
+| `artifacts/api-server/src/index.ts` | Startup chain updated |
+| `artifacts/api-server/src/routes/media.ts` | GET + PATCH + DELETE + POST endpoints |
+| `artifacts/api-server/src/routes/ai.ts` | `POST /ai/describe-image`; AI system prompt updated; pref fields wired |
+| `artifacts/api-server/src/lib/ai-settings.ts` | `preferredVendorTextImprove`, `preferredVendorAltText` in response |
+| `artifacts/microblog/src/components/media/MediaGrid.tsx` | Alt text UI in manage mode |
+| `artifacts/microblog/src/components/media/FeaturedImagePicker.tsx` | Alt text panel + unsaved warning AlertDialog |
+| `artifacts/microblog/src/pages/admin/admin-library.tsx` | `useUpdateMediaAltText`, `useDescribeImage` wired |
+| `artifacts/microblog/src/pages/admin/admin-ai.tsx` | Task Preferences card; all three pref fields saved |
+| `artifacts/microblog/src/hooks/use-owner-ai-vendors.ts` | Exports `preferredVendorTextImprove`, `preferredVendorAltText` |
+| `artifacts/microblog/src/components/post/PostEditor.tsx` | Passes new pref props to `RichPostEditor` |
+| `artifacts/microblog/src/components/post/RichPostEditor.tsx` | Dirty state; cancel guard; AI preservation; HTML toggle; dialog triggers; `ImageInsertDialog` |
+| `artifacts/microblog/src/lib/editor-utils.ts` | `partitionEditorContent` (new file) |
+| `artifacts/microblog/src/components/post/embed-utils.ts` | `parseIframeEmbed`, `parseYouTubeUrl` (extracted, new file) |
+| `artifacts/microblog/src/components/post/dialogs/LinkDialog.tsx` | New |
+| `artifacts/microblog/src/components/post/dialogs/EmbedDialog.tsx` | New |
+| `artifacts/microblog/src/components/post/dialogs/YouTubeDialog.tsx` | New |
+| `artifacts/microblog/src/components/post/dialogs/ImageInsertDialog.tsx` | New |
+
+### Outcome
+All eight workstreams type-check clean. Server boot now backfills any pre-existing uploads. Library and Featured Image Picker support inline alt text editing and AI generation. Admin AI panel exposes per-task vendor preferences. Post editor guards unsaved changes, preserves embeds during AI improvement, renders AI responses as formatted HTML, and replaces all native-dialog prompts with mobile-friendly modals.
+
+---
+
+## 2026-05-22 — Post-Testing Bug Fixes + Alt Text UX
+
+**Context:** Six bugs found during hands-on testing of the 2026-05-21 features, plus four additional UX improvements requested.
+
+### Bugs fixed
+
+| # | Bug | Fix |
+|---|-----|-----|
+| 1 | AI alt text returned "Unspecified image" (URL sent as plain text, model couldn't see image) | Added `processImageWithProvider()` in `ai-providers.ts` that sends base64 image bytes per-vendor (Anthropic/OpenAI/Google/chat-completions format). Endpoint reads file from filesystem via `getMediaPath()`. |
+| 2 | Saved alt text not applied to inserted images (`alt: ""` hard-coded) | Widened `FeaturedImagePicker.onSelect` and `ImageInsertDialog.onInsert` signatures to `(url, altText?)`. Library tab passes `altTextDraft`, URL tab passes `urlAltText` input. |
+| 3 | SPA navigation bypassed unsaved-post guard | Added `window.history.pushState` interceptor in `RichPostEditor` (via `useRef` + `useEffect`) when `isDirty`. Destination URL stored in `pendingNavUrl` state; AlertDialog "Leave/Stay" dialog shown; confirm navigates via `window.location.href`. |
+| 4 | Preferred AI vendor not reflected in editor dropdown | Added `useEffect` that syncs `selectedAiVendor` from `preferredVendorTextImprove` once the async query resolves. |
+| 5 | YouTube `/live/` URLs rejected | Added `/live/` path pattern to `parseYouTubeUrl` in `embed-utils.ts`. |
+| 6 | "Media Library" label | Renamed to "Image Library" in `AdminLayout.tsx` (nav) and `admin-library.tsx` (page title). |
+
+### UX improvements added
+
+| # | Feature | Implementation |
+|---|---------|---------------|
+| 7 | Vision-incompatibility toast | `processImageWithProvider()` detects "vision"/"image"/"not supported" keywords in provider error messages; throws `AiVisionNotSupportedError`. Endpoint returns `{ code: "vision_not_supported" }` 422. Frontend shows specific toast in FeaturedImagePicker, admin-library, and BubbleMenu. |
+| 8 | Existing alt text as AI context | `DescribeImageBody` now includes optional `existingAltText`. Endpoint appends `"Current description: "…". Refine or replace…"` to the user message. All three call sites pass the current input value. `onGenerateAltText` in `MediaGrid` now receives current alt text as second argument. |
+| 9 | Library panel selection-gated | Added `selectedId` state to `MediaGrid`. Clicking an image in manage mode selects it; alt text panel renders only for `asset.id === selectedId`. |
+| 10 | Image alt text bubble in editor | Added `BubbleMenu` (from `@tiptap/react/menus`) to `RichPostEditor` that appears when an `image` node is selected. Contains: alt text input (synced from editor on image change via `lastBubbleImageSrcRef`), Sparkles AI button (calls `describeImageForBubble`), Save button (calls `updateAttributes` + `PATCH /api/media/:fileName` for local images). |
+
+### Schema changes
+- `DescribeImageBody`: added optional `existingAltText?: string` field (OpenAPI + regenerated Zod/React Query client)
+- OpenAPI: added 422 response to `/ai/describe-image` with `code: "vision_not_supported"` enum
+
+### Files modified
+`lib/api-spec/openapi.yaml`, `artifacts/api-server/src/lib/ai-providers.ts`, `artifacts/api-server/src/routes/ai.ts`, `artifacts/microblog/src/components/post/embed-utils.ts`, `artifacts/microblog/src/components/admin/AdminLayout.tsx`, `artifacts/microblog/src/pages/admin/admin-library.tsx`, `artifacts/microblog/src/components/media/MediaGrid.tsx`, `artifacts/microblog/src/components/media/FeaturedImagePicker.tsx`, `artifacts/microblog/src/components/post/dialogs/ImageInsertDialog.tsx`, `artifacts/microblog/src/components/post/RichPostEditor.tsx`
+
+### Outcome
+All fixes and improvements type-check clean. AI alt text now sends actual image bytes to the model. BubbleMenu enables inline alt text editing for content images. Navigation guard covers both browser unload and SPA routing. Vendor preference syncs correctly to the toolbar dropdown.
+
+---
+
+## 2026-05-22 — Pieces: Description Terminology, Accessibility, AI Improve, Editor Bubble
+
+**Context:** The Pieces admin UI was inconsistent in its use of "Prompt" vs "Description". Piece iframes had no accessible title. No AI text-improvement existed for descriptions. Embedding a piece did not carry its description as the iframe's accessible name.
+
+### Changes
+
+**Terminology**
+- "Prompt" label renamed to "Description" in the Metadata tab for existing piece editing and manual piece creation. AI piece creation retains "Prompt" (it is genuinely a generation prompt). The underlying API field (`prompt`) is unchanged.
+
+**Iframe accessibility title**
+- `ArtPieceRenderer` gained a `title?: string` prop applied to the `<iframe>` element (WCAG accessible name for iframes).
+- `buildPieceIframeAttrs` in `RichPostEditor` now accepts and uses `piece.prompt` as the iframe `title` (falls back to piece title if description is empty).
+- `ArtPieceLibraryDialog.onInsert` callback widened to include `prompt`; passes it through on insert.
+- Inline piece generation call site updated to pass `response.prompt`.
+
+**AI improve button**
+- "Improve prompt" / "Improve description" Sparkles button added to both creation/edit button rows in `admin-pieces.tsx`.
+- Uses `preferredVendorAltText` (the "Visual descriptions" vendor preference) — same intent as image alt text generation.
+- New `mode: "text"` parameter passed to `/api/ai/process`, selecting a plain-text system prompt instead of the HTML-expansion prompt.
+
+**Piece description bubble in post editor**
+- Second `BubbleMenu` added to `RichPostEditor` triggered when the selected node is a piece iframe (`src` starts with `/embed/pieces/`).
+- Shows a description input and Save button. Save: updates the iframe `title` attribute in the editor AND persists via `PATCH` to the piece record (`useUpdateArtPiece`). In HTML mode the `title` attribute is directly editable in source.
+
+**AI settings**
+- "Image alt text" task preference renamed to "Visual descriptions" — now covers both image alt text generation and piece description improvement.
+
+### AI endpoint: mode parameter
+- `ProcessAiTextBody` gained optional `mode: "html" | "text"` field (OpenAPI + regenerated client).
+- Backend: `mode: "text"` selects `AI_PLAIN_TEXT_SYSTEM_PROMPT` ("Refine and improve this description while keeping it concise and clear. Return only the improved text with no HTML…") instead of the HTML-expansion prompt. Fixes the 45-second timeout/502 that occurred because the HTML prompt instructed the AI to expand a short description into a full multi-paragraph HTML document.
+- Existing editor text improvement callers pass no `mode` → default HTML behaviour unchanged.
+
+### Files modified
+`lib/api-spec/openapi.yaml`, `artifacts/api-server/src/routes/ai.ts`, `artifacts/microblog/src/components/post/ArtPieceRenderer.tsx`, `artifacts/microblog/src/components/post/ArtPieceLibraryDialog.tsx`, `artifacts/microblog/src/components/post/RichPostEditor.tsx`, `artifacts/microblog/src/pages/admin/admin-pieces.tsx`, `artifacts/microblog/src/pages/admin/admin-ai.tsx`
+
+### Outcome
+All changes type-check clean. Piece descriptions are accessible via iframe `title`. AI improvement for descriptions uses the correct plain-text system prompt (fast, no HTML output). The post editor bubble lets users edit piece descriptions inline with immediate persistence.
+
+---
+
+## 2026-05-22 — Bug fixes + BubbleMenu → Click-to-Edit Modal Dialogs
+
+### Trigger
+After initial pieces enhancements: (1) the AI plain-text prompt returned JSON unchanged when the input was already structured; (2) the iframe `title` attribute was being set to the AI-generated description instead of the piece name; (3) existing pieces showed no bubble menu; (4) `aria-label` was stripped by the HTML sanitizer; (5) iframes swallowed mouse events preventing click detection; (6) BubbleMenu continued to fail after editor clicks or mode switches — unreliably disappearing in various scenarios. Decision: replace BubbleMenu entirely with click-activated modal dialogs.
+
+### Bug fixes
+
+**AI plain-text system prompt for JSON/structured inputs**
+- `AI_PLAIN_TEXT_SYSTEM_PROMPT` updated to explicitly detect and convert JSON/tags/technical parameters to natural English prose.
+- Previously the prompt only refined existing natural language; structured inputs (e.g. `{"aspect_ratio": "1:1", "style": "digital art"}`) were returned unchanged.
+
+**`ariaLabel` attribute (camelCase) for piece descriptions**
+- `IframeEmbed.addAttributes()` stores description as `ariaLabel` (camelCase key) to avoid ProseMirror's unreliable handling of hyphenated attribute names.
+- `renderHTML` explicitly destructures `ariaLabel` and maps it to `"aria-label"` in the DOM output.
+- All `parseHTML` extractors read `el.getAttribute("aria-label")` explicitly rather than relying on Tiptap inference.
+
+**Sanitizer: allow `aria-label` on iframes**
+- `artifacts/api-server/src/lib/html.ts`: added `"aria-label"` to the iframe `allowedAttributes` list in `sanitizeRichHtml`. Without this, the attribute was stripped on every POST/PATCH, causing descriptions to disappear after saving.
+
+**Iframe pointer-events**
+- Added `prose-iframe:pointer-events-none` to the editor class string. Iframes are separate browsing contexts; without pointer-events none, clicks inside them are invisible to ProseMirror and the click handler.
+
+**Piece iframe attributes: title vs ariaLabel**
+- `buildPieceIframeAttrs` sets `title: piece.title` (piece name, for accessibility + display) and `ariaLabel: piece.prompt || undefined` (description).
+- `IframeEmbed` extension `parseHTML` has explicit extractors for both.
+
+### Architectural change: Replace BubbleMenu with click-to-edit dialogs
+
+**Motivation**: Tiptap v3 BubbleMenu is a selection-state widget that unmounts/remounts with the editor DOM. After any mode switch, click-outside, or adjacent node deletion, the plugin lost its event listeners and stopped appearing. No reliable `shouldShow` predicate could cover all cases.
+
+**New pattern**: A single `onClick` handler on the `div.relative` editor wrapper detects what was clicked and opens the appropriate dialog.
+
+**New components**
+- `dialogs/ImageEditDialog.tsx` — thumbnail preview, alt text textarea with AI Sparkles button, Remove/Replace/Save footer.
+- `dialogs/PieceEditDialog.tsx` — read-only title, description textarea with AI Sparkles button, Remove/Replace/Save footer.
+
+**Extended components**
+- `dialogs/EmbedDialog.tsx` — added `initialCode?` and `onRemove?` props for edit mode (pre-populates code, shows Remove button, changes title/button label).
+- `dialogs/YouTubeDialog.tsx` — added `initialUrl?` and `onRemove?` props for edit mode.
+
+**`RichPostEditor.tsx` changes**
+- Removed: `BubbleMenu` import and both BubbleMenu JSX blocks; `bubbleAlt`, `isBubbleGenerating`, `isBubbleSaving`, `lastBubbleImageSrcRef`, `bubblePieceDescription`, `isBubblePieceSaving`, `lastBubblePieceSrcRef` state; two no-dependency `useEffect` bubble-sync hooks; `Save` from lucide imports.
+- Added: `imageEditState`, `pieceEditState`, `embedEditState`, `youTubeEditState` state; `handleEditorContentClick` function; `onClick={handleEditorContentClick}` on `div.relative` wrapper; `ImageEditDialog`, `PieceEditDialog`, and edit-mode `EmbedDialog`/`YouTubeDialog` renders.
+- Click detection order: `a` → `img` → `posAtCoords` for iframe node at click position.
+- Node position stored in dialog state; `setNodeSelection(pos).updateAttributes(...)` used for in-place saves.
+- The existing insert-mode `EmbedDialog` and `YouTubeDialog` (toolbar-initiated) remain as separate instances with no `initialCode`/`initialUrl`.
+
+### Files modified
+`artifacts/api-server/src/routes/ai.ts`, `artifacts/api-server/src/lib/html.ts`, `artifacts/microblog/src/components/post/iframe-embed.ts`, `artifacts/microblog/src/components/post/RichPostEditor.tsx`, `artifacts/microblog/src/components/post/dialogs/EmbedDialog.tsx`, `artifacts/microblog/src/components/post/dialogs/YouTubeDialog.tsx`, `artifacts/microblog/src/components/post/dialogs/ImageEditDialog.tsx` (new), `artifacts/microblog/src/components/post/dialogs/PieceEditDialog.tsx` (new)
+
+### Outcome
+TypeScript type-check passes with zero errors. BubbleMenu is fully removed. Click any image, piece iframe, YouTube embed, generic iframe, or link in the visual editor to open the appropriate modal dialog. Mode switches, content edits, and node deletions no longer break the edit-in-place UX.
+
+---
+
+## 2026-05-22 — Click-to-edit follow-up fixes (iframes + AI button visibility)
+
+### Trigger
+Testing revealed two gaps after the BubbleMenu → click-to-edit migration: (1) clicking YouTube/iframe embeds did nothing; (2) the Sparkles AI button was absent in `ImageEditDialog` and `PieceEditDialog`.
+
+### Fix 1 — iframe pointer-events (root cause: invalid Tailwind class)
+- `prose-iframe:pointer-events-none` generates no CSS — Tailwind Typography's element modifiers don't support `pointer-events`.
+- Fixed by adding `.wysiwyg-editor-content iframe { pointer-events: none; }` in `artifacts/microblog/src/index.css` (`@layer components`).
+- The dead class was removed from `RichPostEditor` `editorProps.attributes.class`.
+- The iframe position scan in `handleEditorContentClick` was updated from `nodeAt(posResult.inside)` to the same three-candidate fallback `[posResult.pos, posResult.pos - 1, posResult.inside]` used for image detection.
+
+### Fix 2 — AI button not visible in click-to-edit dialogs
+- `ImageEditDialog` and `PieceEditDialog` render the Sparkles button only when `altTextVendor` is non-null.
+- `PostCard.tsx` and `admin-pending.tsx` (via `PendingPostCard`) were calling `RichPostEditor` without passing `preferredVendorAltText`, so `altTextVendor` was always null.
+- Fixed by destructuring `preferredVendorAltText` from `useOwnerAiVendors()` in both files and passing it through (`PendingPostCardProps` extended to carry the field).
+
+### Files modified
+`artifacts/microblog/src/index.css`, `artifacts/microblog/src/components/post/RichPostEditor.tsx`, `artifacts/microblog/src/components/post/PostCard.tsx`, `artifacts/microblog/src/pages/admin-pending.tsx`
+
+### Outcome
+TypeScript type-check passes. Clicking any YouTube or iframe embed in the editor opens the correct dialog. The AI Sparkles button appears in both `ImageEditDialog` and `PieceEditDialog` when a Visual descriptions vendor is configured.

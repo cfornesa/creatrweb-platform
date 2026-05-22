@@ -1,7 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureTables } from "@workspace/db";
-import { ensureMediaRoot } from "./lib/media";
+import { ensureMediaRoot, backfillMediaAssetsFromFilesystem } from "./lib/media";
 import { backfillPostContentText } from "./lib/html";
 import { startPostScheduler } from "./lib/post-scheduler";
 
@@ -15,6 +15,7 @@ if (Number.isNaN(port) || port <= 0) {
 
 ensureTables()
   .then(() => backfillPostContentText())
+  .then(() => backfillMediaAssetsFromFilesystem())
   .then(() => {
     ensureMediaRoot();
     app.listen(port, (err) => {

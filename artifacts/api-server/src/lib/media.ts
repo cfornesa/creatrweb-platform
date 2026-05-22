@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileTypeFromBuffer } from "file-type";
 import { fileURLToPath } from "node:url";
+import { db, mediaAssetsTable, eq } from "@workspace/db";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -51,4 +52,35 @@ export async function storeUploadedImage(buffer: Buffer) {
     mimeType: detectedType.mime,
     url: `/api/media/${fileName}`,
   };
+}
+
+export async function backfillMediaAssetsFromFilesystem(): Promise<void> {
+  if (!fs.existsSync(MEDIA_ROOT)) {
+    return;
+  }
+
+  const files = fs.readdirSync(MEDIA_ROOT).filter((f) => !f.startsWith("."));
+
+  for (const fileName of files) {
+    const existing = await db
+      .select({ id: mediaAssetsTable.id })
+      .from(mediaAssetsTable)
+      .where(eq(mediaAssetsTable.filename, fileName))
+      .limit(1);
+
+    if (existing.length > 0) {
+      continue;
+    }
+
+    const filePath = getMediaPath(fileName);
+    const buffer = await fs.promises.readFile(filePath);
+    const detected = await fileTypeFromBuffer(buffer);
+    const mimeType = detected?.mime ?? "application/octet-stream";
+
+    await db.insert(mediaAssetsTable).values({
+      url: `/api/media/${fileName}`,
+      filename: fileName,
+      mimeType,
+    });
+  }
 }
