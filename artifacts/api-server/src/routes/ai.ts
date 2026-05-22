@@ -24,11 +24,10 @@ import {
   validateAiVendorSettingsInput,
   type AiVendor,
 } from "../lib/ai-settings";
-import fs from "node:fs";
 import { fileTypeFromBuffer } from "file-type";
 import { stripHtmlToText } from "../lib/html";
 import { AiProviderError, AiVisionNotSupportedError, processImageWithProvider, processTextWithProvider } from "../lib/ai-providers";
-import { getMediaPath } from "../lib/media";
+import { getMediaBuffer } from "../lib/media";
 
 const router: IRouter = Router();
 const AI_SYSTEM_PROMPT =
@@ -282,11 +281,8 @@ router.post("/ai/describe-image", requireAuth, requireOwner, async (req: Request
       return res.status(400).json({ error: "Invalid image filename." });
     }
 
-    const filePath = getMediaPath(filename);
-    let fileBuffer: Buffer;
-    try {
-      fileBuffer = fs.readFileSync(filePath);
-    } catch {
+    const fileBuffer = await getMediaBuffer(filename);
+    if (!fileBuffer) {
       return res.status(404).json({ error: "Image file not found on server." });
     }
 

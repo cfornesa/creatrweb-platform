@@ -983,6 +983,12 @@ export async function ensureTables(): Promise<void> {
   );
 
   await ensureColumn(
+    "media_assets",
+    "file_data",
+    "file_data MEDIUMBLOB NULL",
+  );
+
+  await ensureColumn(
     "users",
     "preferred_vendor_text_improve",
     "preferred_vendor_text_improve VARCHAR(64) NULL",

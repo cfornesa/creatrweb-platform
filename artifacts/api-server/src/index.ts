@@ -1,7 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureTables } from "@workspace/db";
-import { ensureMediaRoot, backfillMediaAssetsFromFilesystem } from "./lib/media";
+import { backfillMediaAssetsFromFilesystem } from "./lib/media";
 import { backfillPostContentText } from "./lib/html";
 import { startPostScheduler } from "./lib/post-scheduler";
 
@@ -17,7 +17,6 @@ ensureTables()
   .then(() => backfillPostContentText())
   .then(() => backfillMediaAssetsFromFilesystem())
   .then(() => {
-    ensureMediaRoot();
     app.listen(port, (err) => {
       if (err) {
         logger.error({ err }, "Error listening on port");

@@ -3,7 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileTypeFromBuffer } from "file-type";
 import { fileURLToPath } from "node:url";
-import { db, mediaAssetsTable, eq } from "@workspace/db";
+import { db, mediaAssetsTable, eq, isNull } from "@workspace/db";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -40,47 +40,78 @@ export async function storeUploadedImage(buffer: Buffer) {
     throw new Error("Unsupported media type");
   }
 
-  ensureMediaRoot();
-
   const extension = MIME_EXTENSION_MAP[detectedType.mime] ?? `.${detectedType.ext}`;
   const fileName = `${randomUUID()}${extension}`;
-  const filePath = getMediaPath(fileName);
-  await fs.promises.writeFile(filePath, buffer);
+  const url = `/api/media/${fileName}`;
+
+  await db.insert(mediaAssetsTable).values({
+    url,
+    filename: fileName,
+    mimeType: detectedType.mime,
+    fileData: buffer,
+  });
 
   return {
     fileName,
     mimeType: detectedType.mime,
-    url: `/api/media/${fileName}`,
+    url,
   };
 }
 
+export async function getMediaBuffer(fileName: string): Promise<Buffer | null> {
+  const [row] = await db
+    .select({ fileData: mediaAssetsTable.fileData })
+    .from(mediaAssetsTable)
+    .where(eq(mediaAssetsTable.filename, fileName))
+    .limit(1);
+
+  const data = row?.fileData;
+  if (!data) return null;
+  return Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
+}
+
 export async function backfillMediaAssetsFromFilesystem(): Promise<void> {
-  if (!fs.existsSync(MEDIA_ROOT)) {
-    return;
+  // Phase 1: insert DB records for any disk files that have no record yet.
+  if (fs.existsSync(MEDIA_ROOT)) {
+    const files = fs.readdirSync(MEDIA_ROOT).filter((f) => !f.startsWith("."));
+
+    for (const fileName of files) {
+      const existing = await db
+        .select({ id: mediaAssetsTable.id })
+        .from(mediaAssetsTable)
+        .where(eq(mediaAssetsTable.filename, fileName))
+        .limit(1);
+
+      if (existing.length === 0) {
+        const filePath = getMediaPath(fileName);
+        const fileBuffer = await fs.promises.readFile(filePath);
+        const detected = await fileTypeFromBuffer(fileBuffer);
+        const mimeType = detected?.mime ?? "application/octet-stream";
+
+        await db.insert(mediaAssetsTable).values({
+          url: `/api/media/${fileName}`,
+          filename: fileName,
+          mimeType,
+          fileData: fileBuffer,
+        });
+      }
+    }
   }
 
-  const files = fs.readdirSync(MEDIA_ROOT).filter((f) => !f.startsWith("."));
+  // Phase 2: for any existing DB record with no fileData, populate from disk.
+  const missingBlob = await db
+    .select({ id: mediaAssetsTable.id, filename: mediaAssetsTable.filename })
+    .from(mediaAssetsTable)
+    .where(isNull(mediaAssetsTable.fileData));
 
-  for (const fileName of files) {
-    const existing = await db
-      .select({ id: mediaAssetsTable.id })
-      .from(mediaAssetsTable)
-      .where(eq(mediaAssetsTable.filename, fileName))
-      .limit(1);
-
-    if (existing.length > 0) {
-      continue;
+  for (const row of missingBlob) {
+    const filePath = getMediaPath(row.filename);
+    if (fs.existsSync(filePath)) {
+      const data = await fs.promises.readFile(filePath);
+      await db
+        .update(mediaAssetsTable)
+        .set({ fileData: data })
+        .where(eq(mediaAssetsTable.id, row.id));
     }
-
-    const filePath = getMediaPath(fileName);
-    const buffer = await fs.promises.readFile(filePath);
-    const detected = await fileTypeFromBuffer(buffer);
-    const mimeType = detected?.mime ?? "application/octet-stream";
-
-    await db.insert(mediaAssetsTable).values({
-      url: `/api/media/${fileName}`,
-      filename: fileName,
-      mimeType,
-    });
   }
 }

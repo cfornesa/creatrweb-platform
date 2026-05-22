@@ -1903,3 +1903,34 @@ Testing revealed two gaps after the BubbleMenu → click-to-edit migration: (1) 
 
 ### Outcome
 TypeScript type-check passes. Clicking any YouTube or iframe embed in the editor opens the correct dialog. The AI Sparkles button appears in both `ImageEditDialog` and `PieceEditDialog` when a Visual descriptions vendor is configured.
+
+---
+
+## 2026-05-22 — Migrate media storage from local filesystem to MySQL BLOBs
+
+### Trigger
+Deployed images return `{"error":"Media not found"}` because `/data/uploads/` is on the Replit ephemeral filesystem, which is wiped on container restart/redeploy. The MySQL database persists across restarts.
+
+### Decision
+Store image bytes as MEDIUMBLOB in the `media_assets` table. No new vendor dependency; eliminates filesystem entirely for the serving path.
+
+### Schema change
+- Added `file_data MEDIUMBLOB NULL` column via `ensureColumn()` in `lib/db/src/migrate.ts`.
+- Added `fileData: mediumBlob("file_data")` to `mediaAssetsTable` in `lib/db/src/schema/media-assets.ts` using Drizzle's `customType` (no native MEDIUMBLOB in drizzle-orm/mysql-core).
+
+### MySQL `max_allowed_packet`
+Added `mysqlPool.on("connection", ...)` in `lib/db/src/index.ts` to SET SESSION max_allowed_packet = 16777216 (16 MB) per connection — guards against MySQL servers still on the legacy 4 MB default.
+
+### Application changes
+- `storeUploadedImage()` in `media.ts` now inserts the buffer into `file_data` instead of writing to disk. The route's POST handler no longer does a separate `db.insert`.
+- `GET /api/media/:fileName` reads `fileData` from DB and sends the buffer with the correct `Content-Type` and `Cache-Control: immutable` headers.
+- `DELETE /api/media/:fileName` no longer tries to `fs.unlink` — only deletes the DB row.
+- Added `getMediaBuffer(fileName)` helper in `media.ts`; `routes/ai.ts` now uses it for the describe-image endpoint instead of `getMediaPath + fs.readFileSync`.
+- `backfillMediaAssetsFromFilesystem()` extended with a Phase 2: any DB row with `fileData IS NULL` and a matching file on disk has its buffer populated on next startup.
+- `ensureMediaRoot()` call removed from `artifacts/api-server/src/index.ts` startup sequence.
+
+### Files modified
+`lib/db/src/schema/media-assets.ts`, `lib/db/src/migrate.ts`, `lib/db/src/index.ts`, `artifacts/api-server/src/lib/media.ts`, `artifacts/api-server/src/routes/media.ts`, `artifacts/api-server/src/routes/ai.ts`, `artifacts/api-server/src/index.ts`
+
+### Outcome
+TypeScript type-checks pass on both `lib/db` and `artifacts/api-server` with zero errors. New uploads write to MySQL; existing on-disk files are backfilled into the DB on next startup. `GET /api/media/:fileName` now serves from DB — survives container restarts on Replit.

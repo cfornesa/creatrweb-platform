@@ -1,10 +1,9 @@
-import fs from "node:fs";
 import path from "node:path";
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
 import { requireAuth, requireOwner } from "../middlewares/auth";
 import { createRateLimitMiddleware } from "../lib/ratelimit";
-import { ensureMediaRoot, getMediaPath, storeUploadedImage } from "../lib/media";
+import { storeUploadedImage } from "../lib/media";
 import { db, mediaAssetsTable, desc, eq } from "@workspace/db";
 
 const router: IRouter = Router();
@@ -51,12 +50,6 @@ router.post(
       }
 
       const uploaded = await storeUploadedImage(req.file.buffer);
-
-      await db.insert(mediaAssetsTable).values({
-        url: uploaded.url,
-        filename: uploaded.fileName,
-        mimeType: uploaded.mimeType,
-      });
 
       return res.status(201).json({
         url: uploaded.url,
@@ -146,11 +139,6 @@ router.delete(
       return res.status(404).json({ error: "Media not found" });
     }
 
-    const filePath = getMediaPath(fileName);
-    if (fs.existsSync(filePath)) {
-      await fs.promises.unlink(filePath);
-    }
-
     await db.delete(mediaAssetsTable).where(eq(mediaAssetsTable.url, url));
 
     return res.status(204).end();
@@ -161,16 +149,23 @@ router.get(
   "/media/:fileName",
   createRateLimitMiddleware({ windowMs: 60_000, max: 120 }),
   async (req: Request, res: Response) => {
-    ensureMediaRoot();
     const rawFileName = Array.isArray(req.params.fileName) ? req.params.fileName[0] : req.params.fileName;
     const fileName = path.basename(rawFileName);
-    const filePath = getMediaPath(fileName);
 
-    if (!fs.existsSync(filePath)) {
+    const [row] = await db
+      .select({ mimeType: mediaAssetsTable.mimeType, fileData: mediaAssetsTable.fileData })
+      .from(mediaAssetsTable)
+      .where(eq(mediaAssetsTable.filename, fileName))
+      .limit(1);
+
+    if (!row?.fileData) {
       return res.status(404).json({ error: "Media not found" });
     }
 
-    return res.sendFile(filePath);
+    const buffer = Buffer.isBuffer(row.fileData) ? row.fileData : Buffer.from(row.fileData as ArrayBuffer);
+    res.setHeader("Content-Type", row.mimeType);
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    return res.end(buffer);
   },
 );
 
