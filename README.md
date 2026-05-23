@@ -85,15 +85,11 @@ Key behavior:
 
 - image routes encode the local media reference and carry optional `alt`, `title`, and `caption` metadata through the query string
 - image immersive view preserves readable metadata outside the main display and draws the real image into a gallery-owned presentation surface before mounting it into the restored non-Three room
-- image and piece routes now share the same immersive shell: on small screens and touch-first devices the page flows as header → `40svh` scene block → full metadata card, while wide non-touch layouts keep the split scene-plus-sidecard layout
-- immersive fullscreen is now a true popup-style focus mode inside the same route: the scene expands to a full-viewport overlay, the header and metadata disappear, and a lower-right icon-only contract control returns to the gallery/info view
-- piece immersive view reuses the existing app-owned piece runtime; `three` pieces use the saved runtime directly inside the immersive flow, `c2` remains the non-Three framing baseline, and `p5` now uses a normalized presentation surface before its live canvas is mounted into the gallery wall
-- immersive piece reliability now uses engine-specific adapters instead of a hidden zero-size iframe:
-  - `three` pieces run directly in a live immersive canvas with viewer-managed camera controls layered onto the captured scene camera
-  - images, `p5`, and `c2` now use the restored browser-only non-Three Three.js gallery room with orbit/pan/zoom controls and bounded initial framing
-  - `p5` and images are contain-fit and centered inside explicit gallery-owned presentation surfaces, then opened with a smaller canonical mount and a centered default target so they stay within viewport bounds instead of inheriting raw source-canvas or raw image offsets
-  - `three` now uses a centered cross-device auto-fit model so the first pose opens more evenly on both desktop and mobile instead of starting biased or cropped
-  - the loop-prone non-Three path built around offscreen iframe polling, live texture bridging from the standard renderer, and non-Three WebXR entry wiring has been removed from the recovery target
+- image and piece routes currently use the same stacked shell component in the default info view: header, bounded `40svh` scene block, and metadata card below, plus a shared lower-right fullscreen toggle
+- immersive fullscreen is a popup-style focus mode inside the same route: the scene expands to a full-viewport overlay, the header and metadata disappear, and a lower-right icon-only contract control returns to the gallery/info view
+- piece immersive view reuses the existing app-owned piece runtime; `three` pieces use the saved runtime directly inside the immersive flow, `c2` remains the non-Three framing baseline, and `p5` uses the same recovered browser-only gallery path rather than the discarded texture-bridge experiment
+- featured-image immersive routes now preserve media-asset metadata: when the asset has its own title or alt text, those values are passed through instead of silently substituting the parent post title or the “no alt text provided” fallback
+- current known limitation: in reduced-width/mobile testing, the default non-fullscreen immersive **image** view scrolls correctly, but default non-fullscreen immersive **piece** views (`p5`, `c2`, and `three`) can still stop short before the full metadata card is reachable. Fullscreen popup mode and the immersive image default view are the currently reliable paths.
 - the existing post, page, and embed URLs remain unchanged; immersive routes are an additive URL surface
 - admin piece previews and admin image/library previews use the same immersive trigger pattern as public content
 
@@ -260,10 +256,11 @@ Recommended local flow for the immersive viewer:
 2. Start the app with `npm run dev`.
 3. Open `http://localhost:4000`.
 4. Verify a post or page that contains a local image shows the lower-right `VR` affordance and that clicking it opens `/immersive/images/:encodedRef`.
-5. Verify the immersive image route loads directly on refresh, shows the image in the Three.js gallery plane, and falls back gracefully if WebGL is unavailable.
+5. Verify the immersive image route loads directly on refresh, shows the image in the Three.js gallery plane, preserves the asset title/alt text in the metadata card, and falls back gracefully if WebGL is unavailable.
 6. Open `/admin/pieces`, preview a saved `p5`, `c2`, and `three` piece, and confirm the `VR` affordance opens `/immersive/pieces/:id`.
 7. Verify each piece engine remains viewable in immersive mode and that the non-immersive preview still works afterward.
-8. Open `/admin/library` and the featured-image picker to confirm admin image previews also show the `VR` affordance.
+8. In reduced-width/mobile testing, treat the default immersive image view as the baseline. The remaining known bug is that default non-fullscreen piece routes may still stop short before the full metadata card is reachable; fullscreen popup mode should still work.
+9. Open `/admin/library` and the featured-image picker to confirm admin image previews also show the `VR` affordance.
 
 Focused checks for this feature:
 

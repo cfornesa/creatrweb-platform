@@ -2065,6 +2065,28 @@ The first immersive-piece implementation proved unreliable in practice. `p5` and
   - all immersive routes use a bounded `40svh` scene block and full metadata card below it on small screens and touch-first devices, even when the prior split-shell heuristics would have chosen the desktop branch
   - desktop keeps the split immersive layout, but it now uses the same shared metadata card and overlay-control layer as mobile
 - immersive routes now also expose a route-local fullscreen focus mode with icon-only expand/contract controls; fullscreen is a popup-style overlay that hides both the header and metadata, fills the viewport with the scene, and returns to the gallery/info view without changing the URL.
+
+## 2026-05-23 — Immersive Viewer Verified State Reset After Discard
+
+### Trigger
+The later immersive-viewer recovery work started to overstate what was actually verified in browser/device testing. The owner discarded the most recent gesture-passive recovery attempt and asked for markdown to reflect only what is known to work now, plus the remaining implementation tasks.
+
+### Verified Current Truth
+- The additive immersive route surface remains:
+  - `/immersive/images/:encodedRef`
+  - `/immersive/pieces/:id`
+- The shared stacked default shell is still present in code and is the current default info-view wrapper: header, bounded `40svh` scene block, metadata card below, and a lower-right expand icon.
+- Fullscreen focus mode remains the reliable “more immersive” path: expand opens a popup-style full-viewport overlay, header and metadata disappear, and only the lower-right contract icon remains visible.
+- Featured-image immersive metadata is now sourced correctly from the media asset when available. The immersive image route no longer silently substitutes the parent post title or the “no alt text provided” fallback when the asset already has its own title/alt text.
+- In reduced-width/mobile testing, the default immersive **image** view is the current usability baseline and scrolls correctly with its metadata card.
+- In the same reduced-width/mobile testing, the default immersive **piece** views for `p5`, `c2`, and `three` still do **not** yet have image-level scroll reliability. The scene and top of the metadata card render, but the default non-fullscreen page can still stop before the full metadata card is reachable.
+
+### Action Items
+- Keep the current immersive image default-info-view behavior unchanged; treat it as the baseline to preserve.
+- Keep the featured-image metadata correction unchanged.
+- Keep fullscreen popup behavior unchanged; it is not the current bug.
+- Diagnose and fix why default non-fullscreen **piece** routes (`p5`, `c2`, `three`) still fail to scroll fully in reduced-width/mobile contexts even though the shared shell and metadata card now render.
+- Re-verify on reduced-width desktop browser and mobile emulator/device before making any new immersive-viewer documentation claims beyond the known-good image behavior.
 - The lower-right expand/contract control is now owned by the shared shell instead of individual media stages so it stays visible across image, `p5`, `c2`, and `three` routes.
 - `three` now uses a centered cross-device auto-fit model instead of the earlier offset bootstrap so the initial pose is corrected on both desktop and mobile, with only minor viewport-based distance tuning.
 - This refinement is intentionally a framing fix, not a room redesign. The wall/floor composition and general camera feel stay aligned with the recovered `c2` browser gallery.

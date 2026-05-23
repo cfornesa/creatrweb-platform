@@ -235,4 +235,11 @@ or rejection. -->
     [Implemented 2026-05-23; verified from `ImmersiveRouteShell.tsx`, `immersive-image.tsx`, `immersive-piece.tsx`, the new ImmersiveRouteShell test, and clean microblog typecheck / focused tests.]
 
 2026-05-23 · IMMERSIVE VIEWER · The shared immersive shell now prefers the scrollable document-flow layout on both small screens and touch-first devices, instead of relying only on the earlier mobile-width split detection. This is meant to force image-shell parity for `p5`, `c2`, and `three` immersive routes in emulator/mobile contexts where the old branch choice still trapped or hid metadata.
+    [Superseded by later browser verification on 2026-05-23: the shared shell and metadata card now render for piece routes, but default non-fullscreen `p5`, `c2`, and `three` info views still do not scroll as reliably as the image route in reduced-width/mobile testing.]
+
+2026-05-23 · IMMERSIVE VIEWER · Featured-image immersive routes now preserve media-asset metadata when available. The immersive image title and alt text come from the selected media asset instead of silently falling back to the parent post title or the generic “no alt text provided” copy.
+    [Confirmed by the human on 2026-05-23 after browser testing.]
+
+2026-05-23 · IMMERSIVE VIEWER · The current default immersive image view is the usability baseline in reduced-width/mobile testing: it scrolls correctly and exposes its metadata card. Default non-fullscreen immersive **piece** views (`p5`, `c2`, `three`) still render the scene and the top of the metadata card, but can stop before the full metadata card is reachable. Fullscreen popup mode remains available and is not the current bug target.
+    [Confirmed by the human on 2026-05-23 from browser and emulator screenshots.]
     [Implemented 2026-05-23; verified from `ImmersiveRouteShell.tsx`, updated shell tests, and clean microblog typecheck / focused tests.]
