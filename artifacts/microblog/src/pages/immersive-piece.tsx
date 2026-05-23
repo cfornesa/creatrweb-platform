@@ -620,6 +620,18 @@ export default function ImmersivePiecePage() {
               label: "Interaction",
               value: "Drag to orbit, scroll to zoom, right-drag or modifier-drag to pan.",
             },
+            {
+              label: "Alt text",
+              value: data.version.prompt,
+            },
+            {
+              label: "Source",
+              value: (
+                <span className="break-all text-white/60">
+                  {`${window.location.origin}/embed/pieces/${pieceId}${versionId ? `?version=${versionId}` : ""}`}
+                </span>
+              ),
+            },
             ...(runtimeError
               ? [
                   {

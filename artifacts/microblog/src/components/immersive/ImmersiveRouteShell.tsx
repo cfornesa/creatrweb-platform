@@ -108,9 +108,9 @@ export function ImmersiveRouteShell({
     <>
       {isFullscreen ? (
         <div className="fixed inset-0 z-[120] bg-[#050b16]">
-          <div className="relative h-screen w-screen overflow-hidden">
+          <div className="relative h-full w-full overflow-hidden">
             {renderScene({ fullscreen: true, isMobile: true })}
-            <div className="pointer-events-none absolute inset-0">
+            <div className="pointer-events-none absolute inset-0 z-10">
               <div className="pointer-events-auto absolute bottom-4 right-4 z-[130]">
                 <FullscreenToggleButton isFullscreen onToggle={onToggleFullscreen} />
               </div>
@@ -146,7 +146,7 @@ export function ImmersiveRouteShell({
             <div className={cn("w-full overflow-hidden", sceneHeightClassName)}>
               {renderScene({ fullscreen: false, isMobile: true })}
             </div>
-            <div className="pointer-events-none absolute inset-0">
+            <div className="pointer-events-none absolute inset-0 z-10">
               <div className="pointer-events-auto absolute bottom-4 right-4 z-20">
                 <FullscreenToggleButton isFullscreen={false} onToggle={onToggleFullscreen} />
               </div>

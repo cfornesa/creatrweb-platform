@@ -29,7 +29,7 @@ export function ImmersiveMediaFrame({
         )}
       >
         <Box className="mr-1.5 h-4 w-4" />
-        <span className="hidden sm:inline">VR</span>
+        <span>VR</span>
         <span className="sr-only">{label}</span>
       </Link>
     </div>

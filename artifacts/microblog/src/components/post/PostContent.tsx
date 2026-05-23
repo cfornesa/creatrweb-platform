@@ -100,7 +100,8 @@ function highlightHtml(html: string, regex: RegExp): string {
 }
 
 function createImmersiveAnchorMarkup(href: string, label: string) {
-  return `<a href="${href}" aria-label="${label.replace(/"/g, "&quot;")}" class="absolute bottom-3 right-3 z-20 inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-border/70 bg-background/90 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-foreground shadow-lg backdrop-blur transition hover:border-primary hover:text-primary"><span aria-hidden="true">VR</span></a>`;
+  const boxSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:middle;margin-right:6px;flex-shrink:0"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`;
+  return `<a href="${href}" aria-label="${label.replace(/"/g, "&quot;")}" class="absolute bottom-3 right-3 z-20 inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-border/70 bg-background/90 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-foreground shadow-lg backdrop-blur transition hover:border-primary hover:text-primary">${boxSvg}<span aria-hidden="true">VR</span></a>`;
 }
 
 function enhanceImmersiveHtml(html: string): string {
