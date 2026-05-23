@@ -212,3 +212,18 @@ or rejection. -->
 
 2026-05-22 · MEDIA LIBRARY · Pasted image URLs now import into local MySQL-backed media by default, direct uploads and URL imports share an 8 MB cap, and Image Library assets have editable titles plus alt text managed through a detail dialog.
     [Implemented 2026-05-22; verified from media import route, media schema, FeaturedImagePicker, MediaGrid, README, docs/dependencies.md, focused tests, and full workspace typecheck.]
+
+2026-05-22 · IMMERSIVE VIEWER · The app now has additive immersive-view routes for eligible local images and saved interactive pieces: `/immersive/images/:encodedRef` and `/immersive/pieces/:id`. Images open in the restored browser-only non-Three Three.js gallery with bounded mounted sizing and semantic metadata preserved alongside the display. Saved `three` pieces run through the immersive path directly; saved `p5` and `c2` pieces use the recovered `c2`-style gallery-owned runtime path instead of the later texture-bridge experiment, without changing the saved piece contract.
+    [Implemented 2026-05-22; verified from `App.tsx`, `immersive-image.tsx`, `immersive-piece.tsx`, `art-piece-runtime.ts`, runtime HTML enhancement in `PostContent.tsx`, admin/media preview integrations, focused tests, and microblog typecheck.]
+
+2026-05-22 · IMMERSIVE VIEWER · The lower-right `VR` affordance is applied at runtime rather than by changing canonical stored post HTML. It appears on rendered post/page images, rendered piece iframes, featured images on post cards, admin piece previews, and admin image/library previews. Existing post, page, and embed URLs remain unchanged; immersive routes are an additive URL surface only.
+    [Confirmed by the owner during the immersive-viewer implementation session and recorded in DECISIONS.md / README.md.]
+
+2026-05-22 · IMMERSIVE VIEWER · The immersive piece route no longer relies on a hidden zero-size iframe. `three` pieces still run directly in a live immersive canvas with viewer-managed orbit/pan/zoom controls layered onto the captured scene camera, while non-Three media has been recovered back toward the earlier browser-only `c2` gallery baseline with bounded framing. The later offscreen-iframe texture-bridge and non-Three WebXR-wired experiment was removed from the recovery target after it introduced looping regressions.
+    [Implemented 2026-05-22; verified from `immersive-piece.tsx`, `immersive-piece-runtime.ts`, focused helper tests, and clean microblog typecheck.]
+
+2026-05-22 · IMMERSIVE VIEWER · The current acceptable `c2` browser gallery framing is the non-Three visual baseline. `p5` canvases and immersive images are now first copied into gallery-owned presentation surfaces with explicit dimensions, padding, contain-fit sizing, and centering before they are mounted into the gallery wall, so they no longer inherit raw source offsets or over-zoomed upper-left framing.
+    [Implemented 2026-05-22; verified from `immersive-gallery.ts`, `immersive-piece.tsx`, `immersive-image.tsx`, the new immersive-gallery layout test, and clean microblog typecheck / focused tests.]
+
+2026-05-22 · IMMERSIVE VIEWER · The current fast-path framing rule for non-Three normalized media is a smaller canonical presentation mount plus a centered default camera target. `c2` keeps its acceptable direct browser-gallery framing, while `p5` and immersive images open from a stricter, more conservative default pose intended to keep the full work inside the visible browser bounds on load.
+    [Implemented 2026-05-22; verified from `immersive-gallery.ts`, `immersive-piece.tsx`, `immersive-image.tsx`, updated immersive-gallery tests, and clean microblog typecheck / focused tests.]

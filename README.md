@@ -23,6 +23,7 @@ At a high level, the app provides:
 - owner-managed external navigation links and a sitewide footer surfacing the owner's social profiles
 - standardized public feeds (Atom, JSON Feed, mf2-JSON) and per-category/per-page feed variants
 - AI-assisted post rewriting and validated interactive piece generation - p5, Three.js, and C2.js (optional, owner-configured) via OpenRouter, OpenCode Zen, OpenCode Go, or Google Gemini
+- immersive viewer routes for local images and saved interactive pieces, using Three.js as the shared gallery shell
 - a single canonical MySQL database shared by local and deployed app instances
 
 ## Product
@@ -69,6 +70,29 @@ Key behavior:
 - saving a piece to the library or adding a new version consumes a one-time validated draft token, so arbitrary client-submitted code is not accepted
 - embed snippets are live (`/embed/pieces/:id` without a `?version=` pin), so admin edits to a piece's current version are reflected anywhere that piece is embedded
 - iframe embeds at `/embed/pieces/:id` serve the correct runtime library for the piece's engine via `/api/runtimes/`
+- immersive piece routes at `/immersive/pieces/:id` render the saved piece inside a dedicated immersive viewer: `three` pieces stay on their native 3D path, while `p5` and `c2` use a restored browser-only Three.js gallery scene based on the earlier working `c2` model
+
+### Immersive Viewer
+
+Eligible images and saved piece embeds can expose a small lower-right **VR** affordance that opens a dedicated immersive route instead of modifying the stored post HTML contract.
+
+Current route surface:
+
+- `GET /immersive/images/:encodedRef` — opens a local image in the restored browser-only Three.js gallery scene
+- `GET /immersive/pieces/:id` — opens a saved interactive piece in a dedicated immersive viewer
+
+Key behavior:
+
+- image routes encode the local media reference and carry optional `alt`, `title`, and `caption` metadata through the query string
+- image immersive view preserves readable metadata outside the main display and draws the real image into a gallery-owned presentation surface before mounting it into the restored non-Three room
+- piece immersive view reuses the existing app-owned piece runtime; `three` pieces use the saved runtime directly inside the immersive flow, `c2` remains the non-Three framing baseline, and `p5` now uses a normalized presentation surface before its live canvas is mounted into the gallery wall
+- immersive piece reliability now uses engine-specific adapters instead of a hidden zero-size iframe:
+  - `three` pieces run directly in a live immersive canvas with viewer-managed camera controls layered onto the captured scene camera
+  - images, `p5`, and `c2` now use the restored browser-only non-Three Three.js gallery room with orbit/pan/zoom controls and bounded initial framing
+  - `p5` and images are contain-fit and centered inside explicit gallery-owned presentation surfaces, then opened with a smaller canonical mount and a centered default target so they stay within viewport bounds instead of inheriting raw source-canvas or raw image offsets
+  - the loop-prone non-Three path built around offscreen iframe polling, live texture bridging from the standard renderer, and non-Three WebXR entry wiring has been removed from the recovery target
+- the existing post, page, and embed URLs remain unchanged; immersive routes are an additive URL surface
+- admin piece previews and admin image/library previews use the same immersive trigger pattern as public content
 
 The owner can manage reusable pieces from `/admin/pieces`, regenerate versions, archive pieces, copy an iframe embed code to clipboard, and reinsert existing embeds from the composer library picker.
 
@@ -163,7 +187,7 @@ AI is owner-only and disabled per vendor by default. Saved API keys are encrypte
 | `/admin/platforms` | Connect and configure outbound syndication platforms |
 | `/admin/feeds` | Manage inbound feed subscriptions; set username, bio, and site URL for each source's profile page |
 | `/admin/ai` | Configure AI writing assistant vendors |
-| `/admin/pieces` | Manage reusable p5, Three.js, and C2.js pieces, regenerate versions, and copy iframe embed codes |
+| `/admin/pieces` | Manage reusable p5, Three.js, and C2.js pieces, regenerate versions, copy iframe embed codes, and launch immersive previews |
 | `/admin/pages` | Create and manage static pages |
 | `/settings` | User profile settings plus owner-only site customization (theme, palette, colors, site copy) |
 
@@ -196,6 +220,12 @@ docs/                Setup and dependency notes
 
 ### Local Development
 
+Install dependencies once per machine or after dependency changes:
+
+```bash
+npm install
+```
+
 Run the one-port development server from the repository root:
 
 ```bash
@@ -210,6 +240,33 @@ For active frontend work with Vite hot reload:
 
 ```bash
 npm run dev:hot
+```
+
+Build is not required before `npm run dev`; the root dev script already builds the frontend artifact before starting the API server. Use a separate production-style build when you specifically want to verify the deploy artifact:
+
+```bash
+npm run build
+npm run start
+```
+
+### Manual Verification
+
+Recommended local flow for the immersive viewer:
+
+1. Run `npm install` if this machine does not already have the workspace dependencies.
+2. Start the app with `npm run dev`.
+3. Open `http://localhost:4000`.
+4. Verify a post or page that contains a local image shows the lower-right `VR` affordance and that clicking it opens `/immersive/images/:encodedRef`.
+5. Verify the immersive image route loads directly on refresh, shows the image in the Three.js gallery plane, and falls back gracefully if WebGL is unavailable.
+6. Open `/admin/pieces`, preview a saved `p5`, `c2`, and `three` piece, and confirm the `VR` affordance opens `/immersive/pieces/:id`.
+7. Verify each piece engine remains viewable in immersive mode and that the non-immersive preview still works afterward.
+8. Open `/admin/library` and the featured-image picker to confirm admin image previews also show the `VR` affordance.
+
+Focused checks for this feature:
+
+```bash
+npm run typecheck --workspace=@workspace/microblog
+npm run test --workspace=@workspace/microblog -- PostContent immersive-view immersive-piece-runtime
 ```
 
 ### Environment Variables

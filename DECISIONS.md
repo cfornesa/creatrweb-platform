@@ -1973,3 +1973,91 @@ External image URLs inserted through the image picker remained remote URLs. They
 - After upload or import, the staged image panel shows editable Title and Image description fields. The AI Sparkles button applies only to the description field; title remains manually edited metadata.
 - Deleting an image from the Image Library now requires an "Are you sure?" confirmation dialog before the delete mutation is called.
 - The Image Library detail dialog now warns before closing with unsaved title or alt text changes, matching the broader post image insertion safeguards.
+
+---
+
+## 2026-05-22 — Three.js-First Immersive Viewer Routes For Images And Interactive Pieces
+
+### Trigger
+The product direction expanded from reusable interactive-piece embeds toward an explicit immersive-viewing experience. The owner wanted a small lower-right affordance on eligible media that opens a dedicated VR-style view: static images should render in a Three.js gallery scene, existing `three` pieces should become explorable immersive scenes, and existing `p5` / `c2` pieces should also participate without breaking their saved runtime contract.
+
+### Decisions Confirmed
+- A new additive frontend URL surface is now part of the app contract:
+  - `/immersive/images/:encodedRef`
+  - `/immersive/pieces/:id`
+- Existing canonical content URLs remain unchanged. `/posts/:id`, `/p/:slug`, `/embed/posts/:id`, and `/embed/pieces/:id` continue to work as before; immersive routes are an additive surface rather than a replacement.
+- Image immersive routes intentionally work with the same local media URLs that already survive deployment. The image reference is encoded from the rendered local URL/path, then resolved back against the active origin on load so the same route strategy works locally and when deployed.
+- The immersive viewer remains Three.js-first. A-Frame is still out of scope and was not reintroduced.
+- Static images use a wall-mounted gallery presentation rather than depth reconstruction. The route may carry `alt`, `title`, and optional caption metadata in the query string so semantic text remains available alongside the canvas scene.
+- Piece immersive routes dispatch by saved engine, consistent with the existing renderer boundary:
+  - `three` pieces reuse the current saved runtime code in an immersive scene path.
+  - `p5` and `c2` pieces keep their existing runtime contract intact and are mounted into the shared gallery viewer as live runtime canvases.
+- The lower-right immersive trigger is applied at runtime rather than by rewriting stored canonical HTML:
+  - rendered post/page HTML images
+  - rendered `/embed/pieces/:id` iframes inside post/page content
+  - featured images on post cards
+  - admin piece previews
+  - admin media/library image previews
+- The art-piece `srcdoc` builder was extracted into a shared frontend utility so the standard preview renderer and the immersive viewer execute the same saved HTML/CSS/JS runtime logic.
+- WebGL failure is treated as a viewer fallback concern, not a content failure. The image immersive route falls back to a direct image presentation; the piece immersive route falls back to the existing non-immersive `ArtPieceRenderer`.
+
+### Documentation And Verification
+- `README.md` now documents the immersive viewer behavior, the new route surface, and the recommended local/manual verification flow.
+- Focused verification added:
+  - `PostContent` tests now assert that rendered HTML images and piece embeds receive immersive triggers.
+  - `immersive-view` helper tests now assert route generation, route decoding, and piece-embed parsing.
+- Verified by:
+  - `npm run typecheck --workspace=@workspace/microblog`
+  - `npm run test --workspace=@workspace/microblog -- PostContent immersive-view`
+
+### Outcome
+- Local images and saved interactive pieces can now open a dedicated immersive route from both public and admin surfaces without changing the stored post HTML contract.
+- The immersive implementation is deployment-safe because it piggybacks on the existing local-media and saved-piece routing model instead of introducing external asset dependencies or separate persistence rules.
+
+---
+
+## 2026-05-22 — Immersive Piece Reliability Redesign (Engine-Specific Runtimes)
+
+### Trigger
+The first immersive-piece implementation proved unreliable in practice. `p5` and `c2` immersive views frequently rendered at approximately double the browser width, and `three` pieces often degraded to a blank gray plane rather than showing the actual animation. Browser console output also included sandbox and extension noise, but the reproducible product bug was the runtime architecture itself: all immersive piece engines were being started inside a zero-size hidden iframe, then projected onto a Three.js plane as if a discovered `<canvas>` were sufficient proof of a valid viewer contract.
+
+### Decisions Confirmed
+- `/immersive/pieces/:id` no longer depends on the hidden-iframe-as-texture architecture.
+- Immersive piece rendering is now explicitly engine-specific:
+  - `three` pieces run directly in a live immersive canvas.
+  - `p5` and `c2` pieces render into fixed-size managed runtime canvases and are then presented through a Three.js gallery shell that provides orbit/pan/zoom interaction.
+- Reliability takes precedence over making every engine look mechanically identical. The immersive “3D feel” is now defined by the viewer experience:
+  - `three` remains natively 3D by design.
+  - `p5` and `c2` remain reliable 2D/creative-coding runtimes experienced inside a 3D-style gallery shell.
+- A shared viewer-controlled runtime size contract was introduced for immersive piece adapters (`1280x720` default runtime surface). This replaces dependence on hidden `clientWidth` / `clientHeight`, `100vw`, `100vh`, or zero-size iframe boot behavior.
+- `three` immersive runtime now layers viewer-managed `OrbitControls` onto the captured scene camera after the saved runtime initializes its renderer/camera, then performs a viewer-side auto-fit against the captured scene contents.
+- `p5` and `c2` immersive runtime now boot in off-screen but real, fixed-size DOM/canvas hosts rather than zero-size sandbox iframes. Their actual canvas dimensions are measured and used to update gallery-plane geometry deterministically.
+- Failure handling is now explicit: if immersive runtime boot fails, the route shows an “immersive mode unavailable for this piece” message and falls back to the existing non-immersive `ArtPieceRenderer` instead of silently projecting a misleading blank plane.
+- Existing saved piece HTML/CSS/JS payloads, `/embed/pieces/:id`, engine enums, and image immersive routes remain unchanged.
+
+### Verification
+- Added focused frontend helper tests for:
+  - sketch factory resolution from direct function expressions and `window.sketch` assignment
+  - fallback/default immersive runtime sizing
+- Re-ran:
+  - `npm run typecheck --workspace=@workspace/microblog`
+  - `npm run test --workspace=@workspace/microblog -- PostContent immersive-view immersive-piece-runtime`
+
+### Outcome
+- The immersive piece route now has a stable, intentional runtime model rather than “discover a canvas and hope it represents a valid view.”
+- Width inflation and blank-plane regressions are addressed at the architecture level instead of by more iframe heuristics.
+
+### Follow-Up Refinement
+- The non-Three immersive recovery has now been pulled back again to the earlier browser-only `c2`-style gallery baseline.
+- `three` immersive behavior remains frozen and unchanged.
+- Non-Three immersive media now uses:
+  - a real Three.js gallery room with wall, floor, and orbit/pan/zoom interaction
+  - bounded mounted-work sizing and explicit initial framing to preserve the corrected width/height behavior
+  - a gallery-owned browser runtime path rather than the later offscreen-iframe bridge stack
+- `c2` is the non-Three framing reference and is intentionally left on its now-acceptable direct mounted path.
+- `p5` and images are normalized before mounting:
+  - each uses a gallery-owned 2D presentation surface with explicit pixel dimensions and inner padding
+  - source content is copied into that surface with contain-fit + centering
+  - initial camera fitting for those normalized surfaces is now driven by a smaller canonical mount, a centered target, and a more conservative opening distance than the frozen `c2` path
+- This refinement is intentionally a framing fix, not a room redesign. The wall/floor composition and general camera feel stay aligned with the recovered `c2` browser gallery.
+- The loop-prone non-Three experiment built around offscreen iframe polling, live texture bridging from the standard renderer, and non-Three WebXR entry wiring has been abandoned for this recovery milestone.

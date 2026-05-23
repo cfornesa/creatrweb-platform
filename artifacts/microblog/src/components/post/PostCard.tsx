@@ -29,6 +29,8 @@ import { useEffect, useState } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useOwnerAiVendors } from "@/hooks/use-owner-ai-vendors";
 import { useEnabledPlatformConnections } from "@/hooks/use-enabled-platform-connections";
+import { ImmersiveMediaFrame } from "@/components/immersive/ImmersiveMediaFrame";
+import { buildImmersiveImageHref } from "@/lib/immersive-view";
 import { PostContent } from "./PostContent";
 import { RichPostEditor } from "./RichPostEditor";
 import { getUploadErrorMessage } from "./upload-error";
@@ -408,11 +410,19 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
         ) : (
           <>
             {(displayPost as Post & { featuredImageUrl?: string | null }).featuredImageUrl ? (
-              <img
-                src={(displayPost as Post & { featuredImageUrl?: string | null }).featuredImageUrl!}
-                alt=""
-                className="w-full rounded-xl border border-border object-cover mb-2"
-              />
+              <ImmersiveMediaFrame
+                href={buildImmersiveImageHref((displayPost as Post & { featuredImageUrl?: string | null }).featuredImageUrl!, {
+                  title: (displayPost as Post & { title?: string | null }).title ?? undefined,
+                })}
+                label="Open featured image in immersive view"
+                className="mb-2"
+              >
+                <img
+                  src={(displayPost as Post & { featuredImageUrl?: string | null }).featuredImageUrl!}
+                  alt=""
+                  className="w-full rounded-xl border border-border object-cover"
+                />
+              </ImmersiveMediaFrame>
             ) : null}
             {(displayPost as Post & { title?: string | null }).title ? (
               <h2 className="text-lg font-semibold leading-snug mb-1">
