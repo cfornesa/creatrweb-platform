@@ -455,6 +455,21 @@ function ImmersiveThreePieceStage({
         throw new Error("This Three.js piece did not initialize a renderer and camera for immersive mode.");
       }
 
+      // Boilerplate Three.js code commonly calls document.body.appendChild(renderer.domElement)
+      // or sets position:fixed on the canvas. Because renderer.domElement IS our injected canvas,
+      // either action pulls it out of stageEl and overlays the page header, blocking Back and other
+      // shell controls. Re-assert containment before resize() so the stage dimensions are correct.
+      stageEl.innerHTML = "";
+      stageEl.appendChild(canvas);
+      canvas.style.position = "";
+      canvas.style.top = "";
+      canvas.style.left = "";
+      canvas.style.bottom = "";
+      canvas.style.right = "";
+      canvas.style.zIndex = "";
+      canvas.style.width = "100%";
+      canvas.style.height = "100%";
+
       resize();
       controls = new OrbitControls(state.camera, canvas);
       controls.enableDamping = true;
