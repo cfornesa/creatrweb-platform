@@ -89,7 +89,6 @@ Key behavior:
 - immersive fullscreen is a popup-style focus mode inside the same route: the scene expands to a full-viewport overlay, the header and metadata disappear, and a lower-right icon-only contract control returns to the gallery/info view
 - piece immersive view reuses the existing app-owned piece runtime; `three` pieces use the saved runtime directly inside the immersive flow, `c2` remains the non-Three framing baseline, and `p5` uses the same recovered browser-only gallery path rather than the discarded texture-bridge experiment
 - featured-image immersive routes now preserve media-asset metadata: when the asset has its own title or alt text, those values are passed through instead of silently substituting the parent post title or the “no alt text provided” fallback
-- current known limitation: in reduced-width/mobile testing, the default non-fullscreen immersive **image** view scrolls correctly, but default non-fullscreen immersive **piece** views (`p5`, `c2`, and `three`) can still stop short before the full metadata card is reachable. Fullscreen popup mode and the immersive image default view are the currently reliable paths.
 - the existing post, page, and embed URLs remain unchanged; immersive routes are an additive URL surface
 - admin piece previews and admin image/library previews use the same immersive trigger pattern as public content
 
@@ -259,7 +258,7 @@ Recommended local flow for the immersive viewer:
 5. Verify the immersive image route loads directly on refresh, shows the image in the Three.js gallery plane, preserves the asset title/alt text in the metadata card, and falls back gracefully if WebGL is unavailable.
 6. Open `/admin/pieces`, preview a saved `p5`, `c2`, and `three` piece, and confirm the `VR` affordance opens `/immersive/pieces/:id`.
 7. Verify each piece engine remains viewable in immersive mode and that the non-immersive preview still works afterward.
-8. In reduced-width/mobile testing, treat the default immersive image view as the baseline. The remaining known bug is that default non-fullscreen piece routes may still stop short before the full metadata card is reachable; fullscreen popup mode should still work.
+8. In reduced-width/mobile testing, verify that both image and piece immersive routes scroll past the scene block to expose the full metadata card below. All three piece engines (p5, c2, three) and the image route should scroll correctly.
 9. Open `/admin/library` and the featured-image picker to confirm admin image previews also show the `VR` affordance.
 
 Focused checks for this feature:

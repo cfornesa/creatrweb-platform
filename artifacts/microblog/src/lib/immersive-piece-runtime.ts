@@ -67,21 +67,10 @@ export function createImmersiveHost(
 
   const style = document.createElement("style");
   style.textContent = `
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-    }
-    body {
-      background: transparent;
-    }
     canvas {
       display: block;
       max-width: none;
     }
-    ${cssCode || ""}
   `;
 
   host.appendChild(style);
