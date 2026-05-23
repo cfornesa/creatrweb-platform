@@ -119,7 +119,15 @@ router.get(
   requireOwner,
   async (_req: Request, res: Response) => {
     const assets = await db
-      .select()
+      .select({
+        id: mediaAssetsTable.id,
+        url: mediaAssetsTable.url,
+        filename: mediaAssetsTable.filename,
+        title: mediaAssetsTable.title,
+        mimeType: mediaAssetsTable.mimeType,
+        uploadedAt: mediaAssetsTable.uploadedAt,
+        altText: mediaAssetsTable.altText,
+      })
       .from(mediaAssetsTable)
       .orderBy(desc(mediaAssetsTable.uploadedAt));
     return res.json(assets);
@@ -149,7 +157,7 @@ router.patch(
     }
 
     const [asset] = await db
-      .select()
+      .select({ id: mediaAssetsTable.id })
       .from(mediaAssetsTable)
       .where(eq(mediaAssetsTable.filename, fileName))
       .limit(1);
@@ -173,7 +181,15 @@ router.patch(
     void updated;
 
     const [fresh] = await db
-      .select()
+      .select({
+        id: mediaAssetsTable.id,
+        url: mediaAssetsTable.url,
+        filename: mediaAssetsTable.filename,
+        title: mediaAssetsTable.title,
+        mimeType: mediaAssetsTable.mimeType,
+        uploadedAt: mediaAssetsTable.uploadedAt,
+        altText: mediaAssetsTable.altText,
+      })
       .from(mediaAssetsTable)
       .where(eq(mediaAssetsTable.filename, fileName))
       .limit(1);
@@ -193,7 +209,7 @@ router.delete(
     const url = `/api/media/${fileName}`;
 
     const [asset] = await db
-      .select()
+      .select({ id: mediaAssetsTable.id })
       .from(mediaAssetsTable)
       .where(eq(mediaAssetsTable.filename, fileName))
       .limit(1);
