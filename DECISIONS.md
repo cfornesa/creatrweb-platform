@@ -2061,9 +2061,11 @@ The first immersive-piece implementation proved unreliable in practice. `p5` and
   - initial camera fitting for those normalized surfaces is now driven by a smaller canonical mount, a centered target, and a more conservative opening distance than the frozen `c2` path
 - Mobile immersive route usability is now treated as a shell/layout concern rather than a scene redesign:
   - image mobile behavior is the baseline: the browser page scrolls naturally through the metadata card instead of trapping details in a nested pane
-  - piece routes now follow the same mobile pattern with a bounded `40svh` scene block and full metadata card below it
-  - desktop keeps the split immersive layout
-- immersive routes now also expose a route-local fullscreen focus mode with icon-only expand/contract controls; fullscreen hides the metadata card, fills the viewport with the scene, and returns to the gallery/info view without changing the URL.
+  - image and piece routes now share the same immersive shell instead of maintaining parallel wrappers
+  - all immersive routes use a bounded `40svh` scene block and full metadata card below it on small screens and touch-first devices, even when the prior split-shell heuristics would have chosen the desktop branch
+  - desktop keeps the split immersive layout, but it now uses the same shared metadata card and overlay-control layer as mobile
+- immersive routes now also expose a route-local fullscreen focus mode with icon-only expand/contract controls; fullscreen is a popup-style overlay that hides both the header and metadata, fills the viewport with the scene, and returns to the gallery/info view without changing the URL.
+- The lower-right expand/contract control is now owned by the shared shell instead of individual media stages so it stays visible across image, `p5`, `c2`, and `three` routes.
 - `three` now uses a centered cross-device auto-fit model instead of the earlier offset bootstrap so the initial pose is corrected on both desktop and mobile, with only minor viewport-based distance tuning.
 - This refinement is intentionally a framing fix, not a room redesign. The wall/floor composition and general camera feel stay aligned with the recovered `c2` browser gallery.
 - The loop-prone non-Three experiment built around offscreen iframe polling, live texture bridging from the standard renderer, and non-Three WebXR entry wiring has been abandoned for this recovery milestone.

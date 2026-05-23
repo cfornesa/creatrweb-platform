@@ -301,20 +301,30 @@ export function isCompactImmersiveViewport(width: number) {
 
 export function computeThreeAutoFitView(
   center: { x: number; y: number; z: number },
-  maxDim: number,
+  size: { x: number; y: number; z: number },
   aspect: number,
   fovDegrees: number,
   compactViewport: boolean,
 ) {
-  const fov = (fovDegrees * Math.PI) / 180;
-  let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * (compactViewport ? 2.28 : 1.92);
-  if (aspect < 1) {
-    cameraZ /= Math.max(aspect, 0.6);
-  }
-
+  const verticalFov = (fovDegrees * Math.PI) / 180;
+  const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * Math.max(aspect, 0.1));
+  const fitWidth = Math.max(size.x, size.z, 1);
+  const fitHeight = Math.max(size.y, size.z * 1.08, 1);
+  const distanceForHeight = (fitHeight / 2) / Math.tan(verticalFov / 2);
+  const distanceForWidth = (fitWidth / 2) / Math.tan(horizontalFov / 2);
+  const cameraZ = Math.max(distanceForHeight, distanceForWidth) * (compactViewport ? 1.46 : 1.34);
+  const targetY = center.y + (fitHeight * (compactViewport ? 0.08 : 0.12));
+  const cameraY = targetY + (fitHeight * (compactViewport ? 0.02 : 0.04));
   return {
-    x: center.x,
-    y: center.y + (maxDim * (compactViewport ? 0.06 : 0.08)),
-    z: center.z + cameraZ,
+    camera: {
+      x: center.x,
+      y: cameraY,
+      z: center.z + cameraZ,
+    },
+    target: {
+      x: center.x,
+      y: targetY,
+      z: center.z,
+    },
   };
 }

@@ -56,6 +56,12 @@ interface PostCardProps {
   highlightQuery?: string | null;
 }
 
+type DisplayPostWithFeaturedImageMeta = Post & {
+  featuredImageUrl?: string | null;
+  featuredImageTitle?: string | null;
+  featuredImageAltText?: string | null;
+};
+
 export function PostCard({ post, isDetail = false, highlightQuery }: PostCardProps) {
   const { currentUser, isOwner } = useCurrentUser();
   const [, setLocation] = useLocation();
@@ -409,16 +415,21 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
           </div>
         ) : (
           <>
-            {(displayPost as Post & { featuredImageUrl?: string | null }).featuredImageUrl ? (
+            {(displayPost as DisplayPostWithFeaturedImageMeta).featuredImageUrl ? (
               <ImmersiveMediaFrame
-                href={buildImmersiveImageHref((displayPost as Post & { featuredImageUrl?: string | null }).featuredImageUrl!, {
-                  title: (displayPost as Post & { title?: string | null }).title ?? undefined,
+                href={buildImmersiveImageHref((displayPost as DisplayPostWithFeaturedImageMeta).featuredImageUrl!, {
+                  alt:
+                    (displayPost as DisplayPostWithFeaturedImageMeta).featuredImageAltText?.trim() ||
+                    undefined,
+                  title:
+                    (displayPost as DisplayPostWithFeaturedImageMeta).featuredImageTitle?.trim() ||
+                    undefined,
                 })}
                 label="Open featured image in immersive view"
                 className="mb-2"
               >
                 <img
-                  src={(displayPost as Post & { featuredImageUrl?: string | null }).featuredImageUrl!}
+                  src={(displayPost as DisplayPostWithFeaturedImageMeta).featuredImageUrl!}
                   alt=""
                   className="w-full rounded-xl border border-border object-cover"
                 />

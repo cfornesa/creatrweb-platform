@@ -85,13 +85,13 @@ Key behavior:
 
 - image routes encode the local media reference and carry optional `alt`, `title`, and `caption` metadata through the query string
 - image immersive view preserves readable metadata outside the main display and draws the real image into a gallery-owned presentation surface before mounting it into the restored non-Three room
+- image and piece routes now share the same immersive shell: on small screens and touch-first devices the page flows as header → `40svh` scene block → full metadata card, while wide non-touch layouts keep the split scene-plus-sidecard layout
+- immersive fullscreen is now a true popup-style focus mode inside the same route: the scene expands to a full-viewport overlay, the header and metadata disappear, and a lower-right icon-only contract control returns to the gallery/info view
 - piece immersive view reuses the existing app-owned piece runtime; `three` pieces use the saved runtime directly inside the immersive flow, `c2` remains the non-Three framing baseline, and `p5` now uses a normalized presentation surface before its live canvas is mounted into the gallery wall
 - immersive piece reliability now uses engine-specific adapters instead of a hidden zero-size iframe:
   - `three` pieces run directly in a live immersive canvas with viewer-managed camera controls layered onto the captured scene camera
   - images, `p5`, and `c2` now use the restored browser-only non-Three Three.js gallery room with orbit/pan/zoom controls and bounded initial framing
   - `p5` and images are contain-fit and centered inside explicit gallery-owned presentation surfaces, then opened with a smaller canonical mount and a centered default target so they stay within viewport bounds instead of inheriting raw source-canvas or raw image offsets
-  - immersive routes now support an icon-only fullscreen focus mode that expands the scene into a full-viewport overlay and contracts back to the info-rich gallery view from a lower-right control
-  - on mobile, immersive routes now use a natural page-scroll layout: header, a bounded `40svh` interactive scene block, then the full metadata card, while desktop keeps the split layout
   - `three` now uses a centered cross-device auto-fit model so the first pose opens more evenly on both desktop and mobile instead of starting biased or cropped
   - the loop-prone non-Three path built around offscreen iframe polling, live texture bridging from the standard renderer, and non-Three WebXR entry wiring has been removed from the recovery target
 - the existing post, page, and embed URLs remain unchanged; immersive routes are an additive URL surface

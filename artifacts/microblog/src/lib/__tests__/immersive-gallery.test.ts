@@ -47,23 +47,26 @@ describe("immersive-gallery layout", () => {
   it("uses a front-on default fit for compact Three.js viewports", () => {
     const mobileView = computeThreeAutoFitView(
       { x: 0, y: 1, z: 0 },
-      4,
+      { x: 3, y: 4, z: 2 },
       0.6,
       45,
       true,
     );
     const desktopView = computeThreeAutoFitView(
       { x: 0, y: 1, z: 0 },
-      4,
+      { x: 3, y: 4, z: 2 },
       1.6,
       45,
       false,
     );
 
-    expect(mobileView.x).toBe(0);
-    expect(desktopView.x).toBe(0);
-    expect(mobileView.z).toBeGreaterThan(desktopView.z);
-    expect(desktopView.y).toBeGreaterThan(1);
+    expect(mobileView.camera.x).toBe(0);
+    expect(desktopView.camera.x).toBe(0);
+    expect(mobileView.target.x).toBe(0);
+    expect(desktopView.target.x).toBe(0);
+    expect(mobileView.camera.z).toBeGreaterThan(desktopView.camera.z);
+    expect(desktopView.target.y).toBeGreaterThan(1);
+    expect(desktopView.camera.y).toBeGreaterThan(desktopView.target.y);
   });
 
   it("centers contained media inside the presentation surface", () => {

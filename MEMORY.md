@@ -230,3 +230,9 @@ or rejection. -->
 
 2026-05-23 · IMMERSIVE VIEWER · Immersive routes now treat the image page as the mobile layout baseline: on small screens they use natural browser page scrolling, a bounded `40svh` scene block, and the full metadata card below. All immersive routes also expose a route-local fullscreen focus mode with icon-only expand/contract controls, and Three.js now uses a centered cross-device auto-fit model so the opening pose is no longer desktop-only or mobile-only tuned.
     [Implemented 2026-05-23; verified from `immersive-piece.tsx`, `immersive-image.tsx`, `immersive-gallery.ts`, updated immersive-gallery helper tests, and clean microblog typecheck / focused tests.]
+
+2026-05-23 · IMMERSIVE VIEWER · The immersive image and piece routes now share one shell component and one overlay-control layer. On small screens the routes flow like ordinary documents (header → `40svh` scene block → full metadata card), while fullscreen focus mode becomes a popup-style overlay that hides the header and metadata and leaves only a lower-right contract control visible. The shared shell also owns the lower-right expand control so it no longer depends on individual media stages to stay visible.
+    [Implemented 2026-05-23; verified from `ImmersiveRouteShell.tsx`, `immersive-image.tsx`, `immersive-piece.tsx`, the new ImmersiveRouteShell test, and clean microblog typecheck / focused tests.]
+
+2026-05-23 · IMMERSIVE VIEWER · The shared immersive shell now prefers the scrollable document-flow layout on both small screens and touch-first devices, instead of relying only on the earlier mobile-width split detection. This is meant to force image-shell parity for `p5`, `c2`, and `three` immersive routes in emulator/mobile contexts where the old branch choice still trapped or hid metadata.
+    [Implemented 2026-05-23; verified from `ImmersiveRouteShell.tsx`, updated shell tests, and clean microblog typecheck / focused tests.]

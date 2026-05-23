@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { ArrowLeft, Box, Maximize2, Minimize2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import {
   type EmbeddedArtPiece,
   getGetEmbeddedArtPieceQueryKey,
@@ -27,6 +27,10 @@ import {
   resolveSketchFactory,
   type ImmersiveRuntimeSize,
 } from "@/lib/immersive-piece-runtime";
+import {
+  ImmersiveMetadataCard,
+  ImmersiveRouteShell,
+} from "@/components/immersive/ImmersiveRouteShell";
 
 function useReturnToPrevious() {
   const [, setLocation] = useLocation();
@@ -412,19 +416,22 @@ function ImmersiveThreePieceStage({
       box.getCenter(center);
       const size = new THREE.Vector3();
       box.getSize(size);
-      const maxDim = Math.max(size.x, size.y, size.z) || 1;
       const nextView = computeThreeAutoFitView(
         center,
-        maxDim,
+        size,
         state.camera.aspect || 1,
         state.camera.fov || 45,
         isCompactImmersiveViewport(viewportWidth),
       );
-      state.camera.position.set(nextView.x, nextView.y, nextView.z);
-      state.camera.lookAt(center);
+      state.camera.position.set(
+        nextView.camera.x,
+        nextView.camera.y,
+        nextView.camera.z,
+      );
+      state.camera.lookAt(nextView.target.x, nextView.target.y, nextView.target.z);
       state.camera.updateProjectionMatrix?.();
       state.camera.updateMatrixWorld?.(true);
-      controls?.target.copy?.(center);
+      controls?.target.set?.(nextView.target.x, nextView.target.y, nextView.target.z);
       controls?.update();
     }
 
@@ -480,132 +487,14 @@ function ImmersiveThreePieceStage({
   return <div ref={stageRef} className="h-full w-full overflow-hidden" />;
 }
 
-function ImmersivePieceRouteBody({
-  title,
-  versionId,
-  data,
-  runtimeError,
-  setRuntimeError,
-  isFullscreen,
-  setIsFullscreen,
-}: {
-  title: string;
-  versionId?: number;
-  data: EmbeddedArtPiece;
-  runtimeError: string | null;
-  setRuntimeError: (message: string | null) => void;
-  isFullscreen: boolean;
-  setIsFullscreen: (value: boolean | ((current: boolean) => boolean)) => void;
-}) {
-  const isThree = data.version.engine === "three";
-
-  return (
-    <div className="grid gap-0 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <div
-        className={
-          isFullscreen
-            ? "fixed inset-0 z-50 bg-[#050b16]"
-            : "relative overflow-hidden"
-        }
-      >
-        {runtimeError ? (
-          <div className="p-6">
-            <div className="mb-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4 text-sm text-amber-100">
-              <p className="font-medium">Immersive mode unavailable for this piece.</p>
-              <p className="mt-1 text-amber-100/80">{runtimeError}</p>
-            </div>
-            <ArtPieceRenderer
-              engine={data.version.engine}
-              code={data.version.generatedCode}
-              htmlCode={data.version.htmlCode}
-              cssCode={data.version.cssCode}
-              title={title}
-              height={520}
-            />
-          </div>
-        ) : isThree ? (
-          <div
-            className={
-              isFullscreen
-                ? "h-[100svh] w-screen overflow-hidden"
-                : "h-[40svh] min-h-[16rem] w-full overflow-hidden lg:h-full lg:min-h-0"
-            }
-          >
-            <ImmersiveThreePieceStage
-              code={data.version.generatedCode}
-              htmlCode={data.version.htmlCode}
-              cssCode={data.version.cssCode}
-              title={title}
-              onError={setRuntimeError}
-            />
-          </div>
-        ) : (
-          <div
-            className={
-              isFullscreen
-                ? "h-[100svh] w-screen overflow-hidden"
-                : "h-[40svh] min-h-[16rem] w-full overflow-hidden lg:h-full lg:min-h-0"
-            }
-          >
-            <ImmersiveGalleryPieceStage
-              engine={data.version.engine}
-              code={data.version.generatedCode}
-              htmlCode={data.version.htmlCode}
-              cssCode={data.version.cssCode}
-              title={title}
-              onError={setRuntimeError}
-            />
-          </div>
-        )}
-        {!runtimeError ? (
-          <button
-            type="button"
-            onClick={() => setIsFullscreen((current) => !current)}
-            aria-label={isFullscreen ? "Return to gallery view" : "Expand immersive view"}
-            className="absolute bottom-4 right-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-black/55 text-white shadow-lg backdrop-blur transition hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-          >
-            {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
-          </button>
-        ) : null}
-      </div>
-
-      <aside className="border-t border-white/10 bg-white/[0.03] p-5 lg:overflow-y-auto lg:border-l lg:border-t-0">
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-          <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5">
-            <Box className="h-5 w-5" />
-          </div>
-          <h1 className="text-xl font-semibold">{title}</h1>
-          <p className="mt-3 text-sm leading-relaxed text-white/70">
-            {isThree
-              ? "This Three.js piece now runs directly in a live immersive 3D canvas with viewer-managed camera controls."
-              : `This ${data.version.engine.toUpperCase()} piece uses the browser-based non-Three immersive gallery scene with a normalized presentation surface and centered default framing.`}
-          </p>
-          <dl className="mt-5 space-y-3 text-sm text-white/75">
-            <div>
-              <dt className="text-xs uppercase tracking-[0.18em] text-white/45">Engine</dt>
-              <dd className="mt-1 uppercase tracking-[0.12em]">{data.version.engine}</dd>
-            </div>
-            {versionId ? (
-              <div>
-                <dt className="text-xs uppercase tracking-[0.18em] text-white/45">Version</dt>
-                <dd className="mt-1">Version {versionId}</dd>
-              </div>
-            ) : null}
-            <div>
-              <dt className="text-xs uppercase tracking-[0.18em] text-white/45">Interaction</dt>
-              <dd className="mt-1">Drag to orbit, scroll to zoom, right-drag or modifier-drag to pan.</dd>
-            </div>
-            {runtimeError ? (
-              <div>
-                <dt className="text-xs uppercase tracking-[0.18em] text-amber-300/80">Fallback</dt>
-                <dd className="mt-1 text-amber-100/80">{runtimeError}</dd>
-              </div>
-            ) : null}
-          </dl>
-        </div>
-      </aside>
-    </div>
-  );
+function formatEngineLabel(engine: EmbeddedArtPiece["version"]["engine"]) {
+  if (engine === "p5") {
+    return "P5.js";
+  }
+  if (engine === "c2") {
+    return "C2.js";
+  }
+  return "Three.js";
 }
 
 export default function ImmersivePiecePage() {
@@ -645,21 +534,15 @@ export default function ImmersivePiecePage() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [goBack, isFullscreen]);
 
-  useEffect(() => {
-    if (!isFullscreen) {
-      return;
-    }
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousHtmlOverflow;
-    };
-  }, [isFullscreen]);
-
   const title = useMemo(() => data?.title || "Immersive piece", [data?.title]);
+
+  if (isLoading || !data?.version) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#050b16] px-6 text-sm text-white/60">
+        Loading immersive scene…
+      </div>
+    );
+  }
 
   if (!Number.isFinite(pieceId) || pieceId <= 0 || error) {
     return (
@@ -682,40 +565,87 @@ export default function ImmersivePiecePage() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-[#050b16] text-white lg:h-screen lg:overflow-hidden">
-      <div className="flex min-h-screen flex-col lg:h-screen lg:overflow-hidden">
-        <header className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-3 sm:px-6">
-          <button
-            type="button"
-            onClick={goBack}
-            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium transition hover:bg-white/10"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </button>
-          <div className="min-w-0 flex-1 text-right">
-            <p className="text-xs uppercase tracking-[0.22em] text-white/55">Immersive View</p>
-            <p className="text-sm font-medium leading-tight text-white/80 sm:text-base">{title}</p>
-          </div>
-        </header>
+  const isThree = data.version.engine === "three";
+  const engineLabel = formatEngineLabel(data.version.engine);
 
-        {isLoading || !data?.version ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-white/60">
-            Loading immersive scene…
+  return (
+    <ImmersiveRouteShell
+      title={title}
+      onBack={goBack}
+      isFullscreen={isFullscreen}
+      onToggleFullscreen={() => setIsFullscreen((current) => !current)}
+      metadataCard={
+        <ImmersiveMetadataCard
+          title={title}
+          description={
+            isThree
+              ? "This Three.js piece now runs directly in a live immersive 3D canvas with viewer-managed camera controls."
+              : `This ${engineLabel} piece uses the browser-based non-Three immersive gallery scene with a normalized presentation surface and centered default framing.`
+          }
+          fields={[
+            {
+              label: "Engine",
+              value: engineLabel,
+            },
+            ...(versionId
+              ? [
+                  {
+                    label: "Version",
+                    value: `Version ${versionId}`,
+                  },
+                ]
+              : []),
+            {
+              label: "Interaction",
+              value: "Drag to orbit, scroll to zoom, right-drag or modifier-drag to pan.",
+            },
+            ...(runtimeError
+              ? [
+                  {
+                    label: "Fallback",
+                    value: runtimeError,
+                    tone: "warning" as const,
+                  },
+                ]
+              : []),
+          ]}
+        />
+      }
+      renderScene={({ fullscreen }) =>
+        runtimeError ? (
+          <div className="h-full overflow-auto p-4">
+            <div className="mb-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4 text-sm text-amber-100">
+              <p className="font-medium">Immersive mode unavailable for this piece.</p>
+              <p className="mt-1 text-amber-100/80">{runtimeError}</p>
+            </div>
+            <ArtPieceRenderer
+              engine={data.version.engine}
+              code={data.version.generatedCode}
+              htmlCode={data.version.htmlCode}
+              cssCode={data.version.cssCode}
+              title={title}
+              height={fullscreen ? 720 : 520}
+            />
           </div>
-        ) : (
-          <ImmersivePieceRouteBody
+        ) : isThree ? (
+          <ImmersiveThreePieceStage
+            code={data.version.generatedCode}
+            htmlCode={data.version.htmlCode}
+            cssCode={data.version.cssCode}
             title={title}
-            versionId={versionId}
-            data={data}
-            runtimeError={runtimeError}
-            setRuntimeError={setRuntimeError}
-            isFullscreen={isFullscreen}
-            setIsFullscreen={setIsFullscreen}
+            onError={setRuntimeError}
           />
-        )}
-      </div>
-    </div>
+        ) : (
+          <ImmersiveGalleryPieceStage
+            engine={data.version.engine}
+            code={data.version.generatedCode}
+            htmlCode={data.version.htmlCode}
+            cssCode={data.version.cssCode}
+            title={title}
+            onError={setRuntimeError}
+          />
+        )
+      }
+    />
   );
 }
