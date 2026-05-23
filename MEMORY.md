@@ -227,3 +227,6 @@ or rejection. -->
 
 2026-05-22 · IMMERSIVE VIEWER · The current fast-path framing rule for non-Three normalized media is a smaller canonical presentation mount plus a centered default camera target. `c2` keeps its acceptable direct browser-gallery framing, while `p5` and immersive images open from a stricter, more conservative default pose intended to keep the full work inside the visible browser bounds on load.
     [Implemented 2026-05-22; verified from `immersive-gallery.ts`, `immersive-piece.tsx`, `immersive-image.tsx`, updated immersive-gallery tests, and clean microblog typecheck / focused tests.]
+
+2026-05-23 · IMMERSIVE VIEWER · Immersive routes now treat the image page as the mobile layout baseline: on small screens they use natural browser page scrolling, a bounded `40svh` scene block, and the full metadata card below. All immersive routes also expose a route-local fullscreen focus mode with icon-only expand/contract controls, and Three.js now uses a centered cross-device auto-fit model so the opening pose is no longer desktop-only or mobile-only tuned.
+    [Implemented 2026-05-23; verified from `immersive-piece.tsx`, `immersive-image.tsx`, `immersive-gallery.ts`, updated immersive-gallery helper tests, and clean microblog typecheck / focused tests.]

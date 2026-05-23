@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { ArrowLeft, Box } from "lucide-react";
+import { ArrowLeft, Box, Maximize2, Minimize2 } from "lucide-react";
 import {
   type EmbeddedArtPiece,
   getGetEmbeddedArtPieceQueryKey,
@@ -10,11 +10,13 @@ import {
 import { useLocation, useRoute } from "wouter";
 import { ArtPieceRenderer } from "@/components/post/ArtPieceRenderer";
 import {
+  computeThreeAutoFitView,
   createPresentationSurface,
   createMountedGalleryShell,
   disposeObjectMaterial,
   drawContainedIntoPresentationSurface,
   fitMountedGalleryCamera,
+  isCompactImmersiveViewport,
   NORMALIZED_PRESENTATION_GALLERY_PROFILE,
   updateMountedGalleryLayout,
 } from "@/lib/immersive-gallery";
@@ -219,10 +221,13 @@ function ImmersiveGalleryPieceStage({
       fitMountedGalleryCamera(shell, stageEl);
     }
     window.addEventListener("resize", handleResize);
+    const observer = new ResizeObserver(handleResize);
+    observer.observe(stageEl);
 
     return () => {
       disposed = true;
       window.removeEventListener("resize", handleResize);
+      observer.disconnect();
       if (detectCanvasTimer) {
         window.clearTimeout(detectCanvasTimer);
       }
@@ -247,7 +252,7 @@ function ImmersiveGalleryPieceStage({
     };
   }, [code, cssCode, engine, htmlCode, onError]);
 
-  return <div ref={stageRef} className="h-full min-h-0 w-full overflow-hidden" />;
+  return <div ref={stageRef} className="h-full w-full overflow-hidden" />;
 }
 
 function ImmersiveThreePieceStage({
@@ -387,9 +392,12 @@ function ImmersiveThreePieceStage({
         }
         state.camera.updateProjectionMatrix?.();
       }
+      if (controls) {
+        autoFitCamera(width);
+      }
     }
 
-    function autoFitCamera() {
+    function autoFitCamera(viewportWidth = stageEl.clientWidth || window.innerWidth) {
       if (!state.scene || !state.camera || state.objects.length === 0) {
         return;
       }
@@ -405,12 +413,14 @@ function ImmersiveThreePieceStage({
       const size = new THREE.Vector3();
       box.getSize(size);
       const maxDim = Math.max(size.x, size.y, size.z) || 1;
-      const fov = ((state.camera.fov || 45) * Math.PI) / 180;
-      let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 2.1;
-      if (state.camera.aspect < 1) {
-        cameraZ /= state.camera.aspect;
-      }
-      state.camera.position.set(center.x + cameraZ, center.y + cameraZ * 0.35, center.z + cameraZ);
+      const nextView = computeThreeAutoFitView(
+        center,
+        maxDim,
+        state.camera.aspect || 1,
+        state.camera.fov || 45,
+        isCompactImmersiveViewport(viewportWidth),
+      );
+      state.camera.position.set(nextView.x, nextView.y, nextView.z);
       state.camera.lookAt(center);
       state.camera.updateProjectionMatrix?.();
       state.camera.updateMatrixWorld?.(true);
@@ -467,7 +477,7 @@ function ImmersiveThreePieceStage({
     };
   }, [code, cssCode, htmlCode, onError, title]);
 
-  return <div ref={stageRef} className="h-full min-h-0 w-full overflow-hidden" />;
+  return <div ref={stageRef} className="h-full w-full overflow-hidden" />;
 }
 
 function ImmersivePieceRouteBody({
@@ -476,18 +486,28 @@ function ImmersivePieceRouteBody({
   data,
   runtimeError,
   setRuntimeError,
+  isFullscreen,
+  setIsFullscreen,
 }: {
   title: string;
   versionId?: number;
   data: EmbeddedArtPiece;
   runtimeError: string | null;
   setRuntimeError: (message: string | null) => void;
+  isFullscreen: boolean;
+  setIsFullscreen: (value: boolean | ((current: boolean) => boolean)) => void;
 }) {
   const isThree = data.version.engine === "three";
 
   return (
-    <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <div className="relative min-h-0 overflow-hidden">
+    <div className="grid gap-0 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <div
+        className={
+          isFullscreen
+            ? "fixed inset-0 z-50 bg-[#050b16]"
+            : "relative overflow-hidden"
+        }
+      >
         {runtimeError ? (
           <div className="p-6">
             <div className="mb-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4 text-sm text-amber-100">
@@ -504,26 +524,52 @@ function ImmersivePieceRouteBody({
             />
           </div>
         ) : isThree ? (
-          <ImmersiveThreePieceStage
-            code={data.version.generatedCode}
-            htmlCode={data.version.htmlCode}
-            cssCode={data.version.cssCode}
-            title={title}
-            onError={setRuntimeError}
-          />
+          <div
+            className={
+              isFullscreen
+                ? "h-[100svh] w-screen overflow-hidden"
+                : "h-[40svh] min-h-[16rem] w-full overflow-hidden lg:h-full lg:min-h-0"
+            }
+          >
+            <ImmersiveThreePieceStage
+              code={data.version.generatedCode}
+              htmlCode={data.version.htmlCode}
+              cssCode={data.version.cssCode}
+              title={title}
+              onError={setRuntimeError}
+            />
+          </div>
         ) : (
-          <ImmersiveGalleryPieceStage
-            engine={data.version.engine}
-            code={data.version.generatedCode}
-            htmlCode={data.version.htmlCode}
-            cssCode={data.version.cssCode}
-            title={title}
-            onError={setRuntimeError}
-          />
+          <div
+            className={
+              isFullscreen
+                ? "h-[100svh] w-screen overflow-hidden"
+                : "h-[40svh] min-h-[16rem] w-full overflow-hidden lg:h-full lg:min-h-0"
+            }
+          >
+            <ImmersiveGalleryPieceStage
+              engine={data.version.engine}
+              code={data.version.generatedCode}
+              htmlCode={data.version.htmlCode}
+              cssCode={data.version.cssCode}
+              title={title}
+              onError={setRuntimeError}
+            />
+          </div>
         )}
+        {!runtimeError ? (
+          <button
+            type="button"
+            onClick={() => setIsFullscreen((current) => !current)}
+            aria-label={isFullscreen ? "Return to gallery view" : "Expand immersive view"}
+            className="absolute bottom-4 right-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-black/55 text-white shadow-lg backdrop-blur transition hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+          >
+            {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+          </button>
+        ) : null}
       </div>
 
-      <aside className="overflow-y-auto border-t border-white/10 bg-white/[0.03] p-5 lg:border-l lg:border-t-0">
+      <aside className="border-t border-white/10 bg-white/[0.03] p-5 lg:overflow-y-auto lg:border-l lg:border-t-0">
         <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
           <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5">
             <Box className="h-5 w-5" />
@@ -566,6 +612,7 @@ export default function ImmersivePiecePage() {
   const [, params] = useRoute("/immersive/pieces/:id");
   const goBack = useReturnToPrevious();
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const pieceId = Number(params?.id);
   const versionRaw = new URLSearchParams(window.location.search).get("version");
   const versionId = versionRaw ? Number(versionRaw) : undefined;
@@ -587,12 +634,30 @@ export default function ImmersivePiecePage() {
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        if (isFullscreen) {
+          setIsFullscreen(false);
+          return;
+        }
         goBack();
       }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [goBack]);
+  }, [goBack, isFullscreen]);
+
+  useEffect(() => {
+    if (!isFullscreen) {
+      return;
+    }
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [isFullscreen]);
 
   const title = useMemo(() => data?.title || "Immersive piece", [data?.title]);
 
@@ -618,20 +683,20 @@ export default function ImmersivePiecePage() {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#050b16] text-white">
-      <div className="flex h-screen flex-col overflow-hidden">
-        <header className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-3 sm:px-6">
+    <div className="min-h-screen bg-[#050b16] text-white lg:h-screen lg:overflow-hidden">
+      <div className="flex min-h-screen flex-col lg:h-screen lg:overflow-hidden">
+        <header className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-3 sm:px-6">
           <button
             type="button"
             onClick={goBack}
-            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium transition hover:bg-white/10"
+            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium transition hover:bg-white/10"
           >
             <ArrowLeft className="h-4 w-4" />
             Back
           </button>
-          <div className="text-right">
+          <div className="min-w-0 flex-1 text-right">
             <p className="text-xs uppercase tracking-[0.22em] text-white/55">Immersive View</p>
-            <p className="text-sm font-medium text-white/80">{title}</p>
+            <p className="text-sm font-medium leading-tight text-white/80 sm:text-base">{title}</p>
           </div>
         </header>
 
@@ -646,6 +711,8 @@ export default function ImmersivePiecePage() {
             data={data}
             runtimeError={runtimeError}
             setRuntimeError={setRuntimeError}
+            isFullscreen={isFullscreen}
+            setIsFullscreen={setIsFullscreen}
           />
         )}
       </div>

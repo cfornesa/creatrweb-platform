@@ -294,3 +294,27 @@ export function disposeObjectMaterial(material: unknown) {
   }
   material && (material as { dispose?: () => void }).dispose?.();
 }
+
+export function isCompactImmersiveViewport(width: number) {
+  return width < 1024;
+}
+
+export function computeThreeAutoFitView(
+  center: { x: number; y: number; z: number },
+  maxDim: number,
+  aspect: number,
+  fovDegrees: number,
+  compactViewport: boolean,
+) {
+  const fov = (fovDegrees * Math.PI) / 180;
+  let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * (compactViewport ? 2.28 : 1.92);
+  if (aspect < 1) {
+    cameraZ /= Math.max(aspect, 0.6);
+  }
+
+  return {
+    x: center.x,
+    y: center.y + (maxDim * (compactViewport ? 0.06 : 0.08)),
+    z: center.z + cameraZ,
+  };
+}

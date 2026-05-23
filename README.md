@@ -90,6 +90,9 @@ Key behavior:
   - `three` pieces run directly in a live immersive canvas with viewer-managed camera controls layered onto the captured scene camera
   - images, `p5`, and `c2` now use the restored browser-only non-Three Three.js gallery room with orbit/pan/zoom controls and bounded initial framing
   - `p5` and images are contain-fit and centered inside explicit gallery-owned presentation surfaces, then opened with a smaller canonical mount and a centered default target so they stay within viewport bounds instead of inheriting raw source-canvas or raw image offsets
+  - immersive routes now support an icon-only fullscreen focus mode that expands the scene into a full-viewport overlay and contracts back to the info-rich gallery view from a lower-right control
+  - on mobile, immersive routes now use a natural page-scroll layout: header, a bounded `40svh` interactive scene block, then the full metadata card, while desktop keeps the split layout
+  - `three` now uses a centered cross-device auto-fit model so the first pose opens more evenly on both desktop and mobile instead of starting biased or cropped
   - the loop-prone non-Three path built around offscreen iframe polling, live texture bridging from the standard renderer, and non-Three WebXR entry wiring has been removed from the recovery target
 - the existing post, page, and embed URLs remain unchanged; immersive routes are an additive URL surface
 - admin piece previews and admin image/library previews use the same immersive trigger pattern as public content

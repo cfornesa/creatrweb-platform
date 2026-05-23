@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeThreeAutoFitView,
   computeMountedArtworkLayout,
   drawContainedIntoPresentationSurface,
+  isCompactImmersiveViewport,
   NORMALIZED_PRESENTATION_GALLERY_PROFILE,
 } from "../immersive-gallery";
 
@@ -35,6 +37,33 @@ describe("immersive-gallery layout", () => {
     expect(layout.aspect).toBe(4 / 3);
     expect(layout.width).toBeCloseTo(5.2);
     expect(layout.height).toBeCloseTo(3.9);
+  });
+
+  it("detects compact immersive viewports for mobile layout branching", () => {
+    expect(isCompactImmersiveViewport(390)).toBe(true);
+    expect(isCompactImmersiveViewport(1024)).toBe(false);
+  });
+
+  it("uses a front-on default fit for compact Three.js viewports", () => {
+    const mobileView = computeThreeAutoFitView(
+      { x: 0, y: 1, z: 0 },
+      4,
+      0.6,
+      45,
+      true,
+    );
+    const desktopView = computeThreeAutoFitView(
+      { x: 0, y: 1, z: 0 },
+      4,
+      1.6,
+      45,
+      false,
+    );
+
+    expect(mobileView.x).toBe(0);
+    expect(desktopView.x).toBe(0);
+    expect(mobileView.z).toBeGreaterThan(desktopView.z);
+    expect(desktopView.y).toBeGreaterThan(1);
   });
 
   it("centers contained media inside the presentation surface", () => {
