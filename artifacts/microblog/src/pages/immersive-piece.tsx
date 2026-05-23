@@ -31,6 +31,10 @@ import {
   ImmersiveMetadataCard,
   ImmersiveRouteShell,
 } from "@/components/immersive/ImmersiveRouteShell";
+import {
+  buildImmersivePieceHref,
+  buildPieceGalleryEmbedHtml,
+} from "@/lib/immersive-view";
 
 function useReturnToPrevious() {
   const [, setLocation] = useLocation();
@@ -524,8 +528,15 @@ export default function ImmersivePiecePage() {
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const pieceId = Number(params?.id);
-  const versionRaw = new URLSearchParams(window.location.search).get("version");
+  const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const versionRaw = searchParams.get("version");
   const versionId = versionRaw ? Number(versionRaw) : undefined;
+  const isEmbedMode = searchParams.get("embed") === "1";
+
+  const canonicalHref = useMemo(
+    () => `${window.location.origin}${buildImmersivePieceHref(pieceId, versionId)}`,
+    [pieceId, versionId],
+  );
 
   const { data, isLoading, error } = useGetEmbeddedArtPiece(
     pieceId,
@@ -589,11 +600,20 @@ export default function ImmersivePiecePage() {
   const isThree = data.version.engine === "three";
   const engineLabel = formatEngineLabel(data.version.engine);
 
+  const plainEmbedCode = `<iframe src="${window.location.origin}/embed/pieces/${pieceId}${versionId ? `?version=${versionId}` : ""}" width="100%" height="480" title="${title.replace(/"/g, "&quot;")}" frameborder="0" loading="lazy" sandbox="allow-scripts allow-same-origin"></iframe>`;
+  const galleryEmbedCode = buildPieceGalleryEmbedHtml(pieceId, versionId, title, window.location.origin);
+
   return (
     <ImmersiveRouteShell
       title={title}
       onBack={goBack}
       isFullscreen={isFullscreen}
+      isEmbedMode={isEmbedMode}
+      canonicalHref={canonicalHref}
+      embedCodes={{
+        plain: { label: "Embed Piece (2D)", code: plainEmbedCode },
+        gallery: { label: "Embed View (3D)", code: galleryEmbedCode },
+      }}
       onToggleFullscreen={() => setIsFullscreen((current) => !current)}
       metadataCard={
         <ImmersiveMetadataCard

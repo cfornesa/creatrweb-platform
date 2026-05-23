@@ -89,6 +89,43 @@ export function buildImmersivePieceHref(id: number, versionId?: number | null) {
   return `${href.pathname}${href.search}`;
 }
 
+export function buildPieceGalleryEmbedHtml(
+  pieceId: number,
+  versionId: number | null | undefined,
+  title: string,
+  origin = window.location.origin,
+): string {
+  const params = new URLSearchParams({ embed: "1" });
+  if (versionId && Number.isFinite(versionId) && versionId > 0) {
+    params.set("version", String(versionId));
+  }
+  const src = `${origin}/immersive/pieces/${pieceId}?${params}`;
+  const safeTitle = title.replace(/"/g, "&quot;");
+  return `<iframe src="${src}" width="100%" height="500" title="${safeTitle}" frameborder="0" loading="lazy" allowfullscreen allow="fullscreen" sandbox="allow-scripts allow-same-origin"></iframe>`;
+}
+
+export function buildImageGalleryEmbedHtml(
+  encodedRef: string,
+  metadata: ImmersiveImageMetadata,
+  origin = window.location.origin,
+): string {
+  const params = new URLSearchParams({ embed: "1" });
+  if (metadata.alt?.trim()) params.set("alt", metadata.alt.trim());
+  if (metadata.title?.trim()) params.set("title", metadata.title.trim());
+  if (metadata.caption?.trim()) params.set("caption", metadata.caption.trim());
+  const src = `${origin}/immersive/images/${encodedRef}?${params}`;
+  const safeTitle = (metadata.title || metadata.alt || "Immersive image").replace(/"/g, "&quot;");
+  return `<iframe src="${src}" width="100%" height="500" title="${safeTitle}" frameborder="0" loading="lazy" allowfullscreen allow="fullscreen" sandbox="allow-scripts allow-same-origin"></iframe>`;
+}
+
+export function buildPlainImageEmbedHtml(
+  imageSrc: string,
+  alt?: string | null,
+): string {
+  const safeAlt = (alt ?? "").replace(/"/g, "&quot;");
+  return `<img src="${imageSrc}" alt="${safeAlt}" style="max-width:100%;height:auto;display:block;" />`;
+}
+
 export function extractPieceEmbedMeta(src: string, origin = window.location.origin) {
   try {
     const url = new URL(src, origin);

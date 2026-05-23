@@ -11,6 +11,9 @@ import {
   updateMountedGalleryLayout,
 } from "@/lib/immersive-gallery";
 import {
+  buildImageGalleryEmbedHtml,
+  buildImmersiveImageHref,
+  buildPlainImageEmbedHtml,
   readImmersiveImageMetadata,
   resolveImmersiveImageSrc,
 } from "@/lib/immersive-view";
@@ -152,6 +155,21 @@ export default function ImmersiveImagePage() {
     () => (encodedRef ? resolveImmersiveImageSrc(encodedRef) : ""),
     [encodedRef],
   );
+  const isEmbedMode = searchParams.get("embed") === "1";
+
+  const canonicalHref = useMemo(
+    () => encodedRef ? `${window.location.origin}${buildImmersiveImageHref(imageSrc, metadata)}` : "",
+    [encodedRef, imageSrc, metadata],
+  );
+
+  const plainEmbedCode = useMemo(
+    () => buildPlainImageEmbedHtml(imageSrc, metadata.alt),
+    [imageSrc, metadata.alt],
+  );
+  const galleryEmbedCode = useMemo(
+    () => encodedRef ? buildImageGalleryEmbedHtml(encodedRef, metadata) : "",
+    [encodedRef, metadata],
+  );
 
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
@@ -173,6 +191,12 @@ export default function ImmersiveImagePage() {
       onBack={goBack}
       isFullscreen={isFullscreen}
       onToggleFullscreen={() => setIsFullscreen((current) => !current)}
+      isEmbedMode={isEmbedMode}
+      canonicalHref={canonicalHref}
+      embedCodes={encodedRef ? {
+        plain: { label: "Embed Image (2D)", code: plainEmbedCode },
+        gallery: { label: "Embed View (3D)", code: galleryEmbedCode },
+      } : undefined}
       metadataCard={
         <ImmersiveMetadataCard
           title={metadata.title || metadata.alt || "Immersive image"}
