@@ -495,6 +495,12 @@ function ImmersiveThreePieceStage({
       cleanup?.();
       state.renderer?.dispose?.();
       host.remove();
+      // Remove canvas from the document regardless of where piece code moved it.
+      // React removes the fullscreen subtree before this cleanup runs, so if the
+      // piece code (synchronously or asynchronously) moved the canvas to document.body
+      // after our re-containment, it is NOT part of the removed subtree and would
+      // persist — covering the header and blocking the Back button.
+      canvas.remove();
       stageEl.innerHTML = "";
     };
   }, [code, cssCode, htmlCode, onError, title]);

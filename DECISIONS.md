@@ -2091,3 +2091,24 @@ The later immersive-viewer recovery work started to overstate what was actually 
 - `three` now uses a centered cross-device auto-fit model instead of the earlier offset bootstrap so the initial pose is corrected on both desktop and mobile, with only minor viewport-based distance tuning.
 - This refinement is intentionally a framing fix, not a room redesign. The wall/floor composition and general camera feel stay aligned with the recovered `c2` browser gallery.
 - The loop-prone non-Three experiment built around offscreen iframe polling, live texture bridging from the standard renderer, and non-Three WebXR entry wiring has been abandoned for this recovery milestone.
+
+## 2026-05-23 — Three.js Back Button Fix (Post-Fullscreen)
+
+### Trigger
+After the scrolling fixes, the owner observed that the Back button in the default VR view stopped working for Three.js pieces — but only after entering and then exiting the fullscreen popup mode, not on the first visit.
+
+### Root Cause
+Common AI-generated Three.js boilerplate calls `document.body.appendChild(renderer.domElement)` or sets `position: fixed` on the canvas. Because `ImmersiveThreePieceStage` injects our own canvas as `renderer.domElement` (via the instrumented `WebGLRenderer` constructor), the piece's own startup code effectively pulls the canvas back out of `stageEl` and places it over the page header — blocking the Back button and other shell controls.
+
+The synchronous re-containment step (added in the same session to handle the initial render) ran correctly, but React removes the fullscreen DOM subtree **before** the previous instance's `useEffect` cleanup runs. If piece code relocated the canvas to `document.body` asynchronously after re-containment (common in Three.js animation setup), that canvas was not part of the fullscreen subtree React removed and persisted across the unmount, covering the header on the next default-view render.
+
+### Fix (two parts, both in `ImmersiveThreePieceStage` in `artifacts/microblog/src/pages/immersive-piece.tsx`)
+
+1. **Re-containment block** (synchronous, after `sketchFactory` runs): clears `stageEl.innerHTML`, re-appends canvas, resets `position`, `top`, `left`, `bottom`, `right`, `zIndex` to `""`, and re-asserts `width: 100%; height: 100%`.
+2. **`canvas.remove()` in cleanup**: removes the canvas from the document regardless of where piece code relocated it — catches both synchronous and asynchronous canvas escapes that React's subtree removal misses.
+
+### Files Changed
+- `artifacts/microblog/src/pages/immersive-piece.tsx` — `ImmersiveThreePieceStage` useEffect
+
+### Outcome
+The Back button now works correctly after entering and exiting fullscreen mode for Three.js pieces. No change to p5, c2, image routes, or fullscreen popup behavior.
