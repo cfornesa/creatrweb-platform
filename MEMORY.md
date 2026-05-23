@@ -237,6 +237,21 @@ or rejection. -->
 2026-05-23 · IMMERSIVE VIEWER · Featured-image immersive routes now preserve media-asset metadata when available. The immersive image title and alt text come from the selected media asset instead of silently falling back to the parent post title or the generic “no alt text provided” copy.
     [Confirmed by the human on 2026-05-23 after browser testing.]
 
+2026-05-23 · IMMERSIVE VIEWER · The fullscreen toggle button (Maximize2/Minimize2) was invisible on Android/iOS in portrait mode. Fix: inner fullscreen overlay div changed from `h-screen w-screen` → `h-full w-full` (inherits `fixed inset-0` parent bounds, targeting the visual viewport rather than extended `100vh`); `z-10` added to both overlay divs so the button wins over the WebGL GPU compositing layer on mobile.
+    [Fixed 2026-05-23; `ImmersiveRouteShell.tsx`. Was visible on desktop because the viewport is never narrowed far enough to push the element below the fold.]
+
+2026-05-23 · IMMERSIVE VIEWER · Art piece immersive view metadata card now shows Alt Text (using `data.version.prompt`, the generation prompt/description) and Source (absolute `window.location.origin + /embed/pieces/:id`). These two fields were already present in the image view; now both views are at parity. Prompt is the correct alt-text analogue for AI-generated art — it describes what the piece is.
+    [Implemented 2026-05-23; `immersive-piece.tsx`.]
+
+2026-05-23 · IMMERSIVE VIEWER · VR affordance button is now consistent across all entry points. `ImmersiveMediaFrame` no longer hides the "VR" text label on mobile (`hidden sm:inline` removed). `PostContent.tsx` inline anchor markup (`createImmersiveAnchorMarkup`) now includes the Box SVG icon alongside "VR" text, matching the component-rendered button.
+    [Implemented 2026-05-23; `ImmersiveMediaFrame.tsx` and `PostContent.tsx`.]
+
+2026-05-23 · IMMERSIVE VIEWER EMBEDS · Embed code buttons ("Embed Image (2D)" / "Embed Piece (2D)" and "Embed View (3D)") appear just below the scene in both immersive views. Clicking copies the HTML to the clipboard with a toast. Three builder functions added to `immersive-view.ts`: `buildPieceGalleryEmbedHtml`, `buildImageGalleryEmbedHtml`, `buildPlainImageEmbedHtml`. Gallery embed iframes include `allowfullscreen allow="fullscreen"` so `requestFullscreen()` is permitted inside the embedded frame. `ImmersiveRouteShell` accepts `embedCodes` prop; the section renders only when the prop is present.
+    [Implemented 2026-05-23; `immersive-view.ts`, `ImmersiveRouteShell.tsx`, `immersive-piece.tsx`, `immersive-image.tsx`.]
+
+2026-05-23 · IMMERSIVE VIEWER EMBEDS · The gallery embed iframe (`?embed=1`) uses the browser-native Fullscreen API: Maximize2 calls `requestFullscreen()` on the container element, Minimize2 calls `exitFullscreen()`, Escape exits natively. The container is always `h-screen w-screen` (fills iframe dimensions); fullscreen API expands it beyond. Two rejected approaches: (1) ExternalLink to the canonical page — user wanted in-place fullscreen, not navigation; (2) CSS `fixed inset-0` toggle — visually identical to `h-screen` inside an iframe.
+    [Implemented 2026-05-23; `ImmersiveRouteShell.tsx`.]
+
 2026-05-23 · IMMERSIVE VIEWER · The Three.js Back button in the default VR view was being blocked after entering and exiting fullscreen mode. Root cause: common AI-generated Three.js boilerplate calls `document.body.appendChild(renderer.domElement)` or sets `position: fixed` on the canvas. Because `renderer.domElement` is the same canvas reference injected into `stageEl`, this pulls the canvas out of the stage container after our re-containment step (which ran synchronously). React removes the fullscreen DOM subtree before `useEffect` cleanup runs, so any async canvas relocation to `document.body` was not caught. Fix (two parts, both in `ImmersiveThreePieceStage` in `immersive-piece.tsx`): (1) re-containment block after `sketchFactory` runs — clears stageEl, re-appends canvas, resets all position/zIndex styles; (2) `canvas.remove()` in the cleanup so the canvas is removed from wherever piece code moved it, regardless of whether React's subtree removal caught it.
     [Fixed 2026-05-23; bug only appeared after entering and exiting the fullscreen popup mode for a Three.js piece.]
 

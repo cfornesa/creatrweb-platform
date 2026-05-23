@@ -194,8 +194,8 @@ export default function ImmersiveImagePage() {
       isEmbedMode={isEmbedMode}
       canonicalHref={canonicalHref}
       embedCodes={encodedRef ? {
-        plain: { label: "Embed Image (2D)", code: plainEmbedCode },
-        gallery: { label: "Embed View (3D)", code: galleryEmbedCode },
+        plain: { label: "Embed Piece", code: plainEmbedCode },
+        gallery: { label: "Embed Interactive", code: galleryEmbedCode },
       } : undefined}
       metadataCard={
         <ImmersiveMetadataCard
@@ -205,11 +205,11 @@ export default function ImmersiveImagePage() {
               <>
                 <span className="block">{metadata.caption}</span>
                 <span className="mt-3 block">
-                  This image uses the browser-based non-Three immersive gallery scene with a normalized presentation surface and centered default framing.
+                  This image uses the browser-based 3D immersive gallery scene with a normalized presentation surface and centered default framing.
                 </span>
               </>
             ) : (
-              "This image uses the browser-based non-Three immersive gallery scene with a normalized presentation surface and centered default framing."
+              "This image uses the browser-based 3D immersive gallery scene with a normalized presentation surface and centered default framing."
             )
           }
           fields={[

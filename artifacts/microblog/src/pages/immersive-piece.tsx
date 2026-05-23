@@ -611,8 +611,8 @@ export default function ImmersivePiecePage() {
       isEmbedMode={isEmbedMode}
       canonicalHref={canonicalHref}
       embedCodes={{
-        plain: { label: "Embed Piece (2D)", code: plainEmbedCode },
-        gallery: { label: "Embed View (3D)", code: galleryEmbedCode },
+        plain: { label: "Embed Piece", code: plainEmbedCode },
+        gallery: { label: "Embed Interactive", code: galleryEmbedCode },
       }}
       onToggleFullscreen={() => setIsFullscreen((current) => !current)}
       metadataCard={

@@ -2112,3 +2112,75 @@ The synchronous re-containment step (added in the same session to handle the ini
 
 ### Outcome
 The Back button now works correctly after entering and exiting fullscreen mode for Three.js pieces. No change to p5, c2, image routes, or fullscreen popup behavior.
+
+---
+
+## 2026-05-23 — Immersive Viewer Mobile Button Fix, Metadata Parity, VR Button Consistency, and Embed Codes
+
+### Trigger
+Four separate user-reported gaps in the immersive viewer UX were addressed in this session:
+1. The fullscreen toggle button was invisible on Android/iOS in portrait mode.
+2. Art piece immersive views lacked Alt Text and Source fields present in image views.
+3. The VR affordance button was visually inconsistent between image and piece entry points (icon-only on mobile for images, text-only for pieces).
+4. No way to copy embed codes from within the immersive view itself.
+
+### Mobile Exit Button Fix
+
+**Root causes (two, compounding on mobile):**
+- The inner fullscreen overlay div used `h-screen w-screen`. On mobile browsers, `100vh` extends behind the navigation bar, pushing `bottom-4` positioned elements below the visible viewport.
+- WebGL canvases promoted to GPU compositing layers can visually override CSS `z-index` on mobile, hiding the button overlay even when it is within the viewport.
+
+**Fix:**
+- Inner fullscreen div changed from `h-screen w-screen` to `h-full w-full` so it inherits `fixed inset-0` parent bounds, which correctly target the visual viewport on mobile.
+- `z-10` added to both overlay `absolute inset-0` divs (fullscreen and non-fullscreen) so the button overlay wins over the WebGL GPU compositing layer.
+
+**Files:** `artifacts/microblog/src/components/immersive/ImmersiveRouteShell.tsx`
+
+### Art Piece Metadata Additions
+
+**Decisions confirmed:**
+- Alt Text field: uses `data.version.prompt` (the AI generation prompt/description for the piece), not the piece title. Rationale: the generation prompt is the semantic equivalent of alt text for a machine-created image — it describes what the AI was asked to produce.
+- Source field: uses `window.location.origin + /embed/pieces/:id` — a full absolute URL including the request origin so it reads correctly on both `platform.creatrweb.com` and `localhost:4000`. Relative paths were rejected because they require the viewer to infer the host.
+
+**Files:** `artifacts/microblog/src/pages/immersive-piece.tsx`
+
+### VR Button Consistency
+
+**Decisions confirmed:**
+- `ImmersiveMediaFrame`: removed `hidden sm:inline` from the "VR" text `<span>` — the Box icon + "VR" text now appears at all viewport sizes. Previously the label was suppressed on mobile, making the entry point icon-only for images while art pieces still showed "VR" text.
+- `PostContent.tsx` `createImmersiveAnchorMarkup`: updated to include the Box SVG icon string inline alongside the "VR" text, matching the component-rendered affordance used by `ImmersiveMediaFrame`.
+
+**Files:** `artifacts/microblog/src/components/immersive/ImmersiveMediaFrame.tsx`, `artifacts/microblog/src/components/post/PostContent.tsx`
+
+### Embed Code Feature
+
+**Decisions confirmed:**
+- Two embed buttons appear just below the Three.js scene, between the scene and the metadata card, in the default VR view only (not on post cards or media grid previews).
+- Labels: "Embed Image (2D)" / "Embed Piece (2D)" for plain embeds; "Embed View (3D)" for gallery embeds.
+- Plain image embed: `<img>` tag with `alt` attribute and CSS `max-width:100%`. Plain piece embed: standard `<iframe src="/embed/pieces/:id">` (same as the existing embed used in post HTML).
+- Gallery embed: `<iframe src="…/immersive/pieces/:id?embed=1">` or `<iframe src="…/immersive/images/:encodedRef?embed=1">`. Gallery embed iframes must include `allowfullscreen allow="fullscreen"` so the embedding page grants the iframe the Permissions Policy permission to call `requestFullscreen()`.
+- `EmbedCopyButton`: internal component using `navigator.clipboard.writeText` with `useToast` success/failure feedback.
+- `ImmersiveRouteShell` gains `embedCodes?: { plain: {label, code}; gallery: {label, code} }` prop; the embed row section renders only when the prop is present.
+
+**New functions added to `immersive-view.ts`:**
+- `buildPieceGalleryEmbedHtml(pieceId, versionId, title, origin)` — gallery embed for a piece
+- `buildImageGalleryEmbedHtml(encodedRef, metadata, origin)` — gallery embed for an image
+- `buildPlainImageEmbedHtml(imageSrc, alt)` — plain `<img>` embed
+
+**Files:** `artifacts/microblog/src/lib/immersive-view.ts`, `artifacts/microblog/src/components/immersive/ImmersiveRouteShell.tsx`, `artifacts/microblog/src/pages/immersive-piece.tsx`, `artifacts/microblog/src/pages/immersive-image.tsx`
+
+### Embed Mode: Native Fullscreen API
+
+**Decisions confirmed:**
+- The gallery embed iframe (`?embed=1`) uses the browser-native Fullscreen API rather than CSS state switching.
+- The container is always `h-screen w-screen` (fills the iframe's own viewport dimensions). Clicking Maximize2 calls `embedContainerRef.current?.requestFullscreen()`, which expands the iframe to fill the physical screen beyond its normal dimensions.
+- `document.fullscreenchange` event drives `isEmbedFullscreen` state → switches between Maximize2 and Minimize2 icons. Minimize2 calls `document.exitFullscreen()`; the browser's native Escape key also exits fullscreen and triggers `fullscreenchange`, so no extra Escape key handler is needed.
+- `renderScene` is always called with `{ fullscreen: false }` in embed mode — the `ResizeObserver` inside each Three.js stage component handles canvas resize when the element enters/exits native fullscreen.
+- React Rules of Hooks: `embedContainerRef`, `isEmbedFullscreen` state, and `fullscreenchange` effect are all declared before any early returns in `ImmersiveRouteShell`.
+- The scroll-lock `useEffect` skips when `isEmbedMode` is true, since the embed container manages its own viewport.
+
+**Options considered and rejected:**
+- ExternalLink button navigating to the CreatrWeb canonical immersive page: rejected — user wanted the expand to happen within the embedding context, not navigate away.
+- CSS toggle between `h-screen` and `fixed inset-0`: rejected — both states fill the same iframe dimensions (the iframe's own viewport), so the toggle appeared to do nothing visually. Dismissed after browser testing.
+
+**Files:** `artifacts/microblog/src/components/immersive/ImmersiveRouteShell.tsx`, `artifacts/microblog/src/lib/immersive-view.ts` (allowfullscreen on generated iframes)
