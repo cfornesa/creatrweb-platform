@@ -2184,3 +2184,88 @@ Four separate user-reported gaps in the immersive viewer UX were addressed in th
 - CSS toggle between `h-screen` and `fixed inset-0`: rejected — both states fill the same iframe dimensions (the iframe's own viewport), so the toggle appeared to do nothing visually. Dismissed after browser testing.
 
 **Files:** `artifacts/microblog/src/components/immersive/ImmersiveRouteShell.tsx`, `artifacts/microblog/src/lib/immersive-view.ts` (allowfullscreen on generated iframes)
+
+### Embed Button Label Rename
+
+**Decisions confirmed:**
+- "Embed Image (2D)" → "Embed Static" (plain `<img>` or standard iframe embed).
+- "Embed Piece (2D)" → "Embed Piece" (was already just the piece plain embed).
+- "Embed View (3D)" → "Embed Interactive" (gallery iframe embed with OrbitControls / Three.js).
+- Labels updated in both `immersive-image.tsx` and `immersive-piece.tsx`; `ImmersiveRouteShell` receives the label string directly so no shell changes needed.
+
+**Files:** `artifacts/microblog/src/pages/immersive-image.tsx`, `artifacts/microblog/src/pages/immersive-piece.tsx`
+
+### Floor Click-to-Navigate (Immersive Viewer)
+
+**Feature:** Clicking or tapping a spot on the gallery floor moves the camera viewpoint to that position. Orbit, pan, zoom, and dragging are all retained.
+
+**Decision confirmed:** Feature must work across all four view modes — default VR view, fullscreen overlay, embed iframe (default), and embed iframe fullscreen (Fullscreen API) — and across all three rendering engines (image, p5/c2 gallery shell, Three.js piece).
+
+**Core mechanic:**
+- Click vs. drag: `pointerdown`/`pointerup` screen displacement ≥ 6 px suppresses navigation; works for mouse and touch via PointerEvents API.
+- Translation: only `controls.target` is lerped; camera follows automatically via `controls.update()`. This preserves viewing angle, height, and distance.
+- Animation: 350 ms cubic ease-out (`1 − (1 − t)³`); `controls.enabled = false` during lerp to block OrbitControls conflict; re-enabled at `t ≥ 1`.
+- NDC calculation uses `element.getBoundingClientRect()` → viewport-relative and correct in all four modes without branching.
+
+**Implementation per rendering path:**
+- **Images + p5/c2 (gallery shell):** `createFloorClickNavigation(camera, controls, shell.floor, stageEl)` from `immersive-gallery.ts`. Clamped to `minZ=0.5`, `maxZ=8`, `maxX=±8` to stay within the gallery floor footprint. Caller adds `.update()` to animate loop and `.dispose()` to cleanup.
+- **Three.js pieces:** Inline implementation inside `ImmersiveThreePieceStage`. Raycast against `state.objects`; filter hits by world-space face normal `y > 0.7` (roughly horizontal). Falls back to virtual `THREE.Plane(y=0)` if no horizontal surface found. Max offset clamped to `max(sceneSize.x, sceneSize.z, 1) × 0.7` derived from `Box3.setFromObject(state.scene)`.
+
+**Known limitation:** Three.js pieces with no horizontal geometry and no objects near y=0 (pure particle systems, fully vertical structures) use the virtual y=0 plane fallback. Camera still translates smoothly; OrbitControls remain fully functional for manual navigation.
+
+**New exports from `immersive-gallery.ts`:** `FloorClickNavigation` type, `createFloorClickNavigation` function.
+
+**Files:** `artifacts/microblog/src/lib/immersive-gallery.ts`, `artifacts/microblog/src/pages/immersive-image.tsx`, `artifacts/microblog/src/pages/immersive-piece.tsx`
+
+### Arrow Key Navigation (Immersive Viewer)
+
+**Feature:** Arrow keys (← → ↑ ↓) translate the camera viewpoint through the gallery scene. Left/right moves laterally (X axis); up/down moves forward/backward (Z axis). Held keys produce continuous movement; `preventDefault()` suppresses page scrolling. Orbit, pan, zoom, and click-to-navigate are all retained alongside keyboard navigation.
+
+**Decision confirmed:** Must work in all four view modes (default VR, fullscreen overlay, embed iframe default, embed fullscreen API) and across all three rendering engines.
+
+**Implementation per rendering path:**
+- **Images + p5/c2 (gallery shell):** `createKeyboardNavigation(controls)` from `immersive-gallery.ts`. Listens on `window` for `keydown`/`keyup`. Clamps `controls.target` to `x ∈ [-8, 8]`, `z ∈ [-3, 8]`. Returns `{ update, dispose }`; `update()` runs in the animate loop before `controls.update()`.
+- **Three.js pieces:** Inline `threeKeys` Set with `onThreeKeyDown`/`onThreeKeyUp` handlers on `window`. Keyboard movement applied inside the `else` branch of `animateControls()` (i.e., only when no floor-click lerp is running). No clamping applied — scene bounds are arbitrary and keyboard velocity (0.05 units/frame) is the natural limit for short sessions.
+
+**Speed:** 0.05 units per frame (≈ 3 units/second at 60 fps). Frame-rate dependent; acceptable for gallery navigation.
+
+**New exports from `immersive-gallery.ts`:** `KeyboardNavigation` type, `createKeyboardNavigation` function.
+
+**Files:** `artifacts/microblog/src/lib/immersive-gallery.ts`, `artifacts/microblog/src/pages/immersive-image.tsx`, `artifacts/microblog/src/pages/immersive-piece.tsx`
+
+### Arrow Key Navigation — Camera-Relative Axes (Bug Fix)
+
+**Problem:** Arrow keys translated in world-space X/Z. After orbiting the camera, the world axes no longer matched the user's visual left/right/forward/back — pressing ← after a 90° orbit moved in the camera's forward direction instead of left.
+
+**Fix:** Compute camera-local horizontal axes each frame:
+1. `camera.getWorldDirection(fwd)` → set `fwd.y = 0` → normalize → horizontal forward
+2. `right.set(-fwd.z, 0, fwd.x)` — 90° clockwise rotation of fwd around Y
+3. `dx = fwd.x*fwdScale + right.x*rightScale`, `dz = fwd.z*fwdScale + right.z*rightScale`
+4. Apply dx/dz to both `controls.target` and `camera.position` (same delta, preserves view angle)
+
+Arrow mapping: ↑ = forward (toward look target), ↓ = backward, ← = strafe left, → = strafe right.
+
+Pre-allocated `_fwd`/`_right` vectors at closure level to avoid per-frame heap allocations.
+
+**Applied in two places:**
+- `createKeyboardNavigation` in `immersive-gallery.ts` — covers image view and p5/c2 gallery pieces; accesses camera via `controls.object`
+- Inline keyboard block in `ImmersiveThreePieceStage` in `immersive-piece.tsx` — accesses camera via `state.camera`
+
+`createFloorClickNavigation` is unaffected — clicking a world-space floor point is orientation-independent by design.
+
+**Files:** `artifacts/microblog/src/lib/immersive-gallery.ts`, `artifacts/microblog/src/pages/immersive-piece.tsx`
+
+### Arrow Key Navigation — Clamp Camera, Not Target (Bug Fix)
+
+**Problem:** After a floor click, `controls.target` (the look-at point) is shifted by the same world-space delta as the camera. For a large artwork where the initial camera is at z=7.38, a floor-click to z=0.5 shifts the target to z=−7.96 — well outside the keyboard nav's `minZ=−3` bound. The first arrow key press then clamped the target back to −3, a 4.96-unit snap that appeared as a "zoom reset."
+
+**Root cause:** `createKeyboardNavigation.update()` was clamping `controls.target`, which has no fixed relationship to the camera's world position. After a floor click, the target can be far outside any reasonable target-space clamp.
+
+**Fix:** Clamp `controls.object.position` (the camera) instead. The camera bounds are meaningful and consistent regardless of where the target is.
+- Default `minZ` changed from `−3` (target space, wrong) to `0.5` (camera z, matches the floor-click `minZ` — prevents walking through the artwork wall).
+- Default `maxZ` changed from `8` to `Infinity` (no backward cap; the gallery experience doesn't require one).
+- Clamped delta computed as `newCamX/Z − camera.x/z`, applied to both camera and target by the same amount (preserves viewing direction).
+
+**Second fix:** Removed the `controls.update()` call from inside `keyNav.update()`. The main animate loop calls `shell.controls.update()` immediately after, so the call was redundant. Calling it twice was also double-processing any pending `sphericalDelta` (decaying it at 2× the intended rate when orbitand keyboard nav co-occurred).
+
+**Files:** `artifacts/microblog/src/lib/immersive-gallery.ts`

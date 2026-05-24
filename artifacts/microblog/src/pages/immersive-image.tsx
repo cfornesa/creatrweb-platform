@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useLocation, useRoute } from "wouter";
 import {
+  createFloorClickNavigation,
+  createKeyboardNavigation,
   createPresentationSurface,
   createMountedGalleryShell,
   disposeObjectMaterial,
@@ -101,8 +103,13 @@ function ImmersiveImageStage({
       },
     );
 
+    const floorNav = createFloorClickNavigation(shell.camera, shell.controls, shell.floor, stageEl);
+    const keyNav = createKeyboardNavigation(shell.controls);
+
     function animate() {
       frameId = requestAnimationFrame(animate);
+      floorNav.update();
+      keyNav.update();
       if (textureRef) {
         textureRef.needsUpdate = true;
       }
@@ -136,6 +143,8 @@ function ImmersiveImageStage({
       shell.frameMesh.geometry.dispose();
       disposeObjectMaterial(shell.frameMesh.material);
       shell.renderer.dispose();
+      floorNav.dispose();
+      keyNav.dispose();
       stageEl.innerHTML = "";
     };
   }, [fullscreen, imageSrc, onError]);

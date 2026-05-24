@@ -299,6 +299,166 @@ export function isCompactImmersiveViewport(width: number) {
   return width < 1024;
 }
 
+export type FloorClickNavigation = {
+  update: () => void;
+  dispose: () => void;
+};
+
+export function createFloorClickNavigation(
+  camera: any,
+  controls: OrbitControls,
+  floorMesh: any,
+  domElement: HTMLElement,
+  options: {
+    minZ?: number;
+    maxZ?: number;
+    maxX?: number;
+    duration?: number;
+  } = {},
+): FloorClickNavigation {
+  const { minZ = 0.5, maxZ = 8, maxX = 8, duration = 350 } = options;
+
+  const raycaster = new THREE.Raycaster();
+  let animFromTarget: any = null;
+  let animToTarget: any = null;
+  let animFromCam: any = null;
+  let animToCam: any = null;
+  let animStart = 0;
+  let downX = 0;
+  let downY = 0;
+
+  function onPointerDown(e: PointerEvent) {
+    downX = e.clientX;
+    downY = e.clientY;
+  }
+
+  function onPointerUp(e: PointerEvent) {
+    if (Math.hypot(e.clientX - downX, e.clientY - downY) >= 6) return;
+
+    const rect = domElement.getBoundingClientRect();
+    raycaster.setFromCamera(
+      new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1,
+      ),
+      camera,
+    );
+    const hits = raycaster.intersectObject(floorMesh, false);
+    if (!hits.length) return;
+
+    const hit = hits[0].point;
+    const shift = new THREE.Vector3(
+      Math.max(-maxX, Math.min(maxX, hit.x)) - camera.position.x,
+      0,
+      Math.max(minZ, Math.min(maxZ, hit.z)) - camera.position.z,
+    );
+    if (shift.lengthSq() < 0.003) return;
+
+    animFromTarget = controls.target.clone();
+    animToTarget = animFromTarget.clone().add(shift);
+    animFromCam = camera.position.clone();
+    animToCam = animFromCam.clone().add(shift);
+    animStart = performance.now();
+    controls.enabled = false;
+  }
+
+  function update() {
+    if (!animFromTarget || !animToTarget) return;
+    const t = Math.min((performance.now() - animStart) / duration, 1);
+    const eased = 1 - (1 - t) ** 3;
+    controls.target.lerpVectors(animFromTarget, animToTarget, eased);
+    camera.position.lerpVectors(animFromCam, animToCam, eased);
+    controls.update();
+    if (t >= 1) {
+      controls.enabled = true;
+      animFromTarget = animToTarget = animFromCam = animToCam = null;
+    }
+  }
+
+  function dispose() {
+    domElement.removeEventListener("pointerdown", onPointerDown);
+    domElement.removeEventListener("pointerup", onPointerUp);
+    controls.enabled = true;
+  }
+
+  domElement.addEventListener("pointerdown", onPointerDown);
+  domElement.addEventListener("pointerup", onPointerUp);
+  return { update, dispose };
+}
+
+export type KeyboardNavigation = {
+  update: () => void;
+  dispose: () => void;
+};
+
+export function createKeyboardNavigation(
+  controls: OrbitControls,
+  options: {
+    speed?: number;
+    minX?: number;
+    maxX?: number;
+    minZ?: number;
+    maxZ?: number;
+  } = {},
+): KeyboardNavigation {
+  const { speed = 0.05, minX = -8, maxX = 8, minZ = 0.5, maxZ = Infinity } = options;
+  const keys = new Set<string>();
+
+  function onKeyDown(e: KeyboardEvent) {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown") {
+      e.preventDefault();
+      keys.add(e.key);
+    }
+  }
+
+  function onKeyUp(e: KeyboardEvent) {
+    keys.delete(e.key);
+  }
+
+  const _fwd = new THREE.Vector3();
+  const _right = new THREE.Vector3();
+
+  function update() {
+    if (keys.size === 0) return;
+    let fwdScale = 0;
+    let rightScale = 0;
+    if (keys.has("ArrowUp")) fwdScale += speed;
+    if (keys.has("ArrowDown")) fwdScale -= speed;
+    if (keys.has("ArrowLeft")) rightScale -= speed;
+    if (keys.has("ArrowRight")) rightScale += speed;
+    if (fwdScale === 0 && rightScale === 0) return;
+    controls.object.getWorldDirection(_fwd);
+    _fwd.y = 0;
+    const fwdLen = _fwd.length();
+    if (fwdLen < 1e-6) return;
+    _fwd.divideScalar(fwdLen);
+    _right.set(-_fwd.z, 0, _fwd.x);
+    const dx = _fwd.x * fwdScale + _right.x * rightScale;
+    const dz = _fwd.z * fwdScale + _right.z * rightScale;
+    const newCamX = Math.max(minX, Math.min(maxX, controls.object.position.x + dx));
+    const newCamZ = Math.max(minZ, Math.min(maxZ, controls.object.position.z + dz));
+    const actualDx = newCamX - controls.object.position.x;
+    const actualDz = newCamZ - controls.object.position.z;
+    if (Math.abs(actualDx) < 1e-6 && Math.abs(actualDz) < 1e-6) return;
+    controls.object.position.x = newCamX;
+    controls.object.position.z = newCamZ;
+    controls.target.x += actualDx;
+    controls.target.z += actualDz;
+    // No controls.update() here — the main animate loop calls it once per frame.
+    // Calling it here too would double-process sphericalDelta.
+  }
+
+  function dispose() {
+    window.removeEventListener("keydown", onKeyDown);
+    window.removeEventListener("keyup", onKeyUp);
+    keys.clear();
+  }
+
+  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
+  return { update, dispose };
+}
+
 export function computeThreeAutoFitView(
   center: { x: number; y: number; z: number },
   size: { x: number; y: number; z: number },

@@ -11,6 +11,8 @@ import { useLocation, useRoute } from "wouter";
 import { ArtPieceRenderer } from "@/components/post/ArtPieceRenderer";
 import {
   computeThreeAutoFitView,
+  createFloorClickNavigation,
+  createKeyboardNavigation,
   createPresentationSurface,
   createMountedGalleryShell,
   disposeObjectMaterial,
@@ -201,8 +203,13 @@ function ImmersiveGalleryPieceStage({
       }
     }
 
+    const floorNav = createFloorClickNavigation(shell.camera, shell.controls, shell.floor, stageEl);
+    const keyNav = createKeyboardNavigation(shell.controls);
+
     function animate() {
       frameId = requestAnimationFrame(animate);
+      floorNav.update();
+      keyNav.update();
       const activeSourceCanvas = sourceCanvas;
       if (activeSourceCanvas && artTexture) {
         if (presentationSurface) {
@@ -255,6 +262,8 @@ function ImmersiveGalleryPieceStage({
       shell.renderer.dispose();
       stopSourceLoop?.();
       p5Instance?.remove?.();
+      floorNav.dispose();
+      keyNav.dispose();
       host.remove();
       stageEl.innerHTML = "";
     };
@@ -388,6 +397,97 @@ function ImmersiveThreePieceStage({
 
     let controls: OrbitControls | null = null;
 
+    let threeAnimFromTarget: any = null;
+    let threeAnimToTarget: any = null;
+    let threeAnimFromCam: any = null;
+    let threeAnimToCam: any = null;
+    let threeAnimStart = 0;
+    let threeDownX = 0;
+    let threeDownY = 0;
+    const threeRaycaster = new THREE.Raycaster();
+    const threeKeys = new Set<string>();
+    const _threeFwd = new THREE.Vector3();
+    const _threeRight = new THREE.Vector3();
+
+    function onThreeKeyDown(e: KeyboardEvent) {
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown") {
+        e.preventDefault();
+        threeKeys.add(e.key);
+      }
+    }
+
+    function onThreeKeyUp(e: KeyboardEvent) {
+      threeKeys.delete(e.key);
+    }
+
+    function onThreePointerDown(e: PointerEvent) {
+      threeDownX = e.clientX;
+      threeDownY = e.clientY;
+    }
+
+    function onThreePointerUp(e: PointerEvent) {
+      if (!controls || !state.camera) return;
+      if (Math.hypot(e.clientX - threeDownX, e.clientY - threeDownY) >= 6) return;
+
+      const rect = canvas.getBoundingClientRect();
+      threeRaycaster.setFromCamera(
+        new THREE.Vector2(
+          ((e.clientX - rect.left) / rect.width) * 2 - 1,
+          -((e.clientY - rect.top) / rect.height) * 2 + 1,
+        ),
+        state.camera,
+      );
+
+      let hitPoint: any = null;
+
+      if (state.objects.length > 0) {
+        const hits = threeRaycaster.intersectObjects(state.objects, false);
+        for (const hit of hits) {
+          if (hit.face) {
+            const worldNormal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+            if (worldNormal.y > 0.7) {
+              hitPoint = hit.point;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!hitPoint) {
+        const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        const planeHit = new THREE.Vector3();
+        if (threeRaycaster.ray.intersectPlane(floorPlane, planeHit)) {
+          hitPoint = planeHit;
+        }
+      }
+
+      if (!hitPoint) return;
+
+      let maxOffset = 5;
+      if (state.scene && state.objects.length > 0) {
+        const box = new THREE.Box3().setFromObject(state.scene);
+        if (!box.isEmpty()) {
+          const size = new THREE.Vector3();
+          box.getSize(size);
+          maxOffset = Math.max(size.x, size.z, 1) * 0.7;
+        }
+      }
+
+      const shift = new THREE.Vector3(
+        Math.max(-maxOffset, Math.min(maxOffset, hitPoint.x - state.camera.position.x)),
+        0,
+        Math.max(-maxOffset, Math.min(maxOffset, hitPoint.z - state.camera.position.z)),
+      );
+      if (shift.lengthSq() < 0.003) return;
+
+      threeAnimFromTarget = controls.target.clone();
+      threeAnimToTarget = threeAnimFromTarget.clone().add(shift);
+      threeAnimFromCam = state.camera.position.clone();
+      threeAnimToCam = threeAnimFromCam.clone().add(shift);
+      threeAnimStart = performance.now();
+      controls.enabled = false;
+    }
+
     function resize() {
       const width = stageEl.clientWidth || window.innerWidth;
       const height = stageEl.clientHeight || window.innerHeight;
@@ -441,7 +541,42 @@ function ImmersiveThreePieceStage({
 
     function animateControls() {
       frameId = requestAnimationFrame(animateControls);
-      controls?.update();
+      if (threeAnimToTarget && threeAnimFromTarget && controls) {
+        const t = Math.min((performance.now() - threeAnimStart) / 350, 1);
+        const eased = 1 - (1 - t) ** 3;
+        controls.target.lerpVectors(threeAnimFromTarget, threeAnimToTarget, eased);
+        state.camera.position.lerpVectors(threeAnimFromCam, threeAnimToCam, eased);
+        controls.update();
+        if (t >= 1) {
+          controls.enabled = true;
+          threeAnimFromTarget = threeAnimToTarget = threeAnimFromCam = threeAnimToCam = null;
+        }
+      } else {
+        if (threeKeys.size > 0 && controls && state.camera) {
+          let fwdScale = 0;
+          let rightScale = 0;
+          if (threeKeys.has("ArrowUp")) fwdScale += 0.05;
+          if (threeKeys.has("ArrowDown")) fwdScale -= 0.05;
+          if (threeKeys.has("ArrowLeft")) rightScale -= 0.05;
+          if (threeKeys.has("ArrowRight")) rightScale += 0.05;
+          if (fwdScale !== 0 || rightScale !== 0) {
+            state.camera.getWorldDirection(_threeFwd);
+            _threeFwd.y = 0;
+            const len = _threeFwd.length();
+            if (len > 1e-6) {
+              _threeFwd.divideScalar(len);
+              _threeRight.set(-_threeFwd.z, 0, _threeFwd.x);
+              const dx = _threeFwd.x * fwdScale + _threeRight.x * rightScale;
+              const dz = _threeFwd.z * fwdScale + _threeRight.z * rightScale;
+              controls.target.x += dx;
+              controls.target.z += dz;
+              state.camera.position.x += dx;
+              state.camera.position.z += dz;
+            }
+          }
+        }
+        controls?.update();
+      }
     }
 
     try {
@@ -482,6 +617,10 @@ function ImmersiveThreePieceStage({
       controls.maxDistance = 40;
       autoFitCamera();
       animateControls();
+      canvas.addEventListener("pointerdown", onThreePointerDown);
+      canvas.addEventListener("pointerup", onThreePointerUp);
+      window.addEventListener("keydown", onThreeKeyDown);
+      window.addEventListener("keyup", onThreeKeyUp);
       onError(null);
     } catch (error) {
       onError(error instanceof Error ? error.message : "Immersive runtime failed to boot.");
@@ -493,6 +632,12 @@ function ImmersiveThreePieceStage({
     return () => {
       observer.disconnect();
       cancelAnimationFrame(frameId);
+      canvas.removeEventListener("pointerdown", onThreePointerDown);
+      canvas.removeEventListener("pointerup", onThreePointerUp);
+      window.removeEventListener("keydown", onThreeKeyDown);
+      window.removeEventListener("keyup", onThreeKeyUp);
+      threeKeys.clear();
+      if (controls) controls.enabled = true;
       controls?.dispose();
       stopFrameHandles.forEach((stop) => stop());
       stopFrameHandles.clear();
