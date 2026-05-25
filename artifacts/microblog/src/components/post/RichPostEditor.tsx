@@ -24,6 +24,7 @@ import {
   generateArtPiece as requestGeneratedArtPiece,
   useCreateArtPiece,
   useDescribeImage,
+  useListArtPieces,
   useProcessAiText,
   useUpdateArtPiece,
   useUpdateMediaAltText,
@@ -246,6 +247,9 @@ export function RichPostEditor({
   const [categoryIds, setCategoryIds] = useState<number[]>(initialCategoryIds);
   const [platformIds, setPlatformIds] = useState<number[]>(initialPlatformIds ?? []);
   const [substackSendNewsletter, setSubstackSendNewsletter] = useState(false);
+  const artPiecesList = useListArtPieces();
+  const hasPieces = (artPiecesList.data?.pieces?.length ?? 0) > 0;
+
   const [selectedAiVendor, setSelectedAiVendor] = useState<ProcessAiTextBodyVendor | "">(aiVendors[0]?.id ?? "");
   const [selectedAiMode, setSelectedAiMode] = useState<"text" | "piece">("text");
   const [selectedPieceEngine, setSelectedPieceEngine] = useState<ArtPieceEngine>("p5");
@@ -347,13 +351,13 @@ export function RichPostEditor({
     }
 
     if (selectedAiMode === "piece") {
-      if (pieceVendors.length === 0) {
+      if (pieceVendors.length === 0 && !hasPieces) {
         setSelectedAiMode("text");
-      } else if (!pieceVendors.some((v) => v.id === selectedAiVendor) && pieceVendors[0]) {
+      } else if (pieceVendors.length > 0 && !pieceVendors.some((v) => v.id === selectedAiVendor) && pieceVendors[0]) {
         setSelectedAiVendor(pieceVendors[0].id);
       }
     }
-  }, [aiVendors, pieceVendors, selectedAiVendor, selectedAiMode]);
+  }, [aiVendors, hasPieces, pieceVendors, selectedAiVendor, selectedAiMode]);
 
   useEffect(() => {
     if (preferredVendorTextImprove && aiVendors.some((v) => v.id === preferredVendorTextImprove)) {
@@ -1152,7 +1156,7 @@ export function RichPostEditor({
                 }}
               >
                 <option value="text">Text</option>
-                {pieceVendors.length > 0 ? <option value="piece">Piece</option> : null}
+                {(pieceVendors.length > 0 || hasPieces) ? <option value="piece">Piece</option> : null}
               </select>
               {selectedAiMode === "piece" ? (
                 <select
@@ -1172,11 +1176,14 @@ export function RichPostEditor({
                 value={selectedAiVendor}
                 onChange={(event) => setSelectedAiVendor(event.target.value as ProcessAiTextBodyVendor)}
               >
-                {(selectedAiMode === "piece" ? pieceVendors : aiVendors).map((vendor) => (
-                  <option key={vendor.id} value={vendor.id}>
-                    {vendor.label}
-                  </option>
-                ))}
+                {selectedAiMode === "piece" && pieceVendors.length === 0
+                  ? <option value="" disabled>No piece vendors enabled</option>
+                  : (selectedAiMode === "piece" ? pieceVendors : aiVendors).map((vendor) => (
+                      <option key={vendor.id} value={vendor.id}>
+                        {vendor.label}
+                      </option>
+                    ))
+                }
               </select>
               <Button
                 type="button"

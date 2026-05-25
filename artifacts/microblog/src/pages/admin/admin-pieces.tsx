@@ -173,6 +173,8 @@ export default function AdminPiecesPage() {
       setSelectedVendor(
         preferredVendorStillAvailable ? preferredArtPieceVendor : pieceVendors[0]!.id,
       );
+    } else if (pieceVendors.length === 0 && selectedVendor !== "") {
+      setSelectedVendor("");
     }
   }, [pieceVendors, preferredArtPieceVendor, selectedVendor]);
 
@@ -632,10 +634,14 @@ canvas { display: block; }`;
                       onChange={(event) =>
                         handleVendorChange(event.target.value as ProcessAiTextBodyVendor)
                       }
+                      disabled={pieceVendors.length === 0}
                     >
-                      {pieceVendors.map((vendor) => (
-                        <option key={vendor.id} value={vendor.id}>{vendor.label}</option>
-                      ))}
+                      {pieceVendors.length === 0
+                        ? <option value="">No piece vendors enabled — configure in Admin → AI</option>
+                        : pieceVendors.map((vendor) => (
+                            <option key={vendor.id} value={vendor.id}>{vendor.label}</option>
+                          ))
+                      }
                     </select>
                   </div>
                 </div>
@@ -742,10 +748,14 @@ canvas { display: block; }`;
                             onChange={(event) =>
                               handleVendorChange(event.target.value as ProcessAiTextBodyVendor)
                             }
+                            disabled={pieceVendors.length === 0}
                           >
-                            {pieceVendors.map((vendor) => (
-                              <option key={vendor.id} value={vendor.id}>{vendor.label}</option>
-                            ))}
+                            {pieceVendors.length === 0
+                              ? <option value="">No piece vendors enabled — configure in Admin → AI</option>
+                              : pieceVendors.map((vendor) => (
+                                  <option key={vendor.id} value={vendor.id}>{vendor.label}</option>
+                                ))
+                            }
                           </select>
                         </div>
                       </div>
