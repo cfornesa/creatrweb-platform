@@ -2269,3 +2269,237 @@ Pre-allocated `_fwd`/`_right` vectors at closure level to avoid per-frame heap a
 **Second fix:** Removed the `controls.update()` call from inside `keyNav.update()`. The main animate loop calls `shell.controls.update()` immediately after, so the call was redundant. Calling it twice was also double-processing any pending `sphericalDelta` (decaying it at 2× the intended rate when orbitand keyboard nav co-occurred).
 
 **Files:** `artifacts/microblog/src/lib/immersive-gallery.ts`
+
+---
+
+## 2026-05-24 — Mistral Vendors, Three.js Camera Controls Overhaul, c2 API Fix, Three.js Default View Fix
+
+### Trigger
+Four parallel workstreams: (1) owner requested two new Mistral-family AI vendors; (2) Three.js immersive pieces had non-functional mouse orbit and wrong-direction arrow keys; (3) c2.js pieces were crashing with nonexistent API errors; (4) AI-generated Three.js pieces were invisible in the default (non-immersive) post view.
+
+---
+
+### Workstream A — Mistral AI + Mistral Vibe Vendors
+
+#### Decisions Confirmed
+- `mistral` vendor added: standard Mistral AI, endpoint `api.mistral.ai`. Displayed as "Mistral AI".
+- `mistral-vibe` vendor added: Mistral Vibe CLI, model slug `mistral-vibe-cli-latest`, same `api.mistral.ai` endpoint. Displayed as "Mistral Vibe".
+- Old `codestral` vendor slug **renamed** to `mistral-vibe` in the DB via migration `docs/migrations/2026-05-24-rename-codestral-to-mistral-vibe.sql`. The `codestral` ID is reserved for a future separate Codestral vendor using `codestral.mistral.ai` — it is not implemented yet.
+- Vendor enum is an irreversible API/DB surface; decision recorded here before writing.
+
+#### Implementation Notes
+- `ai-settings.ts`: `AiVendor` enum + `VENDOR_CONFIG` map updated with both new entries.
+- `ai-providers.ts`: `callVendor` dispatch updated; both vendors share the same OpenAI-compatible fetch path to `api.mistral.ai`.
+- `art-pieces.ts` route vendor enum: `mistral` and `mistral-vibe` added to the schema.
+- `openapi.yaml`: `AiVendor` enum extended; orval codegen re-run.
+
+#### Outcome
+- Owner can select Mistral AI or Mistral Vibe in Admin → AI settings and use either vendor for text improvement, alt text, and piece generation.
+
+---
+
+### Workstream B — Three.js Immersive Camera Controls Overhaul
+
+#### Trigger
+AI-generated Three.js pieces (Vibe-generated, using their own animation RAF): mouse drag did nothing meaningful, left/right arrow keys rotated instead of strafing, and the first arrow key after a floor click jumped the camera unexpectedly.
+
+#### Root Cause
+AI-generated Three.js pieces call `renderer.render(scene, camera)` inside `startFrame`. `startFrame`'s RAF fires *before* `animateControls` each frame (because piece code registers its RAF first). Each frame, the piece resets `camera.position` to the piece's initial animation value. OrbitControls then reads this reset position as its spherical baseline: mouse drag accumulates from a wrong base (making orbit near-useless), and arrow-key target movement created a diverging angular offset that appeared as rotation.
+
+#### Decisions Confirmed
+- **Save/restore pattern** is the primary fix. At the top of every `animateControls` frame, restore `state.camera.position` and `controls.target` from stored `_orbitCamPos`/`_orbitTarget` vectors before calling `controls.update()`. Save again at the end. OrbitControls is fully independent of whatever `startFrame` did.
+- `controls.target` computed from camera look direction at init (`getWorldDirection` projected forward by `max(initialCamDist * 0.8, 3)` units) instead of defaulting to `(0,0,0)`. Keeps orbit centered on the scene subject.
+- `controls.maxDistance = max(40, initialTargetDist * 4)` — adaptive zoom-out room.
+- Arrow key speed adaptive: `max(0.05, distanceToTarget * 0.03)` — scales with scene size.
+- `controls.update()` moved to top of `animateControls` (syncs camera to OrbitControls before direction reads).
+- `autoFitCamera()` removed from both initialization and `resize()` — piece's initial camera position used as-is.
+- Safe for old compiled (structured-spec) pieces: they set camera once and don't override per-frame, so the save/restore pattern is a no-op for them.
+
+#### Implementation Notes
+- `_orbitCamPos` / `_orbitTarget` declared as `THREE.Vector3` alongside other state vars in `ImmersiveThreePieceStage`.
+- `animateControls` restructured: restore → `controls.update()` → key/animation branches → save → `renderer.render()`.
+- `renderer.render()` stays as the last call each frame so OrbitControls is always the final camera writer.
+
+**File:** `artifacts/microblog/src/pages/immersive-piece.tsx`
+
+#### Outcome
+- Mouse drag orbits freely around the piece's subject; subject stays in frame throughout orbit.
+- Arrow keys translate in camera-local axes; speed feels natural at both close and distant views.
+- Floor click-to-navigate and scroll zoom remain fully functional.
+
+---
+
+### Workstream C — c2.js System Prompt: Correct API
+
+#### Trigger
+Three distinct c2.js generation errors in sequence: `c2.setCanvasSize is not a function`, `renderer.fillRect is not a function`, `c2.Ellipse is not a constructor`. All caused by AI hallucinating c2 API calls that don't exist.
+
+#### Root Cause
+The c2.js `Renderer` is not the canvas 2D context. AI was pattern-matching on: (a) web standards (`fillRect`, `beginPath`) as if the renderer delegated to canvas 2D; (b) other shape constructors (`c2.Circle`, `c2.Rect`) and inventing analogues (`c2.Ellipse`, `c2.Text`). `renderer.ellipse` exists as a direct method but has no `c2.Ellipse` constructor.
+
+#### Decisions Confirmed
+- System prompt in `art-pieces.ts` now includes the complete Renderer API surface with exact call signatures.
+- Explicit prohibited list: `c2.Ellipse`, `c2.Text`, `c2.Path`, `c2.Shape`, `renderer.draw()`, `renderer.animation()`, `renderer.loop()`, and all canvas 2D context methods.
+- `renderer.ellipse(x,y,rx,ry)` documented as a direct method with no constructor — prevents the most common hallucination pattern.
+- Canvas initialization is `new c2.Renderer(canvas)` only — no separate sizing call.
+
+**File:** `artifacts/api-server/src/lib/art-pieces.ts`
+
+#### Outcome
+- c2.js piece generation no longer produces API-not-a-function errors from hallucinated constructors or canvas 2D methods.
+
+---
+
+### Workstream D — Three.js Default Post View Invisible Fix
+
+#### Trigger
+AI-generated Three.js pieces were invisible (gray/white) in the default non-immersive post view (iframe `srcdoc`) but rendered correctly in the immersive viewer.
+
+#### Root Cause
+`renderer.setSize(w, h)` without the `false` (updateStyle) third argument causes Three.js to override `canvas.style.width` and `canvas.style.height` to explicit pixel values (e.g., `"1280px"`). In an iframe container, this overflows the visible area; the rendered scene is at the center of a 1280×720 canvas but only the top-left corner of that canvas is visible inside the small iframe frame.
+
+#### Decisions Confirmed
+- `art-piece-runtime.ts` now re-asserts canvas styles (`width: 100%`, `height: 100%`, position/top/left/bottom/right/zIndex all cleared) after `sketchFactory()` runs — same pattern as `ImmersiveThreePieceStage`'s re-containment block.
+- `width` and `height` (iframe's actual dimensions at init time) are now passed to `sketchFactory` alongside `THREE`, `canvas`, `startFrame`, and `size`. Previously only `canvas` and `startFrame` were passed.
+- Three.js system prompt updated: (1) requires `renderer.setSize(width, height, false)` — the `false` prevents CSS override; (2) prohibits `window.innerWidth`/`window.innerHeight` — requires using `width`/`height` from the runtime object; (3) prohibits `window.addEventListener('resize', ...)` — the runtime handles resize.
+
+**Files:** `artifacts/microblog/src/lib/art-piece-runtime.ts`, `artifacts/api-server/src/lib/art-pieces.ts`
+
+#### Outcome
+- Three.js pieces render correctly at full iframe size in both the default post view and the immersive viewer.
+- Confirmed by owner after testing a newly generated piece.
+
+---
+
+### Session-Level Notes
+- Migration file `docs/migrations/2026-05-24-rename-codestral-to-mistral-vibe.sql` written for the vendor rename; must be run once against the production DB.
+- No OpenAPI breaking changes beyond the vendor enum extension; existing saved vendor settings are forward-compatible.
+- Plan file `/Users/Fornesus/.claude/plans/i-want-to-add-compiled-giraffe.md` was used to track the camera controls work during this session and is now superseded.
+
+---
+
+## 2026-05-25 — Three.js Normal-View Runtime Hardening (Custom Container ID Fix + Fallback Lighting + Enhanced Diagnostics)
+
+### Trigger
+Following the 2026-05-24 session that added Mistral Vibe and hardened p5/c2/Three.js rendering, one unresolved regression remained: AI-generated Three.js pieces showed a blank/background-only normal-view preview despite diagnostics confirming the scene, camera, renderer, and managed render loop were all active (`scene=true camera=true renderer=true objects=12 fitCount=1410 lastRenderAt=621738`).
+
+Inspection of the generated code (a "book on a table" scene produced by Mistral Vibe) revealed the root cause.
+
+---
+
+### Root Cause: Custom Container ID Mismatch
+
+The generated HTML used `<div id="book-container">`. The runtime's `getManagedCanvas()` and `normalizeThreeCanvases()` only recognised three IDs: `#container`, `#canvas-container`, `#sketch-container`. When none matched, the managed canvas was appended to `document.body` directly — after `#book-container`, which already occupied 100% of the viewport height with `overflow: hidden` from the generated CSS.
+
+The canvas was rendering correctly (fitCount and lastRenderAt both increasing) but was positioned below the visible viewport area. The user saw the empty `#book-container` div, not the canvas.
+
+#### Decisions Confirmed
+- `art-piece-runtime.ts` gains a `getThreeMount()` helper that falls back to `document.body.querySelector(':scope > div')` before `document.body`. Both `getManagedCanvas()` and `normalizeThreeCanvases()` use this helper so custom-named container divs (`#book-container`, `#scene-wrapper`, `#app`, etc.) are handled correctly at runtime without any ID matching.
+- The Three.js generation prompt in `art-pieces.ts` gains a CRITICAL instruction requiring `id="container"` and explicitly listing prohibited custom IDs. This prevents the issue in future generations.
+- This is a **runtime-level** fix, not a sanitization-level fix — the HTML sanitizer correctly preserves `id` attributes (since `id` is in `SAFE_HTML_ATTRIBUTES`), but the runtime now correctly handles any ID it encounters.
+
+**Files:** `artifacts/microblog/src/lib/art-piece-runtime.ts`, `artifacts/api-server/src/lib/art-pieces.ts`
+
+---
+
+### Secondary: Scene Bounds Filtering (`getRenderableBounds`)
+
+`autoFit()` previously called `Box3().setFromObject(state.scene)`, which traverses the entire scene graph including `THREE.AxesHelper`, `THREE.GridHelper`, and other non-geometry nodes. These helpers have large or infinite bounding boxes, inflating the computed scene bounds and potentially placing the viewer camera at an enormous distance.
+
+#### Decisions Confirmed
+- New `getRenderableBounds()` function traverses only nodes where `isMesh || isLine || isPoints || isSprite` and that have `geometry`, skipping all nodes flagged `isHelper`, `isLight`, or `isCamera`.
+- `autoFit()` now calls `getRenderableBounds()` first and falls back to the full `Box3().setFromObject(scene)` only when the filtered bounds are empty.
+
+**File:** `artifacts/microblog/src/lib/art-piece-runtime.ts`
+
+---
+
+### Secondary: Fallback Lighting (`ensureFallbackLighting`)
+
+`MeshPhongMaterial`, `MeshLambertMaterial`, and `MeshStandardMaterial` are invisible without lights. AI-generated pieces that omit a light entirely will render as solid black objects against the background.
+
+#### Decisions Confirmed
+- New `ensureFallbackLighting()` function is called from `prepareSceneForViewerRender()` on every managed render. If the scene has no non-fallback lights, it adds one `AmbientLight(0xffffff, 0.7)` and one `DirectionalLight(0xffffff, 0.8)` at position `(5, 10, 7.5)`.
+- Fallback lights are named with the prefix `__viewer_fallback_` so they can be detected and removed if the generated code later adds its own lights.
+- Idempotent: no duplicate fallback lights are ever added.
+- The Three.js generation prompt now includes a CRITICAL lighting rule: pieces using `MeshPhongMaterial`, `MeshLambertMaterial`, or `MeshStandardMaterial` must add at least one light.
+
+**File:** `artifacts/microblog/src/lib/art-piece-runtime.ts`
+
+---
+
+### Secondary: Material Opacity Rescue
+
+`prepareSceneForViewerRender()` previously forced `material.visible = true` but did not correct `opacity: 0` or `transparent: true`, which can make materials invisible even when the mesh is technically visible.
+
+#### Decisions Confirmed
+- In the material traversal loop, materials with `opacity < 0.05` are now rescued: `opacity` is set to `1` and `transparent` is set to `false`.
+
+**File:** `artifacts/microblog/src/lib/art-piece-runtime.ts`
+
+---
+
+### Secondary: Enhanced Normal-View Diagnostics
+
+Existing diagnostics (`scene`, `camera`, `renderer`, `objects`, `canvases`, `managedRendererCanvas`, `fitCount`, `lastRenderAt`) were insufficient to distinguish the three failure classes: wrong canvas mount position, bad scene bounds, and missing lights.
+
+#### Decisions Confirmed
+When `diagnostics: true` is passed to `buildArtPieceSrcDoc`, the `postThreeDiagnostics` warning message now also reports:
+- `boundsEmpty` — whether the renderable-mesh bounds are empty
+- `boundsSize` — mesh-only scene extents as `WxHxD`
+- `boundsCenter` — center of mesh-only bounds
+- `camPos` — viewer camera world position
+- `near` / `far` — viewer camera clip planes
+- `lights` — number of non-fallback lights in the scene
+- `invisMats` — number of materials with `opacity < 0.05`
+
+Diagnostics remain opt-in and are only enabled for the draft preview dialog and admin pieces UI.
+
+**File:** `artifacts/microblog/src/lib/art-piece-runtime.ts`
+
+---
+
+### Tests Added
+
+- `art-piece-runtime.test.ts` (5 new tests): `getThreeMount` fallback to first body div; `getRenderableBounds` helper excludes helpers/lights; `autoFit` uses renderable bounds with scene fallback; `ensureFallbackLighting` function presence; material opacity rescue in `prepareSceneForViewerRender`; enhanced diagnostics fields.
+- `art-pieces.test.ts` (2 new tests): Three.js system prompt contains `id="container"` requirement; system prompt contains lighting requirement for standard materials.
+
+### Outcome
+- Three.js normal-view preview now renders correctly regardless of what container ID the generated HTML used.
+- Existing saved pieces with custom container IDs are silently recovered at render time without requiring re-generation.
+- Future Mistral Vibe (and all other vendor) generations are guided to use `id="container"` by the updated system prompt.
+- Fallback lighting prevents the all-black render class of issues for pieces that omit lights.
+- Material opacity rescue prevents the fully-transparent material class of issues.
+- Enhanced diagnostics surface the failure mode in one observation rather than requiring iterative probing.
+
+---
+
+## 2026-05-25 — AI Vendor Allowlist for Piece Generation + Pieces UI Gating + Admin Settings Cache Fix
+
+### Trigger
+Three follow-on improvements to the AI/pieces system: (1) OpenRouter, Opencode Zen, and Opencode Go do not reliably produce valid piece HTML — restrict piece generation to the three proven vendors; (2) the post editor's "Piece" mode appeared for all configured AI vendors, including those that can't generate pieces; (3) admin AI settings task-preference dropdowns reverted to old values after navigation, requiring a hard refresh to show saved state.
+
+### Decisions Confirmed
+
+**Backend — `PIECE_GENERATION_VENDORS` allowlist:**
+- `ai-settings.ts`: Added `PIECE_GENERATION_VENDORS = ["google", "mistral", "mistral-vibe"] as const`, `PieceGenerationVendor` type, and `isPieceGenerationVendor()` helper.
+- `routes/art-pieces.ts` (`POST /art-pieces/generate`): After the existing enabled+configured check, added a 422 guard: if the requested vendor is not in `PIECE_GENERATION_VENDORS`, return `"[Vendor] is not supported for piece generation. Use Google, Mistral AI, or Mistral Vibe."` No restriction on alt-text or text-rewriting routes.
+
+**Frontend — `pieceVendors` hook return + UI gating:**
+- `use-owner-ai-vendors.ts`: Added `PIECE_GENERATION_VENDORS` constant and `pieceVendors` (filtered subset of `aiVendors`). Hook now returns `pieceVendors` alongside `aiVendors`.
+- `RichPostEditor.tsx`: Added `pieceVendors` prop. "Piece" mode option only renders when `pieceVendors.length > 0`. When in "Piece" mode, the vendor dropdown shows only `pieceVendors` (not all `aiVendors`). Switching to "Piece" mode auto-selects the first piece vendor if the current vendor isn't piece-capable. `useEffect` guard resets to "text" mode if piece vendors disappear.
+- `PostEditor.tsx`, `PostCard.tsx`, `admin-pending.tsx`: All destructure and forward `pieceVendors` to `<RichPostEditor>`.
+- `admin-pieces.tsx`: Both vendor `<select>` elements (new piece + existing piece metadata) switched from `aiVendors` to `pieceVendors`. Auto-select `useEffect` updated to check `pieceVendors` instead of `aiVendors`.
+- `admin-ai.tsx` Task Preferences card: The "Art pieces" dropdown is filtered to `enabledPieceVendors` (piece-capable subset). Text improvement and visual descriptions dropdowns continue to show all enabled vendors.
+
+**Frontend — React Query cache fix (`admin-ai.tsx` `onSuccess`):**
+- Root cause: `onSuccess` called `setQueryData(key, data)` (correct) then `invalidateQueries(key)` (with and then without `refetchType: 'none'`). Even `refetchType: 'none'` sets the internal `isInvalidated: true` flag, which causes React Query's `refetchOnMount` policy to trigger an immediate background refetch whenever any component mounts with this query. This refetch raced with the initial `useEffect` that populates preference dropdowns, occasionally resolving to stale data.
+- Fix: removed `invalidateQueries` from `onSuccess` entirely. `setQueryData` alone writes the correct data and resets `updatedAt`, keeping the cache fresh for `staleTime: 60_000` ms. During that window no background refetch fires on mount. After 60 s, normal stale-while-revalidate behavior resumes.
+- The three explicit `setPrefTextImprove`/`setPrefAltText`/`setPrefArtPiece` calls in `onSuccess` remain to update local state immediately from the mutation response regardless of React Query's observer timing.
+
+### Outcome
+- Attempting piece generation via a non-allowlisted vendor returns a clear 422 error server-side.
+- "Piece" mode option in the post editor is hidden when no piece-capable vendor is configured.
+- When in "Piece" mode, the vendor dropdown shows only Google, Mistral AI, and Mistral Vibe.
+- Admin → Pieces page vendor dropdowns show only the three piece-capable vendors.
+- Admin → AI task-preference selections survive Save, navigation away, and navigation back without requiring a hard refresh.

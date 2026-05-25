@@ -72,6 +72,15 @@ Key behavior:
 - iframe embeds at `/embed/pieces/:id` serve the correct runtime library for the piece's engine via `/api/runtimes/`
 - immersive piece routes at `/immersive/pieces/:id` render the saved piece inside a dedicated immersive viewer: `three` pieces stay on their native 3D path, while `p5` and `c2` use a restored browser-only Three.js gallery scene based on the earlier working `c2` model
 
+Three.js normal-view runtime behavior:
+
+- the runtime creates a viewer-owned camera and fits it to the scene's renderable mesh bounds on every managed render pass, tolerating generated cameras with wrong positions or clip planes
+- scene bounds are computed from renderable meshes only (`Mesh`, `Line`, `Points`, `Sprite`), explicitly excluding `AxesHelper`, `GridHelper`, and other non-geometry nodes that would inflate the bounds
+- the managed canvas is mounted inside the first `<div>` child of `<body>` regardless of its `id` attribute, so custom container IDs (`#book-container`, `#scene-wrapper`, etc.) do not cause blank previews
+- fallback `AmbientLight` and `DirectionalLight` are injected when the scene has no real lights, preventing blank renders from `MeshPhongMaterial`/`MeshLambertMaterial`/`MeshStandardMaterial` objects with no illumination
+- near-transparent materials (`opacity < 0.05`) are forced to `opacity: 1` on every managed render, preventing the invisible-material class of blank previews
+- opt-in diagnostics (enabled in the draft preview dialog and admin pieces UI) now report scene bounds, camera position, clip planes, light count, and invisible material count alongside the existing render-loop metrics
+
 ### Immersive Viewer
 
 Eligible images and saved piece embeds can expose a small lower-right **VR** affordance that opens a dedicated immersive route instead of modifying the stored post HTML contract.
@@ -89,6 +98,8 @@ Key behavior:
 - immersive fullscreen is a popup-style focus mode inside the same route: the scene expands to a full-viewport overlay, the header and metadata disappear, and a lower-right icon-only contract control returns to the gallery/info view
 - piece immersive view reuses the existing app-owned piece runtime; `three` pieces use the saved runtime directly inside the immersive flow, `c2` remains the non-Three framing baseline, and `p5` uses the same recovered browser-only gallery path rather than the discarded texture-bridge experiment
 - featured-image immersive routes now preserve media-asset metadata: when the asset has its own title or alt text, those values are passed through instead of silently substituting the parent post title or the “no alt text provided” fallback
+- clicking the gallery floor moves the camera to that location (350 ms ease-out); arrow keys (↑ ↓ ← →) translate the camera along the view direction; both work across all rendering paths and view modes (default VR, fullscreen overlay, embedded iframe, embedded fullscreen)
+- embed code buttons appear just below the scene: **Embed Static** copies a plain `<iframe>` snippet; **Embed Interactive** copies an immersive gallery iframe with `allowfullscreen` so the embedded viewer supports its own Fullscreen API expand
 - the existing post, page, and embed URLs remain unchanged; immersive routes are an additive URL surface
 - admin piece previews and admin image/library previews use the same immersive trigger pattern as public content
 
@@ -172,8 +183,10 @@ Configured per vendor from `/admin/ai`. Supported vendors:
 - OpenCode Zen
 - OpenCode Go
 - Google Gemini
+- Mistral AI (standard `api.mistral.ai` endpoint; owner supplies a key from `console.mistral.ai`)
+- Mistral Vibe (Vibe CLI key from `console.mistral.ai/codestral/vibe`; model slug `mistral-vibe-cli-latest`)
 
-AI is owner-only and disabled per vendor by default. Saved API keys are encrypted at rest using `AI_SETTINGS_ENCRYPTION_KEY`. The same saved vendor credentials power text rewriting, visual descriptions for local media alt text, and validated piece generation (p5, Three.js, and C2.js). Piece generation is cancellable, bounded by a one-minute server timeout, and surfaces attempts used during generation and repair. See [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md) before treating any vendor as production-ready.
+AI is owner-only and disabled per vendor by default. Saved API keys are encrypted at rest using `AI_SETTINGS_ENCRYPTION_KEY`. The same saved vendor credentials power text rewriting, visual descriptions for local media alt text, and validated piece generation (p5, Three.js, and C2.js). Piece generation is cancellable, bounded by a 10-minute server timeout across up to 5 attempts (2 minutes per individual provider request), and surfaces attempts used during generation and repair. See [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md) before treating any vendor as production-ready.
 
 ### Admin Pages
 
@@ -259,7 +272,9 @@ Recommended local flow for the immersive viewer:
 6. Open `/admin/pieces`, preview a saved `p5`, `c2`, and `three` piece, and confirm the `VR` affordance opens `/immersive/pieces/:id`.
 7. Verify each piece engine remains viewable in immersive mode and that the non-immersive preview still works afterward.
 8. In reduced-width/mobile testing, verify that both image and piece immersive routes scroll past the scene block to expose the full metadata card below. All three piece engines (p5, c2, three) and the image route should scroll correctly.
-9. Open `/admin/library` and the featured-image picker to confirm admin image previews also show the `VR` affordance.
+9. In the immersive view for any piece or image, click the gallery floor and verify the camera translates to that spot. Press ↑ ↓ ← → and verify the camera moves in the direction the view is facing, not in fixed world axes.
+10. Verify the **Embed Static** and **Embed Interactive** buttons below the scene copy a valid `<iframe>` snippet to the clipboard with a toast.
+11. Open `/admin/library` and the featured-image picker to confirm admin image previews also show the `VR` affordance.
 
 Focused checks for this feature:
 
