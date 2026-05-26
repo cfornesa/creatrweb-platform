@@ -331,7 +331,7 @@ export function buildArtPieceSrcDoc(
         state.renderer.setSize?.(width, height, false);
         state.renderer.setViewport?.(0, 0, width, height);
         state.renderer.setScissorTest?.(false);
-        state.renderer.setClearColor?.(state.scene?.background || 0xf5f5f5, 1);
+        state.renderer.setClearColor?.(state.scene?.background || 0x000000, 1);
         state.renderer.autoClear = true;
         state.renderer.localClippingEnabled = false;
         state.renderer.shadowMap && (state.renderer.shadowMap.enabled = false);
@@ -380,7 +380,14 @@ export function buildArtPieceSrcDoc(
           prepareRendererForViewerRender();
           prepareSceneForViewerRender();
           autoFit();
-          state.renderer.render(state.scene, state.viewerCamera || state.camera);
+          // Prefer the piece's own camera when it is positioned away from the world origin —
+          // that means the AI set a meaningful camera position and the preview should match VR.
+          // Fall back to the auto-fit viewer camera only when the piece camera is missing or
+          // stuck at (0,0,0), which indicates the scene hasn't initialised yet.
+          const renderCamera = (state.camera && state.camera.position.length() > 0.5)
+            ? state.camera
+            : (state.viewerCamera || state.camera);
+          state.renderer.render(state.scene, renderCamera);
           state.lastRenderAt = performance.now();
           postThreeDiagnostics(true);
         } finally {
@@ -409,10 +416,13 @@ export function buildArtPieceSrcDoc(
           _managedFrame++;
           if (_managedFrame <= 120 || _managedFrame % 30 === 0) {
             forceManagedRender();
-          } else if (state.renderer && state.scene && (state.viewerCamera || state.camera)) {
+          } else if (state.renderer && state.scene && state.camera) {
             prepareRendererForViewerRender();
             prepareSceneForViewerRender();
-            state.renderer.render(state.scene, state.viewerCamera || state.camera);
+            const renderCam = (state.camera.position.length() > 0.5)
+              ? state.camera
+              : (state.viewerCamera || state.camera);
+            state.renderer.render(state.scene, renderCam);
             state.lastRenderAt = performance.now();
           }
           if (_managedFrame % 60 === 0) postThreeDiagnostics(Boolean(state.renderer && state.scene && state.camera));

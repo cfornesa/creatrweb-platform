@@ -470,6 +470,7 @@ function ImmersiveThreePieceStage({
     let threeDownButton = 0;
     const threeRaycaster = new THREE.Raycaster();
     const threeKeys = new Set<string>();
+    const _activePointerIds = new Set<number>();
     const _threeFwd = new THREE.Vector3();
     const _threeRight = new THREE.Vector3();
 
@@ -518,15 +519,17 @@ function ImmersiveThreePieceStage({
       return Math.max(size.x, size.z, 1) * 0.7;
     }
 
-    function panThreeOrbitBy(dx: number, dz: number) {
+    function panThreeOrbitBy(dx: number, dy: number, dz: number) {
       if (!controls || !state.camera) return;
       const maxOffset = getThreeNavigationLimit();
       const clampedDx = Math.max(-maxOffset, Math.min(maxOffset, dx));
       const clampedDz = Math.max(-maxOffset, Math.min(maxOffset, dz));
-      if (Math.abs(clampedDx) < 1e-6 && Math.abs(clampedDz) < 1e-6) return;
+      if (Math.abs(clampedDx) < 1e-6 && Math.abs(dy) < 1e-6 && Math.abs(clampedDz) < 1e-6) return;
       controls.target.x += clampedDx;
+      controls.target.y += dy;
       controls.target.z += clampedDz;
       state.camera.position.x += clampedDx;
+      state.camera.position.y += dy;
       state.camera.position.z += clampedDz;
       controls.update();
       saveOrbitState();
@@ -582,15 +585,24 @@ function ImmersiveThreePieceStage({
     }
 
     function onThreePointerDown(e: PointerEvent) {
+      _activePointerIds.add(e.pointerId);
       threeDownButton = e.button;
       threeDownX = e.clientX;
       threeDownY = e.clientY;
-      canvas.setPointerCapture?.(e.pointerId);
+      // Only capture for single-touch: capturing both fingers of a pinch
+      // fires before OrbitControls' _onPointerDown and breaks two-pointer dolly mode.
+      if (_activePointerIds.size === 1) {
+        canvas.setPointerCapture?.(e.pointerId);
+      }
     }
 
     function onThreePointerUp(e: PointerEvent) {
       if (!controls || !state.camera) return;
+      // If more than one finger was active this gesture is a pinch — skip floor-click.
+      const wasMultiTouch = _activePointerIds.size > 1;
+      _activePointerIds.delete(e.pointerId);
       canvas.releasePointerCapture?.(e.pointerId);
+      if (wasMultiTouch) return;
       if (threeDownButton !== 0 || e.button !== 0) return;
       if (Math.hypot(e.clientX - threeDownX, e.clientY - threeDownY) >= 6) return;
 
@@ -712,15 +724,19 @@ function ImmersiveThreePieceStage({
           if (threeKeys.has("ArrowRight")) rightScale += speed;
           if (fwdScale !== 0 || rightScale !== 0) {
             state.camera.getWorldDirection(_threeFwd);
-            _threeFwd.y = 0;
-            const len = _threeFwd.length();
-            if (len > 1e-6) {
-              _threeFwd.divideScalar(len);
-              _threeRight.set(-_threeFwd.z, 0, _threeFwd.x);
-              const dx = _threeFwd.x * fwdScale + _threeRight.x * rightScale;
-              const dz = _threeFwd.z * fwdScale + _threeRight.z * rightScale;
-              panThreeOrbitBy(dx, dz);
+            // _threeFwd is unit-length from getWorldDirection. Compute horizontal right
+            // from its XZ component so strafe stays level while forward/back uses the
+            // full 3D direction (including vertical when the camera is tilted).
+            const hLen = Math.sqrt(_threeFwd.x ** 2 + _threeFwd.z ** 2);
+            if (hLen > 1e-6) {
+              _threeRight.set(-_threeFwd.z / hLen, 0, _threeFwd.x / hLen);
+            } else {
+              _threeRight.set(1, 0, 0); // looking straight up/down — arbitrary horizontal right
             }
+            const dx = _threeFwd.x * fwdScale + _threeRight.x * rightScale;
+            const dy = _threeFwd.y * fwdScale;
+            const dz = _threeFwd.z * fwdScale + _threeRight.z * rightScale;
+            panThreeOrbitBy(dx, dy, dz);
           }
         }
 
@@ -805,6 +821,7 @@ function ImmersiveThreePieceStage({
       window.removeEventListener("keyup", onThreeKeyUp);
       stageEl.removeEventListener("click", onThreeStageClick);
       threeKeys.clear();
+      _activePointerIds.clear();
       if (controls) controls.enabled = true;
       controls?.dispose();
       stopFrameHandles.forEach((stop) => stop());

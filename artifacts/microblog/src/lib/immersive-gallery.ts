@@ -397,12 +397,14 @@ export function createKeyboardNavigation(
     speed?: number;
     minX?: number;
     maxX?: number;
+    minY?: number;
+    maxY?: number;
     minZ?: number;
     maxZ?: number;
     container?: HTMLElement;
   } = {},
 ): KeyboardNavigation {
-  const { speed = 0.05, minX = -8, maxX = 8, minZ = 0.5, maxZ = Infinity, container } = options;
+  const { speed = 0.05, minX = -8, maxX = 8, minY = 0, maxY = Infinity, minZ = 0.5, maxZ = Infinity, container } = options;
   const keys = new Set<string>();
 
   function onKeyDown(e: KeyboardEvent) {
@@ -429,21 +431,29 @@ export function createKeyboardNavigation(
     if (keys.has("ArrowRight")) rightScale += speed;
     if (fwdScale === 0 && rightScale === 0) return;
     controls.object.getWorldDirection(_fwd);
-    _fwd.y = 0;
-    const fwdLen = _fwd.length();
-    if (fwdLen < 1e-6) return;
-    _fwd.divideScalar(fwdLen);
-    _right.set(-_fwd.z, 0, _fwd.x);
+    // _fwd is unit-length from getWorldDirection. Derive horizontal right from XZ component
+    // so strafe stays level while forward/back follows the full 3D look direction.
+    const hLen = Math.sqrt(_fwd.x ** 2 + _fwd.z ** 2);
+    if (hLen > 1e-6) {
+      _right.set(-_fwd.z / hLen, 0, _fwd.x / hLen);
+    } else {
+      _right.set(1, 0, 0); // looking straight up/down — arbitrary horizontal right
+    }
     const dx = _fwd.x * fwdScale + _right.x * rightScale;
+    const dy = _fwd.y * fwdScale;
     const dz = _fwd.z * fwdScale + _right.z * rightScale;
     const newCamX = Math.max(minX, Math.min(maxX, controls.object.position.x + dx));
+    const newCamY = Math.max(minY, Math.min(maxY, controls.object.position.y + dy));
     const newCamZ = Math.max(minZ, Math.min(maxZ, controls.object.position.z + dz));
     const actualDx = newCamX - controls.object.position.x;
+    const actualDy = newCamY - controls.object.position.y;
     const actualDz = newCamZ - controls.object.position.z;
-    if (Math.abs(actualDx) < 1e-6 && Math.abs(actualDz) < 1e-6) return;
+    if (Math.abs(actualDx) < 1e-6 && Math.abs(actualDy) < 1e-6 && Math.abs(actualDz) < 1e-6) return;
     controls.object.position.x = newCamX;
+    controls.object.position.y = newCamY;
     controls.object.position.z = newCamZ;
     controls.target.x += actualDx;
+    controls.target.y += actualDy;
     controls.target.z += actualDz;
     // No controls.update() here — the main animate loop calls it once per frame.
     // Calling it here too would double-process sphericalDelta.

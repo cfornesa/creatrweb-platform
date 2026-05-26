@@ -145,7 +145,7 @@ function enhanceImmersiveHtml(html: string): string {
     wrapper.insertAdjacentHTML(
       "beforeend",
       createImmersiveAnchorMarkup(
-        buildImmersivePieceHref(meta.id, meta.versionId),
+        buildImmersivePieceHref(meta.id, meta.versionId, meta.pieceOrigin),
         "Open piece in immersive view",
       ),
     );

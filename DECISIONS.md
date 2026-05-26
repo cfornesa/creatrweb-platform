@@ -2506,6 +2506,54 @@ Three follow-on improvements to the AI/pieces system: (1) OpenRouter, Opencode Z
 
 ---
 
+## 2026-05-26 — Immersive Viewer: Three.js Interaction, Preview Accuracy, and Navigation Fixes
+
+### Trigger
+Four independent issues were reported in the immersive viewer and post-preview pipeline:
+1. Two-finger pinch-to-zoom did not work for Three.js pieces in either VR mode (P5.js, C2.js, and images were unaffected).
+2. Preview cards for pieces generated via Mistral AI, Mistral Vibe, and DeepSeek appeared zoomed out compared to VR mode.
+3. VR buttons on cross-posted pieces (ingested from a different site's RSS feed) navigated to the local piece with the same ID instead of the source site.
+4. Arrow-key movement in both the Three.js VR stage and the gallery VR stage moved parallel to the floor regardless of camera tilt, so looking up and pressing forward still glided along the horizontal plane.
+
+### Decisions Confirmed
+
+**Pinch-to-zoom fix (`artifacts/microblog/src/pages/immersive-piece.tsx`):**
+- Added `_activePointerIds: Set<number>` to `ImmersiveThreePieceStage`.
+- `onThreePointerDown` only calls `canvas.setPointerCapture(pointerId)` when a single finger is active. Calling it for every finger of a pinch was preventing OrbitControls' two-pointer dolly mode from registering correctly.
+- `onThreePointerUp` skips floor-click raycasting when `_activePointerIds.size > 1` before the pointer is removed. This prevents a short pinch from triggering the floor-click navigation and disabling OrbitControls mid-gesture.
+
+**Preview camera accuracy fix (`artifacts/microblog/src/lib/art-piece-runtime.ts`):**
+- `forceManagedRender()` and the steady-state loop in `startManagedRenderLoop` now use `state.camera` (the piece's own camera) when `state.camera.position.length() > 0.5`, falling back to `viewerCamera` (the auto-fit camera) only when the piece camera is at the world origin.
+- Previously, the srcdoc preview always used a viewer camera with FOV 45° and a scene-bounds × 1.55 distance, making pieces whose camera sits closer to the scene (common in Mistral and DeepSeek output) appear zoomed out.
+
+**Cross-post VR routing fix — two parts:**
+- `normalizeFeedItem` in `artifacts/api-server/src/lib/feed-ingest.ts` gained an optional `sourceSiteUrl` parameter. When HTML body content is present, root-relative `src`/`href` attributes are resolved to absolute URLs using the source site's origin before sanitization. This ensures ingested `<iframe src="/embed/pieces/5">` from Site A becomes `<iframe src="https://site-a.com/embed/pieces/5">` rather than remaining relative.
+- `refreshOneSource` in `artifacts/api-server/src/routes/feed-sources.ts` passes `source.siteUrl` to `normalizeFeedItem`.
+- `extractPieceEmbedMeta` in `artifacts/microblog/src/lib/immersive-view.ts` now returns `pieceOrigin: url.origin` so the VR href builder knows whether the piece is local or external.
+- `buildImmersivePieceHref` now accepts an `origin` parameter and returns a full absolute URL when the origin differs from `window.location.origin`.
+- `enhanceImmersiveHtml` in `artifacts/microblog/src/components/post/PostContent.tsx` passes `meta.pieceOrigin` to `buildImmersivePieceHref`.
+- Note: previously ingested posts with relative iframe src values are not retroactively fixed — this applies to newly ingested items only.
+
+**Preview background color fix (`artifacts/microblog/src/lib/art-piece-runtime.ts`):**
+- `prepareRendererForViewerRender()` previously fell back to `0xf5f5f5` (light gray) when `scene.background` was null. This caused a background mismatch: the preview showed light gray while the immersive VR view showed the WebGL default (black).
+- The fallback is now `0x000000`, matching what Three.js renders when no scene background is set. Pieces that explicitly set `scene.background` are unaffected.
+
+**Freeform arrow-key navigation:**
+- Both `ImmersiveThreePieceStage` (Three.js VR, `artifacts/microblog/src/pages/immersive-piece.tsx`) and `createKeyboardNavigation` (gallery VR, `artifacts/microblog/src/lib/immersive-gallery.ts`) previously zeroed out `_threeFwd.y` / `_fwd.y` before computing the movement delta, constraining all movement to the horizontal plane.
+- The floor projection is removed. `getWorldDirection` now feeds directly into the movement delta including its vertical component, so looking up and pressing forward actually moves the camera upward.
+- Strafe (ArrowLeft/ArrowRight) remains horizontal: the right vector is computed as `(-fz/hLen, 0, fx/hLen)` using the XZ magnitude of the forward direction, with a fallback to `(1,0,0)` when looking straight up or down.
+- `panThreeOrbitBy` in `ImmersiveThreePieceStage` now takes a `dy` parameter and applies it to both `controls.target.y` and `camera.position.y` without clamping — Three.js VR is fully freeform (6DoF).
+- `createKeyboardNavigation` gained `minY` (default `0`) and `maxY` (default `Infinity`) options. Camera Y is clamped so gallery visitors cannot clip through the rendered floor while still being able to float freely above it. The existing X and Z bounds remain unchanged.
+
+### Outcome
+- Two-finger pinch-to-zoom works in Three.js immersive VR on touch devices.
+- Preview cards for Mistral AI, Mistral Vibe, and DeepSeek pieces now match the VR view framing.
+- VR buttons on cross-posted pieces navigate to the source site's immersive piece route, not the local one.
+- Preview backgrounds match the immersive view: black canvas when no scene background is set, piece color when explicitly set.
+- Arrow key navigation follows the camera angle in 3D space for both Three.js VR (unconstrained) and gallery VR (constrained to floor and wall bounds).
+
+---
+
 ## 2026-05-26 — DeepSeek Vendor + AI Task Capability Allowlists
 
 ### Trigger

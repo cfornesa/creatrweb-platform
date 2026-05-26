@@ -276,6 +276,21 @@ or rejection. -->
 2026-05-24 · AI VENDORS · Two new AI vendors added: `mistral` (Mistral AI standard, endpoint `api.mistral.ai`) and `mistral-vibe` (Mistral Vibe CLI, model slug `mistral-vibe-cli-latest`, same `api.mistral.ai` endpoint). The old `codestral` vendor slug was renamed to `mistral-vibe` via migration `docs/migrations/2026-05-24-rename-codestral-to-mistral-vibe.sql`. The `codestral` ID is reserved for a future distinct Codestral vendor that uses `codestral.mistral.ai`.
     [Implemented 2026-05-24; verified from `ai-settings.ts`, `ai-providers.ts`, `art-pieces.ts` route vendor enum, `openapi.yaml`, and codegen run.]
 
+2026-05-26 · IMMERSIVE VIEWER · Three.js pinch-to-zoom works via `_activePointerIds: Set<number>` in `ImmersiveThreePieceStage`. `setPointerCapture` is only called for the first finger; `onThreePointerUp` skips floor-click when `_activePointerIds.size > 1` before removal. Gallery (P5/C2) pinch was always fine because those handlers attach to the wrapper div, not the canvas.
+    [Implemented 2026-05-26; `artifacts/microblog/src/pages/immersive-piece.tsx`.]
+
+2026-05-26 · IMMERSIVE VIEWER · Preview camera now matches VR: `art-piece-runtime.ts` uses `state.camera` (piece's own camera) when `position.length() > 0.5`, falling back to the auto-fit viewer camera (FOV 45°, scene-bounds × 1.55) only when the piece camera is at the origin. Affects `forceManagedRender()` and the steady-state `startManagedRenderLoop` path. Previously Mistral/DeepSeek pieces looked zoomed out in previews because the viewer camera placed the scene further away than the piece code intended.
+    [Implemented 2026-05-26; `artifacts/microblog/src/lib/art-piece-runtime.ts`.]
+
+2026-05-26 · IMMERSIVE VIEWER · Preview background now matches VR: `prepareRendererForViewerRender()` WebGL clear-color fallback is `0x000000` (black), not `0xf5f5f5` (light gray). The immersive VR view was always showing black; the preview was wrongly showing gray. Pieces that explicitly set `scene.background` are unaffected.
+    [Implemented 2026-05-26; `artifacts/microblog/src/lib/art-piece-runtime.ts`.]
+
+2026-05-26 · INBOUND FEEDS · Cross-post VR routing is now correct. `normalizeFeedItem` in `feed-ingest.ts` resolves root-relative `src`/`href` attributes to absolute URLs using the feed source's `siteUrl` before sanitization. `extractPieceEmbedMeta` returns `pieceOrigin: url.origin`; `buildImmersivePieceHref` returns a full absolute URL when the origin is external. Previously ingested posts with relative iframe src values are not retroactively fixed — applies to newly ingested items only.
+    [Implemented 2026-05-26; `feed-ingest.ts`, `feed-sources.ts`, `immersive-view.ts`, `PostContent.tsx`.]
+
+2026-05-26 · IMMERSIVE VIEWER · Arrow-key navigation follows the full 3D camera direction (including vertical) in both Three.js VR and gallery VR. The floor projection (`y = 0`) was removed. Strafe stays horizontal. Three.js VR (`panThreeOrbitBy` in `immersive-piece.tsx`) is unconstrained on Y. Gallery VR (`createKeyboardNavigation` in `immersive-gallery.ts`) clamps Y to `[minY=0, maxY=∞]` so visitors cannot clip through the floor while floating freely above.
+    [Implemented 2026-05-26; `artifacts/microblog/src/pages/immersive-piece.tsx`, `artifacts/microblog/src/lib/immersive-gallery.ts`.]
+
 2026-05-26 · AI VENDORS · DeepSeek is supported as owner-configured vendor slug `deepseek` for AI text improvement and validated interactive piece generation (`p5`, `c2`, `three`) through `https://api.deepseek.com/chat/completions`, defaulting to model `deepseek-v4-flash`. AI task capability lists are now separate: text generation includes all configured vendors, piece generation includes Google/Mistral/Mistral Vibe/DeepSeek, and image alt text excludes DeepSeek until official or live-verified DeepSeek API image input support exists.
     [Implemented 2026-05-26; verified from `ai-settings.ts`, `ai-providers.ts`, `routes/ai.ts`, `routes/art-pieces.ts`, `use-owner-ai-vendors.ts`, Admin AI UI, OpenAPI/codegen output, focused tests, and workspace typecheck.]
 
