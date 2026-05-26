@@ -2503,3 +2503,36 @@ Three follow-on improvements to the AI/pieces system: (1) OpenRouter, Opencode Z
 - When in "Piece" mode, the vendor dropdown shows only Google, Mistral AI, and Mistral Vibe.
 - Admin → Pieces page vendor dropdowns show only the three piece-capable vendors.
 - Admin → AI task-preference selections survive Save, navigation away, and navigation back without requiring a hard refresh.
+
+---
+
+## 2026-05-26 — DeepSeek Vendor + AI Task Capability Allowlists
+
+### Trigger
+The owner wanted DeepSeek added as a direct AI vendor in Admin → AI and available for text generation plus validated `p5`, `c2`, and Three.js piece generation, while keeping image alt text honest because DeepSeek V4 API image input was not confirmed in official docs.
+
+### Decisions Confirmed
+
+**DeepSeek direct vendor:**
+- Added persisted vendor slug `deepseek` with label `DeepSeek`.
+- DeepSeek uses the existing OpenAI-compatible chat-completions transport against `POST https://api.deepseek.com/chat/completions` with `Authorization: Bearer {key}`.
+- Admin → AI defaults the DeepSeek model field to `deepseek-v4-flash`; `deepseek-v4-pro` remains a manual model slug option.
+- OpenAPI vendor enums and generated `api-zod` / `api-client-react` types include `deepseek`.
+
+**Separate task capability allowlists:**
+- `TEXT_GENERATION_VENDORS` includes all configured vendors, including `deepseek`.
+- `PIECE_GENERATION_VENDORS` is now `google`, `mistral`, `mistral-vibe`, and `deepseek`.
+- `IMAGE_DESCRIPTION_VENDORS` excludes `deepseek` until official or live-verified DeepSeek API image-input support exists.
+- `/api/ai/describe-image` returns `422` with `code: "vision_not_supported"` when `vendor: "deepseek"` is requested directly.
+- Frontend task preference dropdowns mirror those capability lists: DeepSeek appears for Text improvement and Art pieces, but not Visual descriptions.
+
+**Docs and verification:**
+- `docs/dependencies.md` documents DeepSeek as a hosted provider dependency and records the image-alt-text exclusion.
+- `README.md`, `replit.md`, and `docs/ai-vendor-verification.md` document the capability split and DeepSeek verification path.
+- No database migration was needed because AI vendor fields are stored as strings, but the vendor slug remains a contracted persisted enum decision.
+
+### Outcome
+- The owner can enable DeepSeek by adding only a DeepSeek API key if the default `deepseek-v4-flash` model is acceptable.
+- DeepSeek can be selected for post text generation and Pieces UI generation across `p5`, `c2`, and `three`.
+- DeepSeek is intentionally unavailable for image alt text until its API image-input behavior is officially documented or live-verified.
+- Verification passed: OpenAPI codegen, focused API and Admin AI tests, package typechecks, and root `npm run typecheck`.

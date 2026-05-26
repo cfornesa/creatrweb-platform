@@ -185,8 +185,9 @@ Configured per vendor from `/admin/ai`. Supported vendors:
 - Google Gemini
 - Mistral AI (standard `api.mistral.ai` endpoint; owner supplies a key from `console.mistral.ai`)
 - Mistral Vibe (Vibe CLI key from `console.mistral.ai/codestral/vibe`; model slug `mistral-vibe-cli-latest`)
+- DeepSeek (standard `api.deepseek.com` endpoint; default model slug `deepseek-v4-flash`)
 
-AI is owner-only and disabled per vendor by default. Saved API keys are encrypted at rest using `AI_SETTINGS_ENCRYPTION_KEY`. The same saved vendor credentials power text rewriting, visual descriptions for local media alt text, and validated piece generation (p5, Three.js, and C2.js). Piece generation is cancellable, bounded by a 10-minute server timeout across up to 5 attempts (2 minutes per individual provider request), and surfaces attempts used during generation and repair. See [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md) before treating any vendor as production-ready.
+AI is owner-only and disabled per vendor by default. Saved API keys are encrypted at rest using `AI_SETTINGS_ENCRYPTION_KEY`. Task capability lists decide where a configured vendor appears: text rewriting supports all configured vendors, visual descriptions require image-capable vendors, and validated piece generation supports Google, Mistral AI, Mistral Vibe, and DeepSeek. DeepSeek is intentionally excluded from visual descriptions until official API image-input support is documented or live-verified. DeepSeek remains enabled for piece generation, but art-piece requests are sent in non-thinking mode with a larger code-generation output budget so the provider is more likely to return final HTML/CSS/JS blocks instead of reasoning-only content. Piece generation is cancellable, bounded by a 10-minute server timeout across up to 5 attempts (2 minutes per individual provider request), and surfaces attempts used during generation and repair. See [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md) before treating any vendor as production-ready.
 
 ### Admin Pages
 
