@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { artPiecesTable, artPieceVersionsTable, db, eq } from "@workspace/db";
 import { z } from "zod/v4";
+import { buildStaticImmersiveThreeEmbedHtml } from "./piece-embed-html.helpers";
 
 const router = Router();
 
@@ -46,6 +47,9 @@ router.get("/embed/pieces/:id", async (req: Request, res: Response) => {
     }
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
+    if (version.engine === "three") {
+      return res.send(buildStaticImmersiveThreeEmbedHtml(piece.title, piece.id, version.id));
+    }
     return res.send(pieceEmbedHtml(piece.title, version.engine, version.generatedCode, version.htmlCode, version.cssCode));
   } catch (err) {
     console.error("Failed to serve piece embed:", err);
@@ -60,6 +64,7 @@ function escapeHtml(text: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
+
 
 function pieceEmbedHtml(title: string, engine: string, code: string, htmlCode: string | null | undefined, cssCode: string | null | undefined): string {
   const safeTitle = escapeHtml(title);

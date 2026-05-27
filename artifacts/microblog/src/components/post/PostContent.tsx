@@ -104,6 +104,25 @@ function createImmersiveAnchorMarkup(href: string, label: string) {
   return `<a href="${href}" aria-label="${label.replace(/"/g, "&quot;")}" class="absolute bottom-3 right-3 z-20 inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-border/70 bg-background/90 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-foreground shadow-lg backdrop-blur transition hover:border-primary hover:text-primary">${boxSvg}<span aria-hidden="true">VR</span></a>`;
 }
 
+function normalizePieceEmbedFrame(frame: HTMLIFrameElement) {
+  frame.setAttribute("width", "100%");
+  frame.removeAttribute("height");
+  const existingStyle = frame.getAttribute("style") || "";
+  const preservedStyle = existingStyle
+    .replace(/(?:^|;)\s*(?:width|height|min-height|max-height|aspect-ratio)\s*:[^;]*/gi, "")
+    .trim()
+    .replace(/^;|;$/g, "");
+  const normalizedStyle = [
+    "width:100%",
+    "aspect-ratio:16 / 9",
+    "display:block",
+    preservedStyle,
+  ]
+    .filter(Boolean)
+    .join(";");
+  frame.setAttribute("style", normalizedStyle.endsWith(";") ? normalizedStyle : `${normalizedStyle};`);
+}
+
 function enhanceImmersiveHtml(html: string): string {
   if (typeof DOMParser === "undefined") return html;
   const doc = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
@@ -132,10 +151,12 @@ function enhanceImmersiveHtml(html: string): string {
   });
 
   Array.from(root.querySelectorAll("iframe[src]")).forEach((frame) => {
+    if (!(frame instanceof HTMLIFrameElement)) return;
     const src = frame.getAttribute("src");
     if (!src || frame.closest("[data-immersive-wrapper]")) return;
     const meta = extractPieceEmbedMeta(src);
     if (!meta) return;
+    normalizePieceEmbedFrame(frame);
 
     const wrapper = doc.createElement("div");
     wrapper.setAttribute("data-immersive-wrapper", "piece");

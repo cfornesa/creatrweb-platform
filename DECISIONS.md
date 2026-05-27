@@ -2535,8 +2535,19 @@ Four independent issues were reported in the immersive viewer and post-preview p
 - Note: previously ingested posts with relative iframe src values are not retroactively fixed — this applies to newly ingested items only.
 
 **Preview background color fix (`artifacts/microblog/src/lib/art-piece-runtime.ts`):**
-- `prepareRendererForViewerRender()` previously fell back to `0xf5f5f5` (light gray) when `scene.background` was null. This caused a background mismatch: the preview showed light gray while the immersive VR view showed the WebGL default (black).
-- The fallback is now `0x000000`, matching what Three.js renders when no scene background is set. Pieces that explicitly set `scene.background` are unaffected.
+- `prepareRendererForViewerRender()` previously fell back to `getManagedBackgroundFallback() || '#050b16'` when `scene.background` was null. This caused a background mismatch: the preview could show the site's dark blue while the immersive VR view showed the WebGL default (black).
+- The fallback is now `0x000000` (black), matching what Three.js natively renders when no scene background is set. Pieces that explicitly set `scene.background` are unaffected.
+- This ensures the normal post view and the immersive VR view are visually consistent for all Three.js pieces.
+
+**Three.js Aspect Ratio Consistency Fix:**
+- Three.js camera aspect ratios are now strictly enforced by the viewer runtime (`art-piece-runtime.ts` and `ImmersiveThreePieceStage`) immediately before every render pass.
+- This solves the horizontal compression/exaggeration issue caused by AI-generated pieces that improperly use `window.innerWidth / window.innerHeight` for their camera aspects, which is incorrect when the canvas does not occupy the full browser window (e.g., in inline embeds or the default non-fullscreen immersive view).
+- The runtime now forces `state.camera.aspect = width / height` and calls `updateProjectionMatrix()` on every frame, ensuring that shapes like spheres remain perfectly circular in all view contexts.
+
+**Three.js Immersive View Hardening:**
+- The immersive Three.js stage (`ImmersiveThreePieceStage`) now includes the same scene and renderer hardening logic as the preview runtime.
+- This includes fallback lighting (adding lights when none are present), forcing object visibility, enabling all layers, and rescuing near-transparent materials.
+- This ensures that pieces which render correctly in the normal post view (due to preview-runtime hardening) also render correctly in the immersive VR view, fixing issues where pieces appeared completely blank or black.
 
 **Freeform arrow-key navigation:**
 - Both `ImmersiveThreePieceStage` (Three.js VR, `artifacts/microblog/src/pages/immersive-piece.tsx`) and `createKeyboardNavigation` (gallery VR, `artifacts/microblog/src/lib/immersive-gallery.ts`) previously zeroed out `_threeFwd.y` / `_fwd.y` before computing the movement delta, constraining all movement to the horizontal plane.
@@ -2584,3 +2595,34 @@ The owner wanted DeepSeek added as a direct AI vendor in Admin → AI and availa
 - DeepSeek can be selected for post text generation and Pieces UI generation across `p5`, `c2`, and `three`.
 - DeepSeek is intentionally unavailable for image alt text until its API image-input behavior is officially documented or live-verified.
 - Verification passed: OpenAPI codegen, focused API and Admin AI tests, package typechecks, and root `npm run typecheck`.
+
+---
+
+## 2026-05-26 — Three.js Immersive Piece Fixes: VR Mounting, Aspect Ratio, and Centering Consistency
+
+### Trigger
+Piece 48 failed to render in the default VR view (blank screen), and Three.js pieces in the immersive route appeared with distorted aspect ratios (compressed or elongated) and improper centering when the browser window was resized.
+
+### Decisions Confirmed
+
+**VR Mount Fallback for Custom Container IDs (Fix for Piece 48):**
+- Updated `ImmersiveThreePieceStage` mount discovery to include `stageEl.querySelector(":scope > div")`. 
+- AI-generated pieces with custom root container IDs (like `#book-container` in Piece 48) now correctly mount their managed canvas within the local stage context instead of falling back to `document.body` (which pushed them off-screen).
+
+**Strict Aspect Ratio Enforcement:**
+- Both `resize()` and `animateControls()` in `ImmersiveThreePieceStage` now strictly enforce `camera.aspect = width / height` using the actual `stageEl` dimensions (`clientWidth` / `clientHeight`).
+- This prevents horizontal distortion caused by AI-generated pieces that improperly rely on `window.innerWidth` / `window.innerHeight` when the canvas does not fill the entire window.
+
+**Mandatory Auto-Fit Centering:**
+- Hoisted `autoFitCamera` and ensured it is called at frame 15 of every Three.js piece initialization within the immersive stage.
+- Updated `autoFitCamera` to correctly synchronize the `OrbitControls` target and save its state (`saveOrbitState`).
+- This guarantees that every piece is perfectly centered and appropriately scaled upon first load, ensuring visual parity between the post preview and the immersive view.
+
+**Background Synchronization and Type Safety:**
+- Removed redundant and type-unsafe background initializations that caused TypeScript build errors.
+- Consolidated background resolution into `reassertThreeCanvasContainment`, ensuring the stage background is always synchronized with the WebGL clear color (defaulting to black `0x000000`).
+
+### Outcome
+- Piece 48 and other pieces with custom container IDs now render correctly in all immersive modes.
+- Three.js pieces maintain consistent aspect ratios and perfect centering across all viewports and layout modes.
+- Visual parity is achieved between the "normal" post preview and the "VR" immersive route.

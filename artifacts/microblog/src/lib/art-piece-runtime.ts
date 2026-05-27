@@ -133,6 +133,37 @@ export function buildArtPieceSrcDoc(
         requestAnimationFrame(_tickCanvasSafety);
       });
     }
+    function _isVisibleBackground(value) {
+      if (!value) return false;
+      const normalized = String(value).trim().toLowerCase();
+      return normalized !== '' && normalized !== 'transparent' && normalized !== 'rgba(0, 0, 0, 0)';
+    }
+    function _resolveManagedBackground(elements) {
+      for (const element of elements) {
+        if (!(element instanceof HTMLElement)) continue;
+        const inlineBackground = element.style.backgroundColor || element.style.background;
+        if (_isVisibleBackground(inlineBackground)) return inlineBackground;
+        const computedBackground = window.getComputedStyle(element).backgroundColor;
+        if (_isVisibleBackground(computedBackground)) return computedBackground;
+      }
+      return null;
+    }
+    function _syncManagedBackdrop(color) {
+      if (_isVisibleBackground(color)) {
+        document.documentElement.style.background = color;
+        document.body.style.background = color;
+        const mount = document.getElementById('container')
+          || document.getElementById('canvas-container')
+          || document.getElementById('sketch-container');
+        if (mount instanceof HTMLElement) {
+          mount.style.background = color;
+        }
+        return color;
+      }
+      document.documentElement.style.background = 'transparent';
+      document.body.style.background = 'transparent';
+      return null;
+    }
   `;
 
   const engineInit =
@@ -166,6 +197,17 @@ export function buildArtPieceSrcDoc(
         _managedCanvas.setAttribute('data-art-piece-managed-canvas', 'true');
         _reassertManagedCanvas(_managedCanvas);
         return _managedCanvas;
+      }
+
+      function getManagedBackgroundFallback() {
+        const managedCanvas = getManagedCanvas();
+        return _resolveManagedBackground([
+          managedCanvas,
+          managedCanvas?.parentElement,
+          getThreeMount(),
+          document.body,
+          document.documentElement,
+        ]);
       }
 
       function normalizeThreeCanvases() {
@@ -331,7 +373,17 @@ export function buildArtPieceSrcDoc(
         state.renderer.setSize?.(width, height, false);
         state.renderer.setViewport?.(0, 0, width, height);
         state.renderer.setScissorTest?.(false);
-        state.renderer.setClearColor?.(state.scene?.background || 0x000000, 1);
+        if (state.camera && 'aspect' in state.camera) {
+          state.camera.aspect = width / Math.max(height, 1);
+          state.camera.updateProjectionMatrix?.();
+        }
+        const previewBackground = state.scene?.background || 0x000000;
+        state.renderer.setClearColor?.(previewBackground, 1);
+        if (state.scene?.background?.getStyle) {
+          _syncManagedBackdrop(state.scene.background.getStyle());
+        } else {
+          _syncManagedBackdrop(typeof previewBackground === 'string' ? previewBackground : null);
+        }
         state.renderer.autoClear = true;
         state.renderer.localClippingEnabled = false;
         state.renderer.shadowMap && (state.renderer.shadowMap.enabled = false);

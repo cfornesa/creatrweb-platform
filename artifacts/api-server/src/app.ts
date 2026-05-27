@@ -129,6 +129,10 @@ const staticPath = process.env.STATIC_FILES_PATH
 if (fs.existsSync(staticPath)) {
   const indexPath = path.join(staticPath, "index.html");
 
+  app.get("/robots.txt", (_req, res) => {
+    res.type("text/plain").send("User-agent: *\nAllow: /\n");
+  });
+
   // Site root: register an explicit handler before `express.static` so
   // `GET /` and `GET /index.html` always run through `injectThemeData`
   // and arrive at the browser with `<style id="site-settings-theme">`

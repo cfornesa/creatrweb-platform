@@ -282,8 +282,14 @@ or rejection. -->
 2026-05-26 · IMMERSIVE VIEWER · Preview camera now matches VR: `art-piece-runtime.ts` uses `state.camera` (piece's own camera) when `position.length() > 0.5`, falling back to the auto-fit viewer camera (FOV 45°, scene-bounds × 1.55) only when the piece camera is at the origin. Affects `forceManagedRender()` and the steady-state `startManagedRenderLoop` path. Previously Mistral/DeepSeek pieces looked zoomed out in previews because the viewer camera placed the scene further away than the piece code intended.
     [Implemented 2026-05-26; `artifacts/microblog/src/lib/art-piece-runtime.ts`.]
 
-2026-05-26 · IMMERSIVE VIEWER · Preview background now matches VR: `prepareRendererForViewerRender()` WebGL clear-color fallback is `0x000000` (black), not `0xf5f5f5` (light gray). The immersive VR view was always showing black; the preview was wrongly showing gray. Pieces that explicitly set `scene.background` are unaffected.
+2026-05-26 · IMMERSIVE VIEWER · Preview background now matches VR: `prepareRendererForViewerRender()` WebGL clear-color fallback is `0x000000` (black), not `getManagedBackgroundFallback() || '#050b16'`. The immersive VR view was always showing black; the preview could wrongly show the site's dark blue. Pieces that explicitly set `scene.background` are unaffected.
     [Implemented 2026-05-26; `artifacts/microblog/src/lib/art-piece-runtime.ts`.]
+
+2026-05-26 · IMMERSIVE VIEWER · Three.js aspect ratio is now consistent across all views. The runtime strictly enforces the correct container aspect ratio (`width / height`) right before every render pass in both `art-piece-runtime.ts` and `immersive-piece.tsx`. This prevents horizontal distortion (e.g., squashed spheres) caused by AI-generated pieces incorrectly using `window.innerWidth / window.innerHeight`.
+    [Implemented 2026-05-26; `artifacts/microblog/src/lib/art-piece-runtime.ts` and `artifacts/microblog/src/pages/immersive-piece.tsx`.]
+
+2026-05-26 · IMMERSIVE VIEWER · Immersive Three.js stage now has parity with preview hardening. `ImmersiveThreePieceStage` now performs scene and renderer hardening (fallback lighting, material rescue, visibility forcing) before every render. This ensures that any piece that appears correctly in the post preview also renders correctly in the immersive VR view, resolving blank/black screen issues.
+    [Implemented 2026-05-26; `artifacts/microblog/src/pages/immersive-piece.tsx`.]
 
 2026-05-26 · INBOUND FEEDS · Cross-post VR routing is now correct. `normalizeFeedItem` in `feed-ingest.ts` resolves root-relative `src`/`href` attributes to absolute URLs using the feed source's `siteUrl` before sanitization. `extractPieceEmbedMeta` returns `pieceOrigin: url.origin`; `buildImmersivePieceHref` returns a full absolute URL when the origin is external. Previously ingested posts with relative iframe src values are not retroactively fixed — applies to newly ingested items only.
     [Implemented 2026-05-26; `feed-ingest.ts`, `feed-sources.ts`, `immersive-view.ts`, `PostContent.tsx`.]
@@ -305,3 +311,6 @@ or rejection. -->
 
 2026-05-24 · INTERACTIVE PIECES · Three.js pieces in the default post view (non-immersive iframe) were invisible. Root cause: `renderer.setSize(w, h)` without `false` overrides `canvas.style.width/height` to pixel values (e.g. `"1280px"`), overflowing the iframe container. Fix in `art-piece-runtime.ts`: canvas styles are re-asserted to `100%` after `sketchFactory` runs; `width` and `height` from the iframe dimensions are now passed to `sketchFactory`. Fix in Three.js system prompt: requires `renderer.setSize(width, height, false)` and prohibits `window.innerWidth/innerHeight` and resize event listeners.
     [Implemented 2026-05-24; `artifacts/microblog/src/lib/art-piece-runtime.ts`, `artifacts/api-server/src/lib/art-pieces.ts`.]
+
+2026-05-26 · IMMERSIVE VIEWER · Three.js immersive piece rendering is hardened for custom containers, aspect ratio stability, and uniform centering. Piece 48 now renders correctly via the `:scope > div` mount fallback. Aspect ratios are strictly enforced using `stageEl` dimensions to prevent distortion on resize. `autoFitCamera` is called at frame 15 in the immersive stage to guarantee centering parity with the post preview.
+    [Implemented 2026-05-26; `artifacts/microblog/src/pages/immersive-piece.tsx`.]

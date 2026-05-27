@@ -263,6 +263,7 @@ export function RichPostEditor({
   const [pendingNavUrl, setPendingNavUrl] = useState<string | null>(null);
   const origPushStateRef = useRef(window.history.pushState.bind(window.history));
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkDialogInitialText, setLinkDialogInitialText] = useState("");
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false);
   const [youTubeDialogOpen, setYouTubeDialogOpen] = useState(false);
   const [isHtmlMode, setIsHtmlMode] = useState(false);
@@ -423,6 +424,11 @@ export function RichPostEditor({
 
   function handleInsertLink() {
     if (!editor) return;
+    const { selection } = editor.state;
+    const selected = selection.empty
+      ? ""
+      : editor.state.doc.textBetween(selection.from, selection.to, " ");
+    setLinkDialogInitialText(selected);
     setLinkDialogOpen(true);
   }
 
@@ -442,6 +448,9 @@ export function RichPostEditor({
     if (!editor.view.dom.contains(target)) return;
 
     if (target.closest("a")) {
+      const anchorEl = target.closest("a");
+      const existingText = anchorEl?.textContent?.trim() ?? "";
+      setLinkDialogInitialText(existingText);
       setLinkDialogOpen(true);
       return;
     }
@@ -729,9 +738,9 @@ export function RichPostEditor({
   const aiButtonClass =
     "rounded-none border-2 border-yellow-400 bg-zinc-100/95 text-zinc-950 shadow-[3px_3px_0_0_rgba(234,179,8,1)] hover:bg-yellow-200 dark:bg-zinc-950/95 dark:text-yellow-200 dark:hover:bg-zinc-900";
   const aiSelectClass =
-    "pointer-events-auto h-9 min-w-[11rem] rounded-none border-2 border-yellow-400 bg-zinc-100/95 px-3 text-sm text-zinc-950 shadow-[3px_3px_0_0_rgba(234,179,8,1)] focus:outline-none focus:ring-0 dark:bg-zinc-950/95 dark:text-yellow-200";
+    "pointer-events-auto h-9 min-w-[11rem] rounded-none border-2 border-yellow-400 bg-zinc-100/95 px-3 text-sm text-zinc-950 shadow-[3px_3px_0_0_rgba(234,179,8,1)] focus:outline-none focus:ring-2 focus:ring-ring dark:bg-zinc-950/95 dark:text-yellow-200";
   const aiModeSelectClass =
-    "pointer-events-auto h-9 min-w-[8rem] rounded-none border-2 border-black bg-white/95 px-3 text-sm text-zinc-950 shadow-[3px_3px_0_0_rgba(0,0,0,0.95)] focus:outline-none focus:ring-0 dark:bg-zinc-900/95 dark:text-zinc-50";
+    "pointer-events-auto h-9 min-w-[8rem] rounded-none border-2 border-black bg-white/95 px-3 text-sm text-zinc-950 shadow-[3px_3px_0_0_rgba(0,0,0,0.95)] focus:outline-none focus:ring-2 focus:ring-ring dark:bg-zinc-900/95 dark:text-zinc-50";
   const headingLabel =
     editor.isActive("heading", { level: 1 }) ? "H1"
       : editor.isActive("heading", { level: 2 }) ? "H2"
@@ -1539,9 +1548,21 @@ export function RichPostEditor({
         open={linkDialogOpen}
         onOpenChange={setLinkDialogOpen}
         initialHref={editor?.getAttributes("link").href as string | undefined}
+        initialLinkText={linkDialogInitialText}
         initialOpenInNewTab={editor?.getAttributes("link").target === "_blank"}
-        onApply={(href, openInNewTab) => {
-          editor?.chain().focus().extendMarkRange("link").setLink({ href, target: openInNewTab ? "_blank" : null }).run();
+        onApply={(href, openInNewTab, linkText) => {
+          if (!editor) return;
+          const target = openInNewTab ? "_blank" : null;
+          const { selection } = editor.state;
+          if (selection.empty && linkText) {
+            editor.chain().focus().insertContent({
+              type: "text",
+              text: linkText,
+              marks: [{ type: "link", attrs: { href, target } }],
+            }).run();
+          } else if (!selection.empty) {
+            editor.chain().focus().extendMarkRange("link").setLink({ href, target }).run();
+          }
         }}
         onRemove={() => {
           editor?.chain().focus().extendMarkRange("link").unsetLink().run();

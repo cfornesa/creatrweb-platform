@@ -52,6 +52,33 @@ export function getCanvasMetrics(
   };
 }
 
+function isVisibleBackgroundColor(value: string | null | undefined) {
+  if (!value) {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized !== "" && normalized !== "transparent" && normalized !== "rgba(0, 0, 0, 0)";
+}
+
+export function resolveImmersiveElementBackground(
+  elements: Array<Element | null | undefined>,
+) {
+  for (const element of elements) {
+    if (!(element instanceof HTMLElement)) {
+      continue;
+    }
+    const inlineBackground = element.style.backgroundColor || element.style.background;
+    if (isVisibleBackgroundColor(inlineBackground)) {
+      return inlineBackground;
+    }
+    const computedBackground = window.getComputedStyle(element).backgroundColor;
+    if (isVisibleBackgroundColor(computedBackground)) {
+      return computedBackground;
+    }
+  }
+  return null;
+}
+
 export function createImmersiveHost(
   htmlCode: string | null | undefined,
   cssCode: string | null | undefined,
@@ -82,6 +109,11 @@ export function createImmersiveHost(
   `;
 
   host.appendChild(style);
+  if (cssCode?.trim()) {
+    const pieceStyle = document.createElement("style");
+    pieceStyle.textContent = cssCode;
+    host.appendChild(pieceStyle);
+  }
   const markup = document.createElement("div");
   markup.style.width = "100%";
   markup.style.height = "100%";

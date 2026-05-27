@@ -59,6 +59,7 @@ type PartialSettings = {
   colorDestructive?: string | null;
   colorDestructiveForeground?: string | null;
   siteTitle?: string | null;
+  heroSubheading?: string | null;
 };
 
 function buildThemeInjection(settings: PartialSettings): { themeId: string; css: string } {
@@ -137,7 +138,19 @@ const FEED_ALTERNATE_LINKS =
   '<link rel="alternate" type="application/atom+xml" title="Atom feed" href="/feed.xml">\n' +
   '  <link rel="alternate" type="application/feed+json" title="JSON Feed" href="/feed.json">';
 
-function applyThemeToHtml(html: string, themeId: string, css: string): string {
+function safeDescription(value: unknown, maxLen = 160): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const truncated = trimmed.length > maxLen ? trimmed.slice(0, maxLen - 1) + "…" : trimmed;
+  return truncated
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function applyThemeToHtml(html: string, themeId: string, css: string, description?: string | null): string {
   html = html.replace(
     /(<html\b[^>]*?)(?:\s+data-theme="[^"]*")?(\s*>)/,
     `$1 data-theme="${themeId}"$2`,
@@ -145,9 +158,14 @@ function applyThemeToHtml(html: string, themeId: string, css: string): string {
   const linkBlock = html.includes('rel="alternate" type="application/atom+xml"')
     ? ""
     : `  ${FEED_ALTERNATE_LINKS}\n`;
+  const hasDescription = /<meta\s[^>]*name=["']description["']/i.test(html);
+  const safeDesc = description ? safeDescription(description) : null;
+  const descBlock = !hasDescription && safeDesc
+    ? `  <meta name="description" content="${safeDesc}">\n`
+    : "";
   html = html.replace(
     "</head>",
-    `${linkBlock}  <style id="site-settings-theme">${css}</style>\n  </head>`,
+    `${linkBlock}${descBlock}  <style id="site-settings-theme">${css}</style>\n  </head>`,
   );
   return html;
 }
@@ -157,7 +175,7 @@ export async function injectThemeData(htmlPath: string): Promise<string> {
   try {
     const settings = await loadSettings();
     const { themeId, css } = buildThemeInjection(settings);
-    return applyThemeToHtml(html, themeId, css);
+    return applyThemeToHtml(html, themeId, css, settings.heroSubheading);
   } catch (err) {
     console.error("Theme injection failed:", err);
     return html;
@@ -339,7 +357,7 @@ export async function injectUserTheme(
     const settings = await loadSettings();
     const { themeId, css } = buildThemeInjection(settings);
     let html = readHtml(htmlPath);
-    html = applyThemeToHtml(html, themeId, css);
+    html = applyThemeToHtml(html, themeId, css, settings.heroSubheading);
 
     if (userHasCustomization(user) && typeof user.id === "string") {
       const scopeKey = buildScopeKey(user.id);
@@ -413,7 +431,8 @@ export async function injectCategoryFeedLinks(
     const settings = await loadSettings();
     const { themeId, css } = buildThemeInjection(settings);
     let html = readHtml(htmlPath);
-    html = applyThemeToHtml(html, themeId, css);
+    const categoryDescription = `Posts in the ${cat.name} category`;
+    html = applyThemeToHtml(html, themeId, css, categoryDescription);
 
     const safeName = cat.name
       .replace(/&/g, "&amp;")
@@ -456,7 +475,7 @@ export async function injectPageFeedLinks(
     const settings = await loadSettings();
     const { themeId, css } = buildThemeInjection(settings);
     let html = readHtml(htmlPath);
-    html = applyThemeToHtml(html, themeId, css);
+    html = applyThemeToHtml(html, themeId, css, page.title);
 
     const safeTitle = page.title
       .replace(/&/g, "&amp;")
