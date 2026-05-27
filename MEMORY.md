@@ -2,6 +2,9 @@
 to the human before proceeding. Do not act on a pending entry — wait for explicit confirmation
 or rejection. -->
 
+2026-05-27 · VR INTERACTIONS · Three.js art pieces in default and immersive VR modes now fully support touch-screen interactions, including two-finger pinch-to-zoom. This was achieved by tracking OrbitControls interaction states ("start" / "end") and conditionally bypassing frame-by-frame camera/target resets during active gestures, standardising the UX to match P5, C2, and image gallery implementations.
+    [Verified from interactive touch zoom updates to ImmersiveThreePieceStage in immersive-piece.tsx.]
+
 2026-04-28 · PRODUCT · The project direction is an author-owned microblog where only the site owner publishes canonical posts, while signed-in visitors can comment and react.
     [Verified from CONSTRAINTS.md and DECISIONS.md.]
 

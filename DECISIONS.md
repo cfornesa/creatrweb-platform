@@ -34,6 +34,19 @@ options regardless of session context. -->
 
 ---
 
+## 2026-05-27 — Standardized Touch Screen Zoom for Three.js VR Stages
+
+### Trigger
+Three.js pieces viewed in default and immersive VR modes did not support touch screen zooming (pinch-to-zoom) on mobile and tablet devices, despite P5.js, C2.js, and image stages supporting this behavior natively.
+
+### Decisions Confirmed
+- Added an `isOrbitActive` state tracking flag to `ImmersiveThreePieceStage` in `immersive-piece.tsx`.
+- Registered `start` and `end` listeners on the Three.js stage `OrbitControls` instance to toggle `isOrbitActive` during active pointer/touch interactions.
+- Modified the stage's `animateControls` loop to conditionally bypass the frame-by-frame `state.camera.position.copy` and `controls.target.copy` coordinate resets while `isOrbitActive` is true.
+- Verified compilation and type-checks successfully across the monorepo.
+
+---
+
 ## 2026-05-08 — Blog URL Scoping for OAuth Platforms + Optional Post Title Field
 
 ### Workstream A — Blog URL per OAuth Platform
