@@ -468,12 +468,9 @@ function ImmersiveThreePieceStage({
     (window as any).THREE = instrumentedThree;
 
     function autoFitCamera(viewportWidth = stageEl.clientWidth || window.innerWidth) {
-      if (!state.scene || !state.camera || state.objects.length === 0) {
+      if (!state.scene || !state.camera) {
         return;
       }
-      state.objects.forEach((object) => {
-        object.geometry?.computeBoundingBox?.();
-      });
       const box = getRenderableBounds();
       if (box.isEmpty()) {
         try { box.setFromObject(state.scene); } catch { return; }
@@ -498,6 +495,12 @@ function ImmersiveThreePieceStage({
         nextView.camera.z,
       );
       state.camera.lookAt(nextView.target.x, nextView.target.y, nextView.target.z);
+      
+      const maxDim = Math.max(size.x, size.y, size.z) || 1;
+      const dist = state.camera.position.distanceTo(center);
+      state.camera.near = Math.max(0.01, dist / 1000);
+      state.camera.far = Math.max(1000, dist * 100 + maxDim * 100);
+      
       state.camera.updateProjectionMatrix?.();
       state.camera.updateMatrixWorld?.(true);
       if (controls) {
@@ -668,11 +671,6 @@ function ImmersiveThreePieceStage({
       threeDownButton = e.button;
       threeDownX = e.clientX;
       threeDownY = e.clientY;
-      // Only capture for single-touch: capturing both fingers of a pinch
-      // fires before OrbitControls' _onPointerDown and breaks two-pointer dolly mode.
-      if (_activePointerIds.size === 1) {
-        canvas.setPointerCapture?.(e.pointerId);
-      }
     }
 
     function onThreePointerUp(e: PointerEvent) {
@@ -680,7 +678,6 @@ function ImmersiveThreePieceStage({
       // If more than one finger was active this gesture is a pinch — skip floor-click.
       const wasMultiTouch = _activePointerIds.size > 1;
       _activePointerIds.delete(e.pointerId);
-      canvas.releasePointerCapture?.(e.pointerId);
       if (wasMultiTouch) return;
       if (threeDownButton !== 0 || e.button !== 0) return;
       if (Math.hypot(e.clientX - threeDownX, e.clientY - threeDownY) >= 6) return;
@@ -798,7 +795,6 @@ function ImmersiveThreePieceStage({
               material.opacity = 1;
               material.transparent = false;
             }
-            material.needsUpdate = true;
           });
         }
       });

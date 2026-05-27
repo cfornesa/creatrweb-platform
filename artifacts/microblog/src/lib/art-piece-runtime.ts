@@ -360,7 +360,6 @@ export function buildArtPieceSrcDoc(
                 material.opacity = 1;
                 material.transparent = false;
               }
-              material.needsUpdate = true;
             });
           }
         });
@@ -421,6 +420,13 @@ export function buildArtPieceSrcDoc(
         viewerCamera.far = Math.max(1000, cameraZ * 100 + maxDim * 100);
         viewerCamera.updateProjectionMatrix?.();
         viewerCamera.updateMatrixWorld(true);
+
+        if (state.camera) {
+          state.camera.near = Math.max(0.01, cameraZ / 1000);
+          state.camera.far = Math.max(1000, cameraZ * 100 + maxDim * 100);
+          state.camera.updateProjectionMatrix?.();
+        }
+
         state.fitCount++;
         return true;
       }

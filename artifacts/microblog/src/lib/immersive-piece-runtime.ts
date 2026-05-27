@@ -109,11 +109,6 @@ export function createImmersiveHost(
   `;
 
   host.appendChild(style);
-  if (cssCode?.trim()) {
-    const pieceStyle = document.createElement("style");
-    pieceStyle.textContent = cssCode;
-    host.appendChild(pieceStyle);
-  }
   const markup = document.createElement("div");
   markup.style.width = "100%";
   markup.style.height = "100%";

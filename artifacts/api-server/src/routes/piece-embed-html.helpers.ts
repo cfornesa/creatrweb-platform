@@ -5,16 +5,18 @@ function escapeHtml(text: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
-
 export function buildStaticImmersiveThreeEmbedHtml(
   title: string,
   pieceId: number,
   versionId: number,
+  origin: string,
 ): string {
   const safeTitle = escapeHtml(title);
-  const src = `/immersive/pieces/${pieceId}?embed=1&static=1&version=${versionId}`;
+  const src = `${origin}/immersive/pieces/${pieceId}?embed=1&static=1&version=${versionId}`;
   return `<!DOCTYPE html>
 <html lang="en">
+...
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">

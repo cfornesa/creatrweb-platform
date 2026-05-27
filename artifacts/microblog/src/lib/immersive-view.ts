@@ -83,14 +83,16 @@ export function readImmersiveImageMetadata(searchParams: URLSearchParams): Immer
   };
 }
 
-export function buildImmersivePieceHref(id: number, versionId?: number | null, origin = window.location.origin) {
-  const href = new URL(`/immersive/pieces/${id}`, origin);
+export function buildImmersivePieceHref(id: number, versionId?: number | null, origin?: string) {
+  const base = origin || window.location.origin;
+  const href = new URL(`/immersive/pieces/${id}`, base);
   if (versionId && Number.isFinite(versionId) && versionId > 0) {
     href.searchParams.set("version", String(versionId));
   }
-  // Return a full absolute URL when the piece lives on a different origin so
-  // cross-posted VR links navigate to the source site, not the local one.
-  if (origin !== window.location.origin) {
+  // Return a full absolute URL when an origin is explicitly provided
+  // to ensure links are robust when the HTML is moved to other sites
+  // (e.g. syndication, copy-paste, external embeds).
+  if (origin) {
     return href.toString();
   }
   return `${href.pathname}${href.search}`;

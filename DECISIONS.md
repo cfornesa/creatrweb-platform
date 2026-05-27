@@ -2626,3 +2626,53 @@ Piece 48 failed to render in the default VR view (blank screen), and Three.js pi
 - Piece 48 and other pieces with custom container IDs now render correctly in all immersive modes.
 - Three.js pieces maintain consistent aspect ratios and perfect centering across all viewports and layout modes.
 - Visual parity is achieved between the "normal" post preview and the "VR" immersive route.
+
+---
+
+## 2026-05-27 — Canonical Origin for Art Pieces and Feeds
+
+### Trigger
+Interactive art pieces in posts were failing to render (showing only backgrounds) when viewed on a different domain or when local content was viewed in production. Root cause: the editor was converting relative piece URLs (`/embed/pieces/:id`) into absolute URLs using the temporary browser origin (`window.location.origin`) at save time. Additionally, `PUBLIC_SITE_URL` usage in feed generation proved brittle for local development, and piece URLs were dropping critical query parameters like `?version=...`.
+
+### Decisions Confirmed
+- The first entry in the `ALLOWED_ORIGINS` environment variable is the "canonical origin" for the site in both backend and frontend.
+- **Backend**: New `getCanonicalOrigin(req?: Request)` helper in `origin.ts` centralizes origin resolution. Priority: `ALLOWED_ORIGINS[0]` → `PUBLIC_SITE_URL` → request headers → hardcoded fallback (`platform.creatrweb.com`).
+- **Server-Side Injection**: All HTML entry points (Posts, Pages, Categories, Profiles, Home) now inject `window.__CANONICAL_ORIGIN__` into the document head. This ensures the frontend has immediate access to the canonical host before async settings load.
+- **Runtime Rewriting**: `PostContent.tsx` now performs runtime rewriting of all art piece iframes and "VR" links to use the canonical origin. This fixes historically saved posts and ensures consistency when content is viewed on external domains or syndicated platforms.
+- **Content Normalization**: A new shared library `content-normalization.ts` handles absolute URL conversion for piece embeds while strictly preserving query strings and fragments. Used by `RichPostEditor` and `AdminPageEditor` to sanitize content before save.
+- **Feeds and Embeds**: Feed generation (`feeds.ts`) and art piece embed HTML now use absolute canonical URLs for all internal links and script dependencies.
+
+### Implementation Notes
+- `artifacts/api-server/src/routes/site-settings.ts`: Fixed a bug where `allowedOrigins` (a Set) was serialized as `{}` in JSON; it is now explicitly converted to an array.
+- `artifacts/microblog/src/components/post/PostContent.tsx`: Implemented `normalizePieceEmbedFrame` and `enhanceImmersiveHtml` to perform the runtime origin swap.
+- `artifacts/api-server/src/lib/meta-injection.ts`: Updated all injection helpers to accept `req` and include the `__CANONICAL_ORIGIN__` script block.
+- `artifacts/microblog/vite.theme-inject.ts`: Updated the Vite dev plugin to support the new injection signature, ensuring local dev parity.
+
+### Outcome
+- Art pieces render correctly across all environments and external embeds.
+- VR links point to the correct canonical host regardless of the viewing domain.
+- Piece URLs correctly preserve versioning and other parameters.
+- Local development is stable and no longer leaks temporary URLs into the database.
+
+### Trigger
+Mobile testing surfaced three regressions: (1) immersive pages were not scrollable due to CSS leakage; (2) Mistral AI generated pieces showed only background color because of camera clipping and shader recompilation bottlenecks; (3) Three.js pinch-to-zoom was non-functional.
+
+### Decisions Confirmed
+
+**Re-enabled Page Scrolling (CSS Leakage Fix):**
+- Removed `cssCode` style injection from `createImmersiveHost` in `immersive-piece-runtime.ts`.
+- AI-generated pieces often include `html, body { overflow: hidden }` in their CSS. Because `<style>` tags are globally scoped, this was locking the main application's scroll behavior when pieces were initialized. Piece containment is already handled via `overflow: hidden` on the host `div`.
+
+**Mistral AI / Vibe Rendering Recovery:**
+- **Dynamic Clipping Planes**: Both `autoFitCamera` (immersive) and `autoFit` (preview) now calculate and enforce camera `near` and `far` planes based on computed scene bounds. This prevents large or distant Mistral models from being clipped out of the view frustum.
+- **Shader Compilation Fix**: Removed `material.needsUpdate = true` from the per-frame render loop in both `ImmersiveThreePieceStage` and `art-piece-runtime.ts`. Forcing shader recompilation on every frame was a major performance bottleneck that often resulted in blank or background-only renders.
+- **Group Bound Support**: Removed the `state.objects.length === 0` abort condition in `autoFitCamera`. Models that use `THREE.Group` for their scene hierarchy now correctly trigger auto-fitting.
+
+**Fix for Pinch-to-Zoom (Pointer Capture):**
+- Removed manual `canvas.setPointerCapture` and `releasePointerCapture` calls from the Three.js immersive stage.
+- These calls were interfering with `OrbitControls`' native multi-touch management. We now rely on `OrbitControls` for pointer capture while still tracking `_activePointerIds` to bypass our local floor-click raycasting during multi-touch gestures.
+
+### Outcome
+- Immersive viewer pages are fully scrollable on mobile.
+- Mistral AI pieces render correctly across all views with proper framing and zero clipping.
+- Three.js pieces now support native two-finger pinch-to-zoom on touch devices, matching the behavior of C2 and P5 engines.

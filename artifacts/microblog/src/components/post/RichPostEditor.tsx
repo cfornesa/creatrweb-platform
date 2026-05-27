@@ -33,6 +33,11 @@ import {
   type ProcessAiTextBodyVendor,
 } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  normalizePieceEmbedUrls,
+  ensureNormalizedParagraphHtml as ensureParagraphHtml,
+} from "@/lib/content-normalization";
+import { useSiteSettings } from "@/hooks/use-site-settings";
 import { IframeEmbed } from "./iframe-embed";
 import { CategoryMultiSelect } from "./CategoryMultiSelect";
 import { PlatformMultiSelect } from "./PlatformMultiSelect";
@@ -110,68 +115,6 @@ type RichPostEditorProps = {
 
 function getEditorTextLength(html: string) {
   return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().length;
-}
-
-function ensureParagraphHtml(html: string) {
-  const trimmed = html.trim();
-  if (trimmed === "") {
-    return "<p></p>";
-  }
-  if (/<[a-z][\s\S]*>/i.test(trimmed)) {
-    return normalizePieceEmbedUrls(trimmed);
-  }
-  return normalizePieceEmbedUrls(
-    trimmed
-    .split(/\n{2,}/)
-    .map((paragraph) => `<p>${paragraph.replace(/\n/g, "<br>")}</p>`)
-    .join(""),
-  );
-}
-
-function normalizePieceEmbedSrc(src: string) {
-  const trimmed = src.trim();
-  if (!trimmed) {
-    return trimmed;
-  }
-
-  try {
-    const url = trimmed.startsWith("http://") || trimmed.startsWith("https://")
-      ? new URL(trimmed)
-      : new URL(trimmed, window.location.origin);
-    const match = url.pathname.match(/^\/embed\/pieces\/(\d+)$/);
-    if (!match) {
-      return trimmed;
-    }
-    return `${url.origin}/embed/pieces/${match[1]}`;
-  } catch {
-    const match = trimmed.match(/^(\/embed\/pieces\/\d+)(?:\?[^#]*)?(#.*)?$/);
-    if (!match) {
-      return trimmed;
-    }
-    return `${match[1]}${match[2] ?? ""}`;
-  }
-}
-
-function normalizePieceEmbedUrls(html: string) {
-  if (!/<iframe\b/i.test(html)) {
-    return html;
-  }
-
-  const document = new DOMParser().parseFromString(html, "text/html");
-  let mutated = false;
-  document.querySelectorAll("iframe[src]").forEach((iframe) => {
-    const currentSrc = iframe.getAttribute("src");
-    if (!currentSrc) {
-      return;
-    }
-    const normalizedSrc = normalizePieceEmbedSrc(currentSrc);
-    if (normalizedSrc !== currentSrc) {
-      iframe.setAttribute("src", normalizedSrc);
-      mutated = true;
-    }
-  });
-
-  return mutated ? document.body.innerHTML : html;
 }
 
 function extractFirstImageSrc(html: string): string | null {
@@ -298,6 +241,12 @@ export function RichPostEditor({
   const { mutateAsync: updateMediaAltText } = useUpdateMediaAltText();
   const { mutateAsync: updateArtPieceForBubble } = useUpdateArtPiece();
 
+  const { data: siteSettings } = useSiteSettings();
+  const canonicalOrigin = 
+    (window as any).__CANONICAL_ORIGIN__ || 
+    siteSettings?.allowedOrigins?.[0] || 
+    window.location.origin;
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -315,7 +264,7 @@ export function RichPostEditor({
       Underline,
       IframeEmbed,
     ],
-    content: ensureParagraphHtml(initialContent),
+    content: ensureParagraphHtml(initialContent, canonicalOrigin),
     editorProps: {
       attributes: {
         class:
@@ -333,11 +282,11 @@ export function RichPostEditor({
       return;
     }
 
-    const nextContent = ensureParagraphHtml(initialContent);
+    const nextContent = ensureParagraphHtml(initialContent, canonicalOrigin);
     if (editor.getHTML() !== nextContent) {
       editor.commands.setContent(nextContent, { emitUpdate: true });
     }
-  }, [editor, initialContent]);
+  }, [editor, initialContent, canonicalOrigin]);
 
   useEffect(() => {
     if (aiVendors.length === 0) {
@@ -380,7 +329,7 @@ export function RichPostEditor({
     pieceGenerationAbortRef.current = null;
   }, []);
 
-  const initialEditorContent = ensureParagraphHtml(initialContent);
+  const initialEditorContent = ensureParagraphHtml(initialContent, canonicalOrigin);
   const initialSocialNormalized = {
     bluesky: initialSocialPostDrafts?.bluesky ?? "",
     linkedin: initialSocialPostDrafts?.linkedin ?? "",
@@ -505,7 +454,7 @@ export function RichPostEditor({
     }
 
     const rawHtml = isHtmlMode ? htmlSource : editor.getHTML();
-    const html = normalizePieceEmbedUrls(rawHtml);
+    const html = normalizePieceEmbedUrls(rawHtml, canonicalOrigin);
     const meaningfulHtml = html
       .replace(/<p><\/p>/g, "")
       .replace(/<p>\s*<\/p>/g, "")
@@ -707,7 +656,7 @@ export function RichPostEditor({
         });
 
         const reconstructed = preservedHtml + response.text;
-        editor.commands.setContent(reconstructed || ensureParagraphHtml(""), { emitUpdate: true });
+        editor.commands.setContent(reconstructed || ensureParagraphHtml("", canonicalOrigin), { emitUpdate: true });
         toast({
           title: "Draft improved",
           description: "The editor content has been replaced with the AI-assisted rewrite.",
