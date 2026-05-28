@@ -2746,6 +2746,45 @@ All three added via `ensureColumn` so no manual migration is needed.
 
 ---
 
+## 2026-05-28 — Exhibit Post Embedding, Canonical Links, and Iframe Sandbox Hardening
+
+### Trigger
+After the core exhibit feature and immersive-shell integration landed, three surfaces were still missing: (1) no way to embed an exhibit into a post body; (2) exhibit iframes in existing post content were not normalized to the canonical origin and lacked the immersive "VR" link overlay; (3) the exhibit wall page had no embed-copy button for external use. A fourth issue surfaced during testing: piece-embed iframes lacked `allow-popups` so links inside embedded pieces could not open in new tabs.
+
+### Decisions Confirmed
+
+**Post editor exhibit embedding:**
+- `ExhibitLibraryDialog` added as a new modal component. It lists all owner exhibits via `useListExhibits`, supports a text-search filter, and shows a detail preview panel (name, description, item counts). On confirm it calls `onInsert({ slug, name })`.
+- `RichPostEditor` toolbar dropdown gains an "Insert saved exhibit" option that opens the dialog. On insert, `buildExhibitIframeAttrs` constructs `{ src: /immersive/exhibits/:slug?embed=1&static=1, title: name, ariaLabel: name }` and calls `editor.chain().focus().insertIframe(attrs).run()`.
+- `buildExhibitIframeAttrs` uses a root-relative src (not absolute) so content-normalization at save time rewrites it to the canonical origin before persistence.
+
+**Canonical origin normalization and VR-link overlay in PostContent:**
+- `enhanceImmersiveHtml` in `PostContent.tsx` now handles the `/immersive/exhibits/:slug` iframe pattern: normalizes src to canonical origin, sets `data-immersive-wrapper="exhibit"` on the wrapper div, and appends a `buildImmersiveExhibitHref(slug)` overlay link labelled "Open exhibit in immersive view".
+- `content-normalization.ts` updated to also rewrite exhibit embed iframe srcs to absolute canonical form before editor save, consistent with the existing piece-embed normalization path.
+- `buildImmersiveExhibitHref(slug, origin?)` added to `immersive-view.ts`: returns `${base}/immersive/exhibits/${slug}`.
+
+**Exhibit wall embed-copy button:**
+- `buildExhibitGalleryEmbedHtml(slug, origin)` added to `immersive-view.ts`. Returns a responsive `<iframe>` snippet pointing to `/immersive/exhibits/:slug?embed=1`, identical in style to `buildPieceGalleryEmbedHtml` and `buildImageGalleryEmbedHtml`.
+- `immersive-exhibit-wall.tsx` passes `embedCodes` to `ImmersiveRouteShell` so the "Embed Interactive" copy button appears below the exhibit scene.
+
+**Iframe sandbox hardening:**
+- Piece-embed iframe `sandbox` attribute in `piece-embed-html.helpers.ts` extended from `"allow-scripts allow-same-origin"` to `"allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"`. This allows links in piece code to open new tabs without breaking the sandboxing model.
+- `ImmersiveRouteShell.tsx` embed link condition updated to correctly show/hide the embed button for the exhibit case.
+
+### Implementation Notes
+- `immersive-view.ts` now exports: `buildImmersiveExhibitHref`, `buildExhibitGalleryEmbedHtml` alongside the existing piece/image builders.
+- `ExhibitLibraryDialog` uses the same `getListExhibitsQueryKey` / `useListExhibits` hooks as `ExhibitMultiSelect`; no new endpoints needed.
+- Exhibit wrapper injection in `PostContent.tsx` shares the same `createImmersiveWrapperDiv` / `buildImmersiveAnchorMarkup` helpers used for pieces and images.
+
+### Outcome
+- Owners can embed any saved exhibit into a post body via the toolbar "Insert saved exhibit" option; the resulting iframe renders the exhibit wall with fullscreen support.
+- Exhibit iframes in all existing and new posts are normalized to the canonical origin at save time and at render time, so they display correctly across environments.
+- Rendered exhibit iframes in post content show the same "VR" link overlay as piece and image embeds, giving visitors a one-click path to the full immersive exhibit view.
+- The `/immersive/exhibits/:slug` page exposes a copy-to-clipboard "Embed Interactive" button, matching the embed-copy UX of piece and image immersive routes.
+- Piece embeds can now open links in new tabs without requiring `allow-top-navigation`.
+
+---
+
 ## 2026-05-28 — Exhibit Rename Recovery: Admin Library, Membership Compatibility, And Shared Exhibit Shell
 
 ### Trigger

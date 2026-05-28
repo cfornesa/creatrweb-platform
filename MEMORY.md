@@ -2,6 +2,9 @@
 to the human before proceeding. Do not act on a pending entry — wait for explicit confirmation
 or rejection. -->
 
+2026-05-28 · EXHIBITS · Full exhibit feature shipped: `exhibits`, `piece_exhibits`, and `media_asset_exhibits` DB tables; full CRUD API (`GET/POST/PATCH/DELETE /api/exhibits`, `GET /api/exhibits/:slug/items`); `/admin/exhibits` management page (`ExhibitsManagementCard`); `ExhibitMultiSelect` for assigning pieces and media to exhibits; and `/immersive/exhibits/:slug` exhibit wall page rendering a Three.js multi-frame wall with per-frame canvas-texture labels (title + engine). Exhibit schema includes `slug`, `name`, `description`, `artist_statement`, `biography`, `rows`, `cols`. Art pieces gained a `description TEXT NULL` column editable in `/admin/pieces`.
+    [Implemented 2026-05-28; verified from `lib/db/src/schema/exhibits.ts`, `artifacts/api-server/src/routes/exhibits.ts`, `ExhibitsManagementCard.tsx`, `immersive-exhibit-wall.tsx`, OpenAPI/codegen output, and focused tests.]
+
 2026-05-28 · EXHIBITS · The exhibit rename recovery includes a DB-compatibility bridge for partially renamed join tables: runtime exhibit membership reads/writes tolerate both `exhibit_id` and legacy `gallery_id` inside `piece_exhibits` and `media_asset_exhibits`, and startup normalization continues the schema toward the exhibit-only end state.
     [Implemented 2026-05-28; verified from `artifacts/api-server/src/lib/exhibit-memberships.ts`, exhibit/media/piece routes, `lib/db/src/migrate.ts`, and the focused exhibit route tests.]
 
@@ -10,6 +13,18 @@ or rejection. -->
 
 2026-05-28 · ADMIN MEDIA · The Image Library detail dialog is a critical exhibit-management surface, not just a media editor. It now reliably opens without a hook-order crash and supports editing title/alt text plus assigning images to exhibits from the same dialog.
     [Implemented 2026-05-28; verified from `MediaGrid.tsx`, admin media tests, and the exhibit recovery session outcomes.]
+
+2026-05-28 · EXHIBITS · Post editor exhibit embedding: `RichPostEditor` exposes an "Insert saved exhibit" option in the toolbar dropdown (`ExhibitLibraryDialog`). Selecting an exhibit inserts an iframe with `src=/immersive/exhibits/:slug?embed=1&static=1` into the post body. The dialog shows a searchable list of exhibits with a detail preview panel showing item counts and description.
+    [Implemented 2026-05-28; verified from `ExhibitLibraryDialog.tsx`, `RichPostEditor.tsx` (`buildExhibitIframeAttrs`, `setIsExhibitLibraryOpen`), and `immersive-view.ts`.]
+
+2026-05-28 · EXHIBITS · Exhibit iframes in rendered post content: `PostContent.tsx` `enhanceImmersiveHtml` now detects `/immersive/exhibits/:slug` iframes, normalizes their src to the canonical origin, and wraps them with a `data-immersive-wrapper="exhibit"` overlay that includes a "VR" link to `buildImmersiveExhibitHref(slug)` — consistent with the piece and image immersive-wrapper pattern. `content-normalization.ts` also handles exhibit embed URLs during save-time normalization in the editor.
+    [Implemented 2026-05-28; verified from `PostContent.tsx` `enhanceImmersiveHtml`, `content-normalization.ts`, and `immersive-view.ts` (`buildImmersiveExhibitHref`).]
+
+2026-05-28 · EXHIBITS · Exhibit wall embed code: `/immersive/exhibits/:slug` exposes an "Embed Interactive" copy button via `ImmersiveRouteShell` `embedCodes` prop, using `buildExhibitGalleryEmbedHtml(slug, origin)` from `immersive-view.ts`. The generated iframe includes `allowfullscreen allow="fullscreen"` so the embed supports in-place fullscreen.
+    [Implemented 2026-05-28; verified from `immersive-exhibit-wall.tsx`, `ImmersiveRouteShell.tsx`, and `immersive-view.ts` (`buildExhibitGalleryEmbedHtml`).]
+
+2026-05-28 · PIECES · Piece embed iframe sandbox hardened in `piece-embed-html.helpers.ts`: attribute set is now `allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox`, enabling piece embeds to open links in new tabs. Embed link condition in `ImmersiveRouteShell.tsx` also updated.
+    [Implemented 2026-05-28; verified from `piece-embed-html.helpers.ts` and `ImmersiveRouteShell.tsx`.]
 
 2026-05-27 · VR INTERACTIONS · Three.js art pieces in default and immersive VR modes now fully support touch-screen interactions, including two-finger pinch-to-zoom. This was achieved by tracking OrbitControls interaction states ("start" / "end") and conditionally bypassing frame-by-frame camera/target resets during active gestures, standardising the UX to match P5, C2, and image gallery implementations.
     [Verified from interactive touch zoom updates to ImmersiveThreePieceStage in immersive-piece.tsx.]
