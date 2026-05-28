@@ -184,7 +184,7 @@ export function ImmersiveRouteShell({
         {renderScene({ fullscreen: false, isMobile: false })}
         <div className="pointer-events-none absolute inset-0 z-10">
           <div className="pointer-events-auto absolute bottom-4 right-4 z-20 flex items-center gap-2">
-            {canonicalHref ? (
+            {canonicalHref && !showEmbedFullscreenControl ? (
               <a
                 href={canonicalHref}
                 target="_blank"
