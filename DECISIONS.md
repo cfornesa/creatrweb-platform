@@ -2689,3 +2689,102 @@ Mobile testing surfaced three regressions: (1) immersive pages were not scrollab
 - Immersive viewer pages are fully scrollable on mobile.
 - Mistral AI pieces render correctly across all views with proper framing and zero clipping.
 - Three.js pieces now support native two-finger pinch-to-zoom on touch devices, matching the behavior of C2 and P5 engines.
+
+---
+
+## 2026-05-28 — Exhibits: Full Rename from Galleries + Metadata + Per-Frame Labels
+
+### Trigger
+The owner requested that all "Gallery / Galleries" terminology be replaced with "Exhibit / Exhibits" everywhere — DB tables, API routes, OpenAPI schemas, React components, URL routes, and all admin UI text. Simultaneously, the exhibit wall page was extended with per-frame title/engine labels, a scrollable dark metadata section, and optional per-piece descriptions.
+
+### Decisions Confirmed
+
+**Terminology rename (full scope):**
+- All uses of "gallery / galleries" in the product are replaced with "exhibit / exhibits". This is a breaking URL change (signed off by owner): `/immersive/galleries/:slug` → `/immersive/exhibits/:slug`, `/admin/galleries` → `/admin/exhibits`.
+- DB tables renamed: `galleries` → `exhibits`, `piece_galleries` → `piece_exhibits`, `media_asset_galleries` → `media_asset_exhibits`. Rename uses `RENAME TABLE` wrapped in try/catch in `ensureTables()` so it is idempotent on both fresh installs and existing databases.
+- OpenAPI schema names: `Gallery*` → `Exhibit*` throughout. Response field `galleryIds` → `exhibitIds` on `ArtPiece` and `MediaAsset`.
+- Drizzle schema: `lib/db/src/schema/galleries.ts` → `exhibits.ts`; all exported types renamed accordingly.
+- API server route file: `galleries.ts` → `exhibits.ts`; all helper names (`slugifyExhibitName`, `findAvailableExhibitSlug`, `serializeExhibit`) updated.
+- Frontend components: `GalleryMultiSelect` → `ExhibitMultiSelect`, `GalleriesManagementCard` → `ExhibitsManagementCard`, `admin-galleries.tsx` → `admin-exhibits.tsx`, `immersive-gallery-wall.tsx` → `immersive-exhibit-wall.tsx`.
+- `immersive-gallery.ts` retains its filename (it backs single-piece and image views too); only the multi-frame exports are renamed: `GalleryFrameSlot` → `ExhibitFrameSlot`, `GalleryWallShell` → `ExhibitWallShell`, `createMultiFrameGalleryWall` → `createMultiFrameExhibitWall`, `fitMultiFrameGalleryCamera` → `fitMultiFrameExhibitCamera`.
+
+**New DB columns:**
+- `exhibits.artist_statement TEXT NULL`
+- `exhibits.biography TEXT NULL`
+- `art_pieces.description TEXT NULL`
+All three added via `ensureColumn` so no manual migration is needed.
+
+**Per-frame canvas-texture labels:**
+- Each frame slot on the exhibit wall shows a 512×80 canvas label below the frame: title in bold 22px + engine/type in 16px.
+- Rendered as `THREE.CanvasTexture` on a `MeshBasicMaterial` plane, transparent background, `depthWrite: false`.
+- Label plane width = `WALL_FRAME_ART_WIDTH`; height derived from the 512:80 canvas aspect ratio (~0.34 units).
+- Positioned `WALL_FRAME_ART_HEIGHT/2 + labelHeight/2 + 0.08` below each frame center, slightly in front of the wall (`wallCenterZ + 0.01`).
+- Labels are passed to `createMultiFrameExhibitWall` as an optional fifth argument so the function stays backward-compatible for callers that don't need labels.
+
+**Exhibit wall page (`immersive-exhibit-wall.tsx`):**
+- Full rewrite replacing the old full-screen single-query page.
+- Parallel data fetch: `useGetExhibitItems(slug)` + `useGetExhibit(slug)` — loading waits for both.
+- Layout matches `/immersive/pieces/:id`: dark `bg-[#050b16]` scrollable page, header with Back + exhibit name, `65vh` Three.js scene block, `ImmersiveMetadataCard` (name, description, artist statement, biography, item count), then per-item detail cards.
+- Per-item cards show piece title, engine badge (`text-xs uppercase tracking-[0.14em]`), and optional piece description; image cards show filename/title and optional alt text.
+- The Three.js scene background remains `#f1ece2` (warm cream room aesthetic unchanged).
+
+**Per-piece description in admin:**
+- `art_pieces.description` exposed in `serializeArtPiece`, `UpdateArtPieceBody`, and the items endpoint response.
+- A "Piece Description (optional)" textarea added to the Metadata tab in `/admin/pieces`, saved via `updatePiece` in the `onSuccess` callback of `createVersion`.
+
+### Implementation Notes
+- `lib/api-zod/src/index.ts` had a stale `export * from './generated/api.schemas'` line reintroduced by orval. Removed; the file must only export `./generated/api`.
+- `FeaturedImagePicker.tsx` contained a local `makeLocalAsset` helper that hard-coded `galleryIds: []`; updated to `exhibitIds: []` to match the regenerated `MediaAsset` type.
+- Old gallery files deleted after new exhibit equivalents were verified: `galleries.ts` (API server), `GalleriesManagementCard.tsx`, `GalleryMultiSelect.tsx`, `admin-galleries.tsx`, `immersive-gallery-wall.tsx`, `lib/db/src/schema/galleries.ts`.
+
+### Outcome
+- All user-facing text, URLs, DB tables, API routes, and code symbols use "exhibit / exhibits".
+- `/admin/exhibits` shows the Exhibits management card with artist statement, biography, and grid layout editing.
+- Piece descriptions are editable in `/admin/pieces` and displayed on the exhibit wall page.
+- `/immersive/exhibits/:slug` renders a scrollable page: museum wall with per-frame labels → metadata section → per-item detail cards.
+- `npm run build` passes with zero type errors.
+
+---
+
+## 2026-05-28 — Exhibit Rename Recovery: Admin Library, Membership Compatibility, And Shared Exhibit Shell
+
+### Trigger
+After the gallery→exhibit rename landed, multiple exhibit-adjacent surfaces regressed at once. `/api/media` failed with MySQL errors because some live databases still had legacy join-column names (`gallery_id`) inside the renamed exhibit join tables. The admin Image Library, Pieces, and Exhibits flows were partially broken as a result. Separately, the Image Library detail dialog could white-screen due to a React hook-order bug, and the public exhibit page at `/immersive/exhibits/:slug` had drifted away from the shared immersive shell behavior: fullscreen controls were missing, a large blank white region could appear, and the lower detail cards were not reliably documented/tested as the source of authored piece descriptions and image alt text.
+
+### Decisions Confirmed
+
+**Bridge-first schema compatibility for renamed exhibit joins:**
+- The intended end-state remains exhibit terminology everywhere, but runtime compatibility must tolerate databases that were only partially renamed.
+- A dedicated backend compatibility helper handles exhibit memberships for both `piece_exhibits` and `media_asset_exhibits`, detecting whether the live join column is `exhibit_id` or legacy `gallery_id` before reading, deleting, or reinserting memberships.
+- Media, art-piece, and exhibit routes now rely on that compatibility layer instead of assuming the normalized column already exists.
+- `ensureTables()` was extended so startup normalization can complete the rename by promoting legacy `gallery_id` columns to `exhibit_id` and reattaching exhibit-era indexes/foreign keys in an idempotent way.
+
+**Admin recovery is part of the exhibit feature contract:**
+- The Image Library detail dialog is a first-class exhibit-assignment surface, not merely a media metadata editor.
+- The hook-order white screen in `MediaGrid.tsx` was fixed so the dialog always renders title editing, alt-text editing, exhibit assignment, copy URL, delete, and AI alt-text actions without crashing after asset selection.
+- Lingering admin copy that still said “Galleries” inside the image detail flow was updated to “Exhibits”.
+- Piece and image exhibit membership editing continue to use the `exhibitIds` API shape; no route or URL changes were introduced as part of the recovery.
+
+**Public exhibit page must behave like the other immersive routes:**
+- `/immersive/exhibits/:slug` should be treated as a first-class immersive route, not a one-off page shell.
+- The exhibit page now uses the same `ImmersiveRouteShell` interaction model as `/immersive/images/:encodedRef` and `/immersive/pieces/:id`.
+- In default mode, the exhibit page shows a bounded wall-scene block with a lower-right expand control, followed by the metadata card and work-detail cards.
+- In fullscreen mode, the exhibit wall expands to a full-viewport overlay and hides the metadata/detail-card content entirely until the user contracts back out.
+- The exhibit detail-card section below the metadata block is the authoritative place for work descriptions on this route: pieces render saved `description`; images render saved `altText`. No generic replacement copy should be invented.
+
+### Implementation Notes
+- Added exhibit-membership compatibility layer and wired it through:
+  - `artifacts/api-server/src/lib/exhibit-memberships.ts`
+  - `artifacts/api-server/src/routes/media.ts`
+  - `artifacts/api-server/src/routes/art-pieces.ts`
+  - `artifacts/api-server/src/routes/exhibits.ts`
+- Added startup normalization for the partially renamed exhibit join tables in `lib/db/src/migrate.ts`.
+- Refactored `artifacts/microblog/src/pages/immersive-exhibit-wall.tsx` so the route composes through `ImmersiveRouteShell` using a dedicated `ExhibitWallContent` wrapper and keeps the metadata card plus per-item detail cards in the contracted page flow.
+- Added focused frontend tests for exhibit detail-card content and fullscreen-control behavior in `artifacts/microblog/src/pages/__tests__/immersive-exhibit-wall.test.tsx`.
+- Extended backend exhibit-route coverage so `GET /api/exhibits/:slug/items` asserts piece `description` and image `altText`, not only IDs/counts/titles.
+
+### Outcome
+- `/api/media`, `/api/art-pieces`, and exhibit membership replacement routes work against both legacy and normalized join-table shapes.
+- The admin Image Library can once again open asset details, edit metadata, and assign images to exhibits without white-screening.
+- `/immersive/exhibits/:slug` now follows the same fullscreen expand/contract model as the individual immersive image and piece routes.
+- The exhibit detail cards are documented and tested as the place where authored piece descriptions and image alt text appear below the artist statement / biography section.

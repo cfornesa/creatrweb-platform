@@ -2,6 +2,15 @@
 to the human before proceeding. Do not act on a pending entry — wait for explicit confirmation
 or rejection. -->
 
+2026-05-28 · EXHIBITS · The exhibit rename recovery includes a DB-compatibility bridge for partially renamed join tables: runtime exhibit membership reads/writes tolerate both `exhibit_id` and legacy `gallery_id` inside `piece_exhibits` and `media_asset_exhibits`, and startup normalization continues the schema toward the exhibit-only end state.
+    [Implemented 2026-05-28; verified from `artifacts/api-server/src/lib/exhibit-memberships.ts`, exhibit/media/piece routes, `lib/db/src/migrate.ts`, and the focused exhibit route tests.]
+
+2026-05-28 · EXHIBITS · The public exhibit route `/immersive/exhibits/:slug` now uses the same shared immersive shell as the piece/image routes: lower-right expand control in the default view, full-viewport overlay while expanded, lower-right contract control to return, and metadata/detail-card content hidden during fullscreen focus mode.
+    [Implemented 2026-05-28; verified from `artifacts/microblog/src/pages/immersive-exhibit-wall.tsx` and the focused exhibit page tests.]
+
+2026-05-28 · ADMIN MEDIA · The Image Library detail dialog is a critical exhibit-management surface, not just a media editor. It now reliably opens without a hook-order crash and supports editing title/alt text plus assigning images to exhibits from the same dialog.
+    [Implemented 2026-05-28; verified from `MediaGrid.tsx`, admin media tests, and the exhibit recovery session outcomes.]
+
 2026-05-27 · VR INTERACTIONS · Three.js art pieces in default and immersive VR modes now fully support touch-screen interactions, including two-finger pinch-to-zoom. This was achieved by tracking OrbitControls interaction states ("start" / "end") and conditionally bypassing frame-by-frame camera/target resets during active gestures, standardising the UX to match P5, C2, and image gallery implementations.
     [Verified from interactive touch zoom updates to ImmersiveThreePieceStage in immersive-piece.tsx.]
 

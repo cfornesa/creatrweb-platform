@@ -19,11 +19,12 @@ At a high level, the app provides:
 - inbound feed aggregation (PESOS) — subscribe to external RSS/Atom feeds, import posts for review, and publish a profile page for each subscribed blog
 - authenticated member comments and reactions
 - owner-managed post categories with public archive pages and search filtering
-- owner-managed Image Library for reusable local post media
+- owner-managed Image Library for reusable local post media, including title/alt-text editing, AI visual descriptions, immersive preview launch, and exhibit assignment
 - owner-managed external navigation links and a sitewide footer surfacing the owner's social profiles
 - standardized public feeds (Atom, JSON Feed, mf2-JSON) and per-category/per-page feed variants
 - AI-assisted post rewriting and validated interactive piece generation - p5, Three.js, and C2.js (optional, owner-configured) via OpenRouter, OpenCode Zen, OpenCode Go, or Google Gemini
-- immersive viewer routes for local images and saved interactive pieces, using Three.js as the shared gallery shell
+- immersive viewer routes for local images, saved interactive pieces, and exhibits, using Three.js as the shared gallery shell
+- owner-managed Exhibits: named collections of pieces and images rendered as a multi-frame Three.js museum wall at `/immersive/exhibits/:slug`, with per-frame title/engine labels, a shared fullscreen expand/contract control, a scrollable metadata section (description, artist statement, biography), and per-item detail cards that show each piece description or image alt text when present
 - a single canonical MySQL database shared by local and deployed app instances
 
 ## Product
@@ -49,6 +50,7 @@ Rich posts support:
 - heading levels `H1` through `H6`
 - local image uploads and imported image URLs, including direct featured-image selection
 - reusable image library metadata: title, alt text, MIME type, upload date, local URL, and preview dimensions
+- exhibit membership assignment from the Image Library detail view, so images can be attached to one or more owner-managed exhibits
 - image uploads and URL imports capped at 8 MB per file
 - automatic featured-image selection from the first content image unless a manual featured image is already set
 - direct YouTube URL insertion that converts a watch/share link into an embedded video
@@ -89,15 +91,19 @@ Current route surface:
 
 - `GET /immersive/images/:encodedRef` — opens a local image in the restored browser-only Three.js gallery scene
 - `GET /immersive/pieces/:id` — opens a saved interactive piece in a dedicated immersive viewer
+- `GET /immersive/exhibits/:slug` — opens a named exhibit as a multi-frame Three.js museum wall plus its metadata and per-work detail cards
 
 Key behavior:
 
 - image routes encode the local media reference and carry optional `alt`, `title`, and `caption` metadata through the query string
 - image immersive view preserves readable metadata outside the main display and draws the real image into a gallery-owned presentation surface before mounting it into the restored non-Three room
 - image and piece routes currently use the same stacked shell component in the default info view: header, bounded `40svh` scene block, and metadata card below, plus a shared lower-right fullscreen toggle
+- the exhibit route now uses that same immersive shell pattern: header, bounded wall-scene block, lower-right fullscreen toggle, then the exhibit metadata and per-work detail cards below in the default view
 - immersive fullscreen is a popup-style focus mode inside the same route: the scene expands to a full-viewport overlay, the header and metadata disappear, and a lower-right icon-only contract control returns to the gallery/info view
+- exhibit fullscreen follows the same rule as image and piece immersive routes: expanding the wall hides the metadata/detail-card content entirely until the viewer contracts back out
 - piece immersive view reuses the existing app-owned piece runtime; `three` pieces use the saved runtime directly inside the immersive flow, `c2` remains the non-Three framing baseline, and `p5` uses the same recovered browser-only gallery path rather than the discarded texture-bridge experiment
 - featured-image immersive routes now preserve media-asset metadata: when the asset has its own title or alt text, those values are passed through instead of silently substituting the parent post title or the “no alt text provided” fallback
+- exhibit detail cards preserve authored content rather than generic fallbacks: pieces show their saved `description` text and images show their saved `altText`
 - clicking the gallery floor moves the camera to that location (350 ms ease-out); arrow keys (↑ ↓ ← →) translate the camera along the view direction; both work across all rendering paths and view modes (default VR, fullscreen overlay, embedded iframe, embedded fullscreen)
 - embed code buttons appear just below the scene: **Embed Static** copies a plain `<iframe>` snippet; **Embed Interactive** copies an immersive gallery iframe with `allowfullscreen` so the embedded viewer supports its own Fullscreen API expand
 - the existing post, page, and embed URLs remain unchanged; immersive routes are an additive URL surface
@@ -194,12 +200,13 @@ AI is owner-only and disabled per vendor by default. Saved API keys are encrypte
 | Path | Purpose |
 |---|---|
 | `/admin/pending` | Review and approve pending feed imports |
-| `/admin/library` | Manage reusable images, titles, alt text, AI visual descriptions, and local media URLs |
+| `/admin/library` | Manage reusable images, titles, alt text, AI visual descriptions, local media URLs, immersive previews, and exhibit assignments |
 | `/admin/categories` | Create and manage post categories |
 | `/admin/platforms` | Connect and configure outbound syndication platforms |
 | `/admin/feeds` | Manage inbound feed subscriptions; set username, bio, and site URL for each source's profile page |
 | `/admin/ai` | Configure AI writing assistant vendors |
 | `/admin/pieces` | Manage reusable p5, Three.js, and C2.js pieces, regenerate versions, copy iframe embed codes, and launch immersive previews |
+| `/admin/exhibits` | Create and manage exhibits (named collections of pieces and images); set name, slug, description, artist statement, biography, and grid layout (rows × columns), then review immersive exhibit-wall output |
 | `/admin/pages` | Create and manage static pages |
 | `/settings` | User profile settings plus owner-only site customization (theme, palette, colors, site copy) |
 
@@ -275,7 +282,11 @@ Recommended local flow for the immersive viewer:
 8. In reduced-width/mobile testing, verify that both image and piece immersive routes scroll past the scene block to expose the full metadata card below. All three piece engines (p5, c2, three) and the image route should scroll correctly.
 9. In the immersive view for any piece or image, click the gallery floor and verify the camera translates to that spot. Press ↑ ↓ ← → and verify the camera moves in the direction the view is facing, not in fixed world axes.
 10. Verify the **Embed Static** and **Embed Interactive** buttons below the scene copy a valid `<iframe>` snippet to the clipboard with a toast.
-11. Open `/admin/library` and the featured-image picker to confirm admin image previews also show the `VR` affordance.
+11. Open `/admin/library`, click an image, and confirm the detail dialog loads correctly, exposes title/alt-text editing, exhibit assignment, and the immersive `VR` affordance.
+12. Open `/admin/pieces`, select a piece, and confirm its exhibit memberships and piece description load and persist correctly.
+13. Open `/admin/exhibits`, create or edit an exhibit, set an artist statement and biography, assign pieces and images from their respective admin pages, then visit `/immersive/exhibits/:slug`.
+14. In the default exhibit page view, verify the museum wall shows per-frame title/engine labels, the metadata section displays the exhibit fields, and every work card below shows authored piece descriptions or image alt text.
+15. Click the lower-right fullscreen control on the exhibit wall and verify the wall expands to a full-viewport immersive view with only the contract control visible; contract back out and confirm the metadata/detail-card section reappears.
 
 Focused checks for this feature:
 
