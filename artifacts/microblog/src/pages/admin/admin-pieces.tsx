@@ -151,7 +151,6 @@ export default function AdminPiecesPage() {
   const generationAbortRef = useRef<AbortController | null>(null);
   const [isImprovingText, setIsImprovingText] = useState(false);
   const [pieceExhibitIds, setPieceExhibitIds] = useState<number[]>([]);
-  const [pieceDescription, setPieceDescription] = useState("");
 
   const pieces = useListArtPieces();
   const filtered = useMemo(() => {
@@ -198,7 +197,6 @@ export default function AdminPiecesPage() {
       setPrompt(selected.prompt);
       setSelectedEngine(selected.engine);
       setPieceExhibitIds(selected.exhibitIds ?? []);
-      setPieceDescription(selected.description ?? "");
     }
   }, [selected?.id, creationMode]);
 
@@ -314,7 +312,6 @@ canvas { display: block; }`;
         setCssCode(response.version.cssCode || "");
         setGeneratedCode(response.version.generatedCode || "");
         setArtPieceExhibits.mutate({ id: response.piece.id, data: { exhibitIds: pieceExhibitIds } });
-        updatePiece.mutate({ id: response.piece.id, data: { description: pieceDescription || null } });
         queryClient.invalidateQueries({ queryKey: getListArtPiecesQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetArtPieceQueryKey(response.piece.id) });
         setDraftOpen(false);
@@ -787,16 +784,6 @@ canvas { display: block; }`;
                         <ExhibitMultiSelect
                           value={pieceExhibitIds}
                           onChange={setPieceExhibitIds}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="piece-artist-description">Piece Description (optional)</Label>
-                        <Textarea
-                          id="piece-artist-description"
-                          value={pieceDescription}
-                          onChange={(e) => setPieceDescription(e.target.value)}
-                          placeholder="Short description shown on the exhibit wall below this piece"
-                          rows={3}
                         />
                       </div>
                     </div>

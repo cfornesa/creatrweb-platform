@@ -349,7 +349,7 @@ router.get("/exhibits/:slug/items", async (req: Request, res: Response) => {
           generatedCode: version.generatedCode,
           htmlCode: version.htmlCode ?? null,
           cssCode: version.cssCode ?? null,
-          description: piece.description ?? null,
+          description: piece.prompt ?? null,
         });
       }
     }

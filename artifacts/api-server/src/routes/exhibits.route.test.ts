@@ -123,7 +123,7 @@ beforeAll(async () => {
       INSERT INTO art_pieces
         (owner_user_id, title, prompt, engine, status, thumbnail_url, description, created_at, updated_at)
       VALUES
-        (?, 'Compatibility Piece', 'Prompt', 'p5', 'active', NULL, 'Piece description', NOW(3), NOW(3))
+        (?, 'Compatibility Piece', 'Main exhibit description', 'p5', 'active', NULL, 'Dormant optional description', NOW(3), NOW(3))
     `,
     [OWNER_ID],
   );
@@ -237,7 +237,7 @@ describe("exhibit compatibility routes", () => {
       id: pieceId,
       title: "Compatibility Piece",
       engine: "p5",
-      description: "Piece description",
+      description: "Main exhibit description",
     });
     expect(image).toMatchObject({
       id: mediaId,

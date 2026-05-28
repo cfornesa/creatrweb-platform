@@ -529,6 +529,9 @@ const WALL_FRAME_ART_WIDTH = 2.2;
 const WALL_FRAME_ART_HEIGHT = 1.65;
 const WALL_FRAME_SLOT_WIDTH = 3.2;
 const WALL_FRAME_SLOT_HEIGHT = 2.4;
+const WALL_LABEL_HEIGHT = WALL_FRAME_ART_WIDTH * (80 / 512);
+const WALL_LABEL_GAP = 0.08;
+const EXHIBIT_FLOOR_CLEARANCE = 0.2;
 
 export type ExhibitFrameSlot = {
   artMesh: any;
@@ -553,6 +556,30 @@ export type ExhibitWallShell = {
   gridCenterY: number;
 };
 
+export function computeExhibitGridCenterY(rows: number) {
+  const gridRows = Math.max(1, rows);
+  const minBottomSlotCenterY =
+    (WALL_FRAME_ART_HEIGHT / 2)
+    + (WALL_LABEL_HEIGHT / 2)
+    + WALL_LABEL_GAP
+    + EXHIBIT_FLOOR_CLEARANCE;
+  return Math.max(
+    WALL_CENTER.y,
+    ((gridRows - 1) / 2) * WALL_FRAME_SLOT_HEIGHT + minBottomSlotCenterY,
+  );
+}
+
+export function computeExhibitBottomVisibleY(rows: number) {
+  const gridRows = Math.max(1, rows);
+  const gridCenterY = computeExhibitGridCenterY(gridRows);
+  const bottomSlotCenterY =
+    gridCenterY - (((gridRows - 1) / 2) * WALL_FRAME_SLOT_HEIGHT);
+  return bottomSlotCenterY
+    - (WALL_FRAME_ART_HEIGHT / 2)
+    - (WALL_LABEL_HEIGHT / 2)
+    - WALL_LABEL_GAP;
+}
+
 function createFrameLabel(title: string, subtitle: string): { mesh: any; material: any } {
   const cw = 512;
   const ch = 80;
@@ -573,7 +600,7 @@ function createFrameLabel(title: string, subtitle: string): { mesh: any; materia
 
   const texture = new THREE.CanvasTexture(canvas);
   const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false });
-  const labelHeight = WALL_FRAME_ART_WIDTH * (ch / cw);
+  const labelHeight = WALL_LABEL_HEIGHT;
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(WALL_FRAME_ART_WIDTH, labelHeight), material);
   return { mesh, material };
 }
@@ -591,8 +618,7 @@ export function createMultiFrameExhibitWall(
 
   const wallWidth = Math.max(22, gridCols * WALL_FRAME_SLOT_WIDTH + 2);
   const wallMeshHeight = Math.max(11, gridRows * WALL_FRAME_SLOT_HEIGHT + 5);
-  // Shift grid upward for multi-row so bottom row stays above floor (y=0)
-  const gridCenterY = Math.max(WALL_CENTER.y, ((gridRows - 1) / 2) * WALL_FRAME_SLOT_HEIGHT + 0.5);
+  const gridCenterY = computeExhibitGridCenterY(gridRows);
 
   const canvas = document.createElement("canvas");
   canvas.style.width = "100%";
@@ -641,7 +667,7 @@ export function createMultiFrameExhibitWall(
 
   const wallCenterZ = WALL_CENTER.z;
   const slots: ExhibitFrameSlot[] = [];
-  const labelHeight = WALL_FRAME_ART_WIDTH * (80 / 512);
+  const labelHeight = WALL_LABEL_HEIGHT;
 
   for (let i = 0; i < n; i++) {
     const row = Math.floor(i / gridCols);
@@ -676,7 +702,11 @@ export function createMultiFrameExhibitWall(
     const label = labels?.[i];
     if (label) {
       const { mesh: labelMesh, material: labelMaterial } = createFrameLabel(label.title, label.subtitle);
-      labelMesh.position.set(slotX, slotY - WALL_FRAME_ART_HEIGHT / 2 - labelHeight / 2 - 0.08, wallCenterZ + 0.01);
+      labelMesh.position.set(
+        slotX,
+        slotY - WALL_FRAME_ART_HEIGHT / 2 - labelHeight / 2 - WALL_LABEL_GAP,
+        wallCenterZ + 0.01,
+      );
       scene.add(labelMesh);
       slot.labelMesh = labelMesh;
       slot.labelMaterial = labelMaterial;

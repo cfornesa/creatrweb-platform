@@ -19,6 +19,8 @@ import {
 import {
   createImmersiveHost,
   DEFAULT_IMMERSIVE_RUNTIME_SIZE,
+  normalizeManagedCanvasStyles,
+  observeManagedCanvasContainment,
   resolveSketchFactory,
 } from "@/lib/immersive-piece-runtime";
 import {
@@ -93,6 +95,11 @@ function ExhibitWallStage({
         hiddenDiv.style.overflow = "hidden";
         document.body.appendChild(hiddenDiv);
         hiddenDiv.appendChild(canvas);
+        const canvasContainment = observeManagedCanvasContainment(
+          canvas,
+          hiddenDiv,
+          runtimeSize,
+        );
 
         let cleanup: (() => void) | void;
         let threeRenderer: { dispose?: () => void } | null = null;
@@ -149,8 +156,10 @@ function ExhibitWallStage({
           stopFrameHandles.clear();
           cleanup?.();
           threeRenderer?.dispose?.();
+          canvasContainment.dispose();
           textures[idx]?.dispose?.();
           textures[idx] = null;
+          canvas.remove();
           hiddenDiv.remove();
         });
         return;
@@ -170,9 +179,21 @@ function ExhibitWallStage({
       let stopSourceLoop: (() => void) | null = null;
       let detectTimer: number | null = null;
       let detectAttempts = 0;
+      let managedCanvasContainment:
+        | ReturnType<typeof observeManagedCanvasContainment>
+        | null = null;
 
       function syncCanvas(canvas: HTMLCanvasElement) {
         sourceCanvas = canvas;
+        if (!managedCanvasContainment) {
+          const canvasHost =
+            canvas.parentElement instanceof HTMLElement ? canvas.parentElement : host;
+          managedCanvasContainment = observeManagedCanvasContainment(
+            canvas,
+            canvasHost,
+            runtimeSize,
+          );
+        }
         if (!artTexture) {
           artTexture = new (THREE as any).CanvasTexture(canvas);
           artTexture.colorSpace = (THREE as any).SRGBColorSpace;
@@ -219,6 +240,7 @@ function ExhibitWallStage({
             document.createElement("canvas");
           managedCanvas.width = runtimeSize.width;
           managedCanvas.height = runtimeSize.height;
+          normalizeManagedCanvasStyles(managedCanvas, runtimeSize);
           if (!managedCanvas.parentNode) host.appendChild(managedCanvas);
           syncCanvas(managedCanvas);
 
@@ -245,6 +267,7 @@ function ExhibitWallStage({
         if (detectTimer) window.clearTimeout(detectTimer);
         artTexture?.dispose?.();
         textures[idx] = null;
+        managedCanvasContainment?.dispose();
         stopSourceLoop?.();
         p5Instance?.remove?.();
         host.remove();
