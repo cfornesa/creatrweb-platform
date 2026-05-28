@@ -412,6 +412,7 @@ type ExhibitWallContentProps = {
   isEmbedMode?: boolean;
   showEmbedFullscreenControl?: boolean;
   staticMode?: boolean;
+  canonicalHref?: string;
   renderStage?: (props: {
     items: WallItem[];
     rows: number;
@@ -436,6 +437,7 @@ export function ExhibitWallContent({
   isEmbedMode,
   showEmbedFullscreenControl,
   staticMode = false,
+  canonicalHref,
   renderStage = ({ items: stageItems, rows: stageRows, cols: stageCols, labels: stageLabels, staticMode: stageStaticMode }) => (
     <ExhibitWallStage
       items={stageItems}
@@ -469,6 +471,7 @@ export function ExhibitWallContent({
       sceneHeightClassName="h-[65vh] min-h-[420px]"
       isEmbedMode={isEmbedMode}
       showEmbedFullscreenControl={showEmbedFullscreenControl}
+      canonicalHref={canonicalHref}
       embedCodes={!isEmbedMode ? embedCodes : undefined}
       renderScene={({ fullscreen }) =>
         renderStage({ items, rows, cols, labels, fullscreen, staticMode })
@@ -599,6 +602,7 @@ export default function ImmersiveExhibitWallPage() {
   const safeName = exhibitName.replace(/"/g, "&quot;");
   const plainEmbedCode = `<iframe src="${origin}/immersive/exhibits/${slug}?embed=1&static=1" width="100%" style="width:100%;aspect-ratio:16 / 9;display:block;" title="${safeName}" frameborder="0" loading="lazy" sandbox="allow-scripts allow-same-origin"></iframe>`;
   const galleryEmbedCode = buildExhibitGalleryEmbedHtml(slug, exhibitName, origin);
+  const canonicalHref = `${origin}/immersive/exhibits/${slug}`;
 
   return (
     <ExhibitWallContent
@@ -618,6 +622,7 @@ export default function ImmersiveExhibitWallPage() {
       isEmbedMode={isEmbedMode}
       showEmbedFullscreenControl={!isStaticEmbed}
       staticMode={isStaticEmbed}
+      canonicalHref={canonicalHref}
     />
   );
 }
