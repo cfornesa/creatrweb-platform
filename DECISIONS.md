@@ -32,6 +32,15 @@ options regardless of session context. -->
 - [x] 2026-04-28 Public interaction model is confirmed at a high level: visitors may log in, comment, and react; only the site owner may publish canonical posts.
 - [x] 2026-04-28 Initial owner bootstrap policy selected: manual database promotion after the owner's first Auth.js-backed login.
 
+## 2026-05-29 — Fixed Mobile WebGL Rendering for Progressive Exhibit Wall
+
+### Trigger
+Three.js-based art pieces rendered as dynamic textures on the progressive exhibit wall page (`/immersive/exhibits/:slug`) consistently yielded a solid black screen on mobile devices (e.g. iOS Safari/Chrome). Additionally, the frozen snapshots captured when pieces transitioned out of view were also black.
+
+### Decisions Confirmed
+- Enforced `preserveDrawingBuffer: true` in the instrumented `THREE.WebGLRenderer` constructor inside `ExhibitWallStage` (`immersive-exhibit-wall.tsx`).
+- This ensures the WebGL context preserves its drawing buffer, allowing the parent exhibit wall's rendering loop and snapshot logic to successfully read and capture the offscreen canvas pixels on mobile devices.
+
 ---
 
 ## 2026-05-27 — Standardized Touch Screen Zoom for Three.js VR Stages

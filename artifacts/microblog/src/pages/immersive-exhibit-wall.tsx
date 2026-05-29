@@ -310,7 +310,7 @@ function ExhibitWallStage({
         const instrumentedThree: any = { ...THREE };
         instrumentedThree.WebGLRenderer = class extends OriginalRenderer {
           constructor(input: any) {
-            super({ ...input, canvas });
+            super({ ...input, canvas, preserveDrawingBuffer: true });
             threeRenderer = this as { dispose?: () => void };
             this.setPixelRatio?.(Math.min(window.devicePixelRatio, 1.5));
           }

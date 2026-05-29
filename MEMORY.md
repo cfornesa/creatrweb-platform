@@ -2,6 +2,9 @@
 to the human before proceeding. Do not act on a pending entry — wait for explicit confirmation
 or rejection. -->
 
+2026-05-29 · EXHIBITS · Three.js pieces in the progressive exhibit wall now render successfully on mobile devices. Enabling `preserveDrawingBuffer: true` on the offscreen instrumented WebGLRenderer prevents the canvas drawing buffer from being cleared prematurely by mobile browsers, restoring both live texturing and frozen snapshots when pieces enter or leave the viewport.
+    [Implemented 2026-05-29; verified from `immersive-exhibit-wall.tsx` updates and focused test suite runs.]
+
 2026-05-29 · EXHIBITS · Exhibit wall rendering now uses progressive live loading for interactive pieces: only a small device-based budget runs live at once (static/mobile 1, tablet/Chromebook-like 2, desktop 3), while inactive pieces display persisted thumbnails or session snapshots. Public exhibit URLs and embed URLs remain unchanged, including `/immersive/exhibits/:slug?embed=1&static=1`.
     [Implemented 2026-05-29; verified from `immersive-exhibit-wall.tsx`, `immersive-gallery.ts`, focused exhibit-wall tests, and workspace typecheck.]
 
