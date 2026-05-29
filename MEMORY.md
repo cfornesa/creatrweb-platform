@@ -2,6 +2,9 @@
 to the human before proceeding. Do not act on a pending entry — wait for explicit confirmation
 or rejection. -->
 
+2026-05-29 · EXHIBITS · Resolved immersive VR mode camera stability on mobile Chrome: adding a `resetCamera` parameter to `fitMultiFrameExhibitCamera` and `fitMountedGalleryCamera` bypasses aggressive camera/target snapping on resize events while updating aspect ratio and renderer size seamlessly, mirroring the individual Three.js piece stage design.
+    [Implemented 2026-05-29; verified from updates in `immersive-gallery.ts`, `immersive-exhibit-wall.tsx`, `immersive-image.tsx`, `immersive-piece.tsx`, and successful monorepo typecheck.]
+
 2026-05-29 · EXHIBITS · Three.js pieces in the progressive exhibit wall now render successfully on mobile devices. Enabling `preserveDrawingBuffer: true` on the offscreen instrumented WebGLRenderer prevents the canvas drawing buffer from being cleared prematurely by mobile browsers, restoring both live texturing and frozen snapshots when pieces enter or leave the viewport.
     [Implemented 2026-05-29; verified from `immersive-exhibit-wall.tsx` updates and focused test suite runs.]
 

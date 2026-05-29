@@ -32,6 +32,19 @@ options regardless of session context. -->
 - [x] 2026-04-28 Public interaction model is confirmed at a high level: visitors may log in, comment, and react; only the site owner may publish canonical posts.
 - [x] 2026-04-28 Initial owner bootstrap policy selected: manual database promotion after the owner's first Auth.js-backed login.
 
+## 2026-05-29 — Resolved Immersive VR Mode Viewport Snapping for Exhibit Wall
+
+### Trigger
+In immersive VR mode (CSS-based fullscreen overlay) on Android Chrome, touching or panning the Three.js canvas triggers the browser's dynamic URL address bar to hide or show. This in turn triggers continuous container resize events. Because `fitMultiFrameExhibitCamera` and `fitMountedGalleryCamera` previously reset the camera position, camera look-at direction, and orbit controls target on every single resize event, the viewport snapped/shifted wildly during active user interaction, making immersive VR mode unusable.
+
+### Decisions Confirmed
+- Added a `resetCamera?: boolean` (defaulting to `true`) parameter to `fitMultiFrameExhibitCamera` and `fitMountedGalleryCamera` in `immersive-gallery.ts`.
+- When `resetCamera` is `false`, the camera aspect ratio, renderer size, projection matrix, and orbit control limits are updated seamlessly, but the active camera viewpoint coordinates and look-at/target direction are fully preserved.
+- Modified the resize handlers in `immersive-exhibit-wall.tsx`, `immersive-image.tsx`, and `immersive-piece.tsx` to pass `false` for the `resetCamera` parameter on resize events.
+- This aligns the gallery stages with the individual Three.js piece stage (`ImmersiveThreePieceStage`), keeping the camera viewpoint perfectly stable during dynamic mobile address bar transitions.
+
+---
+
 ## 2026-05-29 — Fixed Mobile WebGL Rendering for Progressive Exhibit Wall
 
 ### Trigger

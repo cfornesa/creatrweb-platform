@@ -174,6 +174,9 @@
      user to review — consolidate stable patterns into Derived
      Identity and archive older entries to docs/design-archive.md. -->
 
+2026-05-29 · DIRECTION · Prioritizes viewport-stable navigation (preserving active camera/target viewpoint) over forced auto-fit framing in immersive/VR modes during browser resize events.
+    [Surfaced when the user reported wild shifts in immersive VR mode on Android Chrome due to address bar resizing, preferring stability that matches individual Three.js art piece stages.]
+
 2026-04-29 · REFUSAL · Dislikes an always-open composer at the top of the homepage and prefers writing to begin as a deliberate, opt-in action rather than a permanent visual demand.
     [Surfaced when the user described the top-level post dialog as distracting and chose a collapsed composer.]
 
