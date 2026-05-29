@@ -42,6 +42,8 @@ In immersive VR mode (CSS-based fullscreen overlay) on Android Chrome, touching 
 - When `resetCamera` is `false`, the camera aspect ratio, renderer size, projection matrix, and orbit control limits are updated seamlessly, but the active camera viewpoint coordinates and look-at/target direction are fully preserved.
 - Modified the resize handlers in `immersive-exhibit-wall.tsx`, `immersive-image.tsx`, and `immersive-piece.tsx` to pass `false` for the `resetCamera` parameter on resize events.
 - This aligns the gallery stages with the individual Three.js piece stage (`ImmersiveThreePieceStage`), keeping the camera viewpoint perfectly stable during dynamic mobile address bar transitions.
+- Enforced a minimum container dimension threshold of `50` pixels (`stage.clientWidth >= 50 ? stage.clientWidth : window.innerWidth`) in camera aspect/fit calculations inside `immersive-gallery.ts` to protect WebGL initialization from zero-size layout states or distorted aspect ratios during dynamic element transitions.
+- Conditionally prevented rendering the background scene when expanded in fullscreen mode (`!isFullscreen && renderScene(...)`) inside `ImmersiveRouteShell.tsx`, avoiding concurrent WebGL context creation conflicts and resource duplication, completely eliminating the upside-down or behind-the-wall rendering artifacts on mobile GPU pipelines.
 
 ---
 

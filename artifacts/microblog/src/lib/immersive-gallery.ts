@@ -206,8 +206,8 @@ export function fitMountedGalleryCamera(
   framingMultiplier = shell.profile.framingMultiplier ?? 1.28,
   resetCamera = true,
 ) {
-  const width = stage.clientWidth || window.innerWidth;
-  const height = stage.clientHeight || window.innerHeight;
+  const width = stage.clientWidth >= 50 ? stage.clientWidth : window.innerWidth;
+  const height = stage.clientHeight >= 50 ? stage.clientHeight : window.innerHeight;
   shell.camera.aspect = width / Math.max(height, 1);
   shell.camera.updateProjectionMatrix();
   shell.renderer.setSize(width, height, false);
@@ -739,8 +739,8 @@ export function fitMultiFrameExhibitCamera(
   stage: HTMLDivElement,
   resetCamera = true,
 ) {
-  const width = stage.clientWidth || window.innerWidth;
-  const height = stage.clientHeight || window.innerHeight;
+  const width = stage.clientWidth >= 50 ? stage.clientWidth : window.innerWidth;
+  const height = stage.clientHeight >= 50 ? stage.clientHeight : window.innerHeight;
   shell.camera.aspect = width / Math.max(height, 1);
   shell.camera.updateProjectionMatrix();
   shell.renderer.setSize(width, height, false);

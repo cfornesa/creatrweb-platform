@@ -248,7 +248,7 @@ export function ImmersiveRouteShell({
         <main className="pb-6">
           <section className="relative shrink-0 border-b border-white/10">
             <div className={cn("w-full overflow-hidden", sceneHeightClassName)}>
-              {renderScene({ fullscreen: false, isMobile: true })}
+              {!isFullscreen && renderScene({ fullscreen: false, isMobile: true })}
             </div>
             <div className="pointer-events-none absolute inset-0 z-10">
               <div className="pointer-events-auto absolute bottom-4 right-4 z-20">
