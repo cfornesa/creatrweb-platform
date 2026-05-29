@@ -24,7 +24,7 @@ At a high level, the app provides:
 - standardized public feeds (Atom, JSON Feed, mf2-JSON) and per-category/per-page feed variants
 - AI-assisted post rewriting and validated interactive piece generation - p5, Three.js, and C2.js (optional, owner-configured) via OpenRouter, OpenCode Zen, OpenCode Go, or Google Gemini
 - immersive viewer routes for local images, saved interactive pieces, and exhibits, using Three.js as the shared gallery shell
-- owner-managed Exhibits: named collections of pieces and images rendered as a multi-frame Three.js museum wall at `/immersive/exhibits/:slug`, with per-frame title/engine labels, a shared fullscreen expand/contract control, a scrollable metadata section (description, artist statement, biography), and per-item detail cards that show each piece description or image alt text when present
+- owner-managed Exhibits: named collections of pieces and images rendered as a multi-frame Three.js museum wall at `/immersive/exhibits/:slug`, with per-frame title/engine labels, persisted piece thumbnails, progressive live animation budgeting, a shared fullscreen expand/contract control, a scrollable metadata section (description, artist statement, biography), and per-item detail cards that show each piece description or image alt text when present
 - a single canonical MySQL database shared by local and deployed app instances
 
 ## Product
@@ -99,6 +99,8 @@ Key behavior:
 - image immersive view preserves readable metadata outside the main display and draws the real image into a gallery-owned presentation surface before mounting it into the restored non-Three room
 - image and piece routes currently use the same stacked shell component in the default info view: header, bounded `40svh` scene block, and metadata card below, plus a shared lower-right fullscreen toggle
 - the exhibit route now uses that same immersive shell pattern: header, bounded wall-scene block, lower-right fullscreen toggle, then the exhibit metadata and per-work detail cards below in the default view
+- exhibit walls progressively run only the closest interactive pieces live at once: static/embed and mobile views run 1 live piece, tablet/Chromebook-like widths run 2, and desktop runs 3; inactive pieces show persisted thumbnails or lightweight session snapshots instead of keeping every animation active
+- exhibit piece thumbnails are persisted current-version artifacts: saving a new piece or making a new version current captures a browser-rendered 16:9 PNG, uploads it through `/api/media`, and stores the returned `/api/media/...` URL in `art_pieces.thumbnail_url`; `/admin/pieces` and owner visits to `/immersive/exhibits/:slug` also backfill missing active-piece thumbnails sequentially
 - immersive fullscreen is a popup-style focus mode inside the same route: the scene expands to a full-viewport overlay, the header and metadata disappear, and a lower-right icon-only contract control returns to the gallery/info view
 - exhibit fullscreen follows the same rule as image and piece immersive routes: expanding the wall hides the metadata/detail-card content entirely until the viewer contracts back out
 - piece immersive view reuses the existing app-owned piece runtime; `three` pieces use the saved runtime directly inside the immersive flow, `c2` remains the non-Three framing baseline, and `p5` uses the same recovered browser-only gallery path rather than the discarded texture-bridge experiment
@@ -205,7 +207,7 @@ AI is owner-only and disabled per vendor by default. Saved API keys are encrypte
 | `/admin/platforms` | Connect and configure outbound syndication platforms |
 | `/admin/feeds` | Manage inbound feed subscriptions; set username, bio, and site URL for each source's profile page |
 | `/admin/ai` | Configure AI writing assistant vendors |
-| `/admin/pieces` | Manage reusable p5, Three.js, and C2.js pieces, regenerate versions, copy iframe embed codes, and launch immersive previews |
+| `/admin/pieces` | Manage reusable p5, Three.js, and C2.js pieces, regenerate versions, generate/backfill persisted exhibit thumbnails, copy iframe embed codes, and launch immersive previews |
 | `/admin/exhibits` | Create and manage exhibits (named collections of pieces and images); set name, slug, description, artist statement, biography, and grid layout (rows × columns), then review immersive exhibit-wall output |
 | `/admin/pages` | Create and manage static pages |
 | `/settings` | User profile settings plus owner-only site customization (theme, palette, colors, site copy) |
@@ -284,9 +286,11 @@ Recommended local flow for the immersive viewer:
 10. Verify the **Embed Static** and **Embed Interactive** buttons below the scene copy a valid `<iframe>` snippet to the clipboard with a toast.
 11. Open `/admin/library`, click an image, and confirm the detail dialog loads correctly, exposes title/alt-text editing, exhibit assignment, and the immersive `VR` affordance.
 12. Open `/admin/pieces`, select a piece, and confirm its exhibit memberships and piece description load and persist correctly.
-13. Open `/admin/exhibits`, create or edit an exhibit, set an artist statement and biography, assign pieces and images from their respective admin pages, then visit `/immersive/exhibits/:slug`.
-14. In the default exhibit page view, verify the museum wall shows per-frame title/engine labels, the metadata section displays the exhibit fields, and every work card below shows authored piece descriptions or image alt text.
-15. Click the lower-right fullscreen control on the exhibit wall and verify the wall expands to a full-viewport immersive view with only the contract control visible; contract back out and confirm the metadata/detail-card section reappears.
+13. Open `/admin/pieces` and confirm active pieces with missing thumbnails enter a one-at-a-time backfill queue until their thumbnail status is `saved`; failed rows should expose Retry.
+14. Save a new piece and save a new current version of an existing piece; confirm the save remains busy until the thumbnail is captured, uploaded to `/api/media`, and patched into `thumbnailUrl`.
+15. Open `/admin/exhibits`, create or edit an exhibit, set an artist statement and biography, assign pieces and images from their respective admin pages, then visit `/immersive/exhibits/:slug`.
+16. In the default exhibit page view, verify the museum wall shows per-frame title/engine labels, persisted thumbnails for every inactive piece, the metadata section displays the exhibit fields, and every work card below shows authored piece descriptions or image alt text. If the owner opens an exhibit with missing thumbnails, leave the page open while it self-heals the missing piece thumbnails sequentially.
+17. Click the lower-right fullscreen control on the exhibit wall and verify the wall expands to a full-viewport immersive view with only the contract control visible; contract back out and confirm the metadata/detail-card section reappears.
 
 Focused checks for this feature:
 

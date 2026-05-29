@@ -2827,3 +2827,51 @@ After the gallery→exhibit rename landed, multiple exhibit-adjacent surfaces re
 - The admin Image Library can once again open asset details, edit metadata, and assign images to exhibits without white-screening.
 - `/immersive/exhibits/:slug` now follows the same fullscreen expand/contract model as the individual immersive image and piece routes.
 - The exhibit detail cards are documented and tested as the place where authored piece descriptions and image alt text appear below the artist statement / biography section.
+
+---
+
+## 2026-05-29 — Progressive Exhibit Runtime And Persisted Current-Version Thumbnails
+
+### Trigger
+Exhibits with more than a few animated pieces became unusable on mobile and Chromebook-class devices because every interactive piece attempted to boot and animate at once. The first mitigation limited live runtimes, but public exhibit frames still exposed missing thumbnails as gray/placeholder frames when `art_pieces.thumbnail_url` was null. The final direction is that every current art-piece version must have a persisted visual thumbnail before exhibits depend on it, and the exhibit wall must keep only a small number of pieces live at once.
+
+### Decisions Confirmed
+
+**Progressive exhibit live budget:**
+- Exhibit wall slots now have an internal lifecycle: `idle`, `booting`, `live`, `frozen`, `failed`.
+- The wall chooses live interactive slots by proximity to the current camera/control target and frame center positions.
+- Live piece budget is intentionally conservative: static/embed mode and mobile get 1 live piece; tablet/Chromebook-like widths get 2; desktop gets 3.
+- Inactive live pieces are frozen to a lightweight session snapshot when possible, then their runtime/canvas resources are cleaned up.
+- Images remain normal texture loads and do not start animation runtimes.
+
+**Persisted thumbnail contract:**
+- `art_pieces.thumbnail_url` is the canonical exhibit preview source.
+- Title/engine poster cards are not valid art previews in public exhibit walls.
+- Missing public thumbnails show only a restrained “Preview unavailable” failure texture.
+- Backend thumbnail validation accepts existing self-hosted media URLs (`/api/media/...`) as well as absolute HTTP(S) URLs, matching the existing media upload response shape.
+
+**Browser-side thumbnail generation:**
+- Thumbnail generation stays browser-side in this pass; no server-side Chromium worker or new dependency was added.
+- The generator boots the current p5/c2/three piece offscreen, waits for a short stabilization window, captures a 16:9 PNG, uploads it through `/api/media`, then patches `art_pieces.thumbnail_url`.
+- Three.js thumbnail capture uses a preview renderer path with `preserveDrawingBuffer: true` so canvas snapshots are reliable.
+
+**Save and backfill behavior:**
+- New piece creation waits for thumbnail capture/upload/patch before the UI reports success or inserts a post embed.
+- Creating a new version with `makeCurrent: true` regenerates the thumbnail for the new current appearance before success.
+- Creating a version with `makeCurrent: false` does not replace the public thumbnail because the current public appearance did not change.
+- `/admin/pieces` detects active pieces with current versions and missing thumbnails, then queues a one-at-a-time backfill with per-piece status (`missing`, `generating`, `saved`, `failed`) and retry on failure.
+- Owner visits to `/immersive/exhibits/:slug` also self-heal missing piece thumbnails one at a time, using the exhibit item’s current saved code, then invalidating/refetching the exhibit items query so the just-created thumbnails replace failure placeholders.
+
+### Implementation Notes
+- Main runtime work is in `artifacts/microblog/src/pages/immersive-exhibit-wall.tsx`.
+- Frame center coordinates are exposed from `artifacts/microblog/src/lib/immersive-gallery.ts` for proximity-based live-slot selection.
+- Reusable thumbnail capture/persistence lives in `artifacts/microblog/src/lib/art-piece-thumbnail.ts`.
+- Local/absolute thumbnail URL validation lives in `artifacts/api-server/src/lib/art-piece-thumbnail-url.ts` and is used by the art-piece create/update route.
+- No saved art piece HTML/CSS/JS, URL structure, OpenAPI enum, auth endpoint, syndication route, or vendor dependency was changed.
+
+### Outcome
+- Existing exhibit URLs and embed URLs are preserved, including `/immersive/exhibits/:slug?embed=1&static=1`.
+- Exhibit walls no longer boot every animated piece at once.
+- Persisted thumbnails are generated for newly saved current piece versions and can be backfilled for existing pieces from both owner admin and owner exhibit views.
+- Public exhibit walls use real stored thumbnails when present and reserve “Preview unavailable” for genuine missing-thumbnail failure states.
+- Verified with focused API/frontend tests and `npm run typecheck`.

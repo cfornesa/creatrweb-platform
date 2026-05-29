@@ -2,6 +2,15 @@
 to the human before proceeding. Do not act on a pending entry — wait for explicit confirmation
 or rejection. -->
 
+2026-05-29 · EXHIBITS · Exhibit wall rendering now uses progressive live loading for interactive pieces: only a small device-based budget runs live at once (static/mobile 1, tablet/Chromebook-like 2, desktop 3), while inactive pieces display persisted thumbnails or session snapshots. Public exhibit URLs and embed URLs remain unchanged, including `/immersive/exhibits/:slug?embed=1&static=1`.
+    [Implemented 2026-05-29; verified from `immersive-exhibit-wall.tsx`, `immersive-gallery.ts`, focused exhibit-wall tests, and workspace typecheck.]
+
+2026-05-29 · EXHIBITS · Art-piece thumbnails are now required current-version artifacts for reliable exhibit previews. Browser-side thumbnail capture renders the current piece/version, uploads a PNG through self-hosted `/api/media`, and patches `art_pieces.thumbnail_url`. New piece saves and current-version saves wait for thumbnail persistence before reporting success. `/admin/pieces` backfills missing active-piece thumbnails sequentially, and owner visits to `/immersive/exhibits/:slug` also self-heal missing piece thumbnails one at a time before refetching exhibit items.
+    [Implemented 2026-05-29; verified from `art-piece-thumbnail.ts`, `admin-pieces.tsx`, `RichPostEditor.tsx`, `immersive-exhibit-wall.tsx`, `art-piece-thumbnail-url.ts`, focused tests, and workspace typecheck.]
+
+2026-05-29 · INTERACTIVE PIECES · The backend accepts local media URLs such as `/api/media/...` as valid `thumbnailUrl` values for art pieces, in addition to absolute HTTP(S) URLs. This matches the existing self-hosted media upload path and prevents generated thumbnails from being rejected after upload.
+    [Implemented 2026-05-29; verified from `art-piece-thumbnail-url.ts`, `art-pieces.ts`, `art-piece-thumbnail-url.test.ts`, and workspace typecheck.]
+
 2026-05-28 · EXHIBITS · Full exhibit feature shipped: `exhibits`, `piece_exhibits`, and `media_asset_exhibits` DB tables; full CRUD API (`GET/POST/PATCH/DELETE /api/exhibits`, `GET /api/exhibits/:slug/items`); `/admin/exhibits` management page (`ExhibitsManagementCard`); `ExhibitMultiSelect` for assigning pieces and media to exhibits; and `/immersive/exhibits/:slug` exhibit wall page rendering a Three.js multi-frame wall with per-frame canvas-texture labels (title + engine). Exhibit schema includes `slug`, `name`, `description`, `artist_statement`, `biography`, `rows`, `cols`. Art pieces gained a `description TEXT NULL` column editable in `/admin/pieces`.
     [Implemented 2026-05-28; verified from `lib/db/src/schema/exhibits.ts`, `artifacts/api-server/src/routes/exhibits.ts`, `ExhibitsManagementCard.tsx`, `immersive-exhibit-wall.tsx`, OpenAPI/codegen output, and focused tests.]
 
