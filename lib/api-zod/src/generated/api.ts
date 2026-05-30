@@ -1112,6 +1112,20 @@ export const GetSiteSettingsResponse = zod.object({
   "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']),
   "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']),
   "siteTitle": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "logoDarkUrl": zod.string().nullish(),
+  "logoLayout": zod.enum(['text_only', 'icon_and_text', 'integrated_wordmark']),
+  "defaultThemeMode": zod.enum(['system', 'light', 'dark']).optional(),
+  "colorPrimaryDark": zod.string().nullish(),
+  "colorPrimaryForegroundDark": zod.string().nullish(),
+  "colorSecondaryDark": zod.string().nullish(),
+  "colorSecondaryForegroundDark": zod.string().nullish(),
+  "colorAccentDark": zod.string().nullish(),
+  "colorAccentForegroundDark": zod.string().nullish(),
+  "colorMutedDark": zod.string().nullish(),
+  "colorMutedForegroundDark": zod.string().nullish(),
+  "colorDestructiveDark": zod.string().nullish(),
+  "colorDestructiveForegroundDark": zod.string().nullish(),
   "heroHeading": zod.string(),
   "heroSubheading": zod.string(),
   "aboutHeading": zod.string(),
@@ -1144,6 +1158,30 @@ export const GetSiteSettingsResponse = zod.object({
  * @summary Update site-wide settings (owner only)
  */
 export const updateSiteSettingsBodySiteTitleMax = 255;
+
+export const updateSiteSettingsBodyLogoUrlMax = 2048;
+
+export const updateSiteSettingsBodyLogoDarkUrlMax = 2048;
+
+export const updateSiteSettingsBodyColorPrimaryDarkMax = 64;
+
+export const updateSiteSettingsBodyColorPrimaryForegroundDarkMax = 64;
+
+export const updateSiteSettingsBodyColorSecondaryDarkMax = 64;
+
+export const updateSiteSettingsBodyColorSecondaryForegroundDarkMax = 64;
+
+export const updateSiteSettingsBodyColorAccentDarkMax = 64;
+
+export const updateSiteSettingsBodyColorAccentForegroundDarkMax = 64;
+
+export const updateSiteSettingsBodyColorMutedDarkMax = 64;
+
+export const updateSiteSettingsBodyColorMutedForegroundDarkMax = 64;
+
+export const updateSiteSettingsBodyColorDestructiveDarkMax = 64;
+
+export const updateSiteSettingsBodyColorDestructiveForegroundDarkMax = 64;
 
 export const updateSiteSettingsBodyHeroHeadingMax = 255;
 
@@ -1195,6 +1233,20 @@ export const UpdateSiteSettingsBody = zod.object({
   "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']).optional(),
   "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']).optional(),
   "siteTitle": zod.string().max(updateSiteSettingsBodySiteTitleMax).optional(),
+  "logoUrl": zod.string().max(updateSiteSettingsBodyLogoUrlMax).nullish(),
+  "logoDarkUrl": zod.string().max(updateSiteSettingsBodyLogoDarkUrlMax).nullish(),
+  "logoLayout": zod.enum(['text_only', 'icon_and_text', 'integrated_wordmark']).optional(),
+  "defaultThemeMode": zod.enum(['system', 'light', 'dark']).nullish(),
+  "colorPrimaryDark": zod.string().max(updateSiteSettingsBodyColorPrimaryDarkMax).nullish(),
+  "colorPrimaryForegroundDark": zod.string().max(updateSiteSettingsBodyColorPrimaryForegroundDarkMax).nullish(),
+  "colorSecondaryDark": zod.string().max(updateSiteSettingsBodyColorSecondaryDarkMax).nullish(),
+  "colorSecondaryForegroundDark": zod.string().max(updateSiteSettingsBodyColorSecondaryForegroundDarkMax).nullish(),
+  "colorAccentDark": zod.string().max(updateSiteSettingsBodyColorAccentDarkMax).nullish(),
+  "colorAccentForegroundDark": zod.string().max(updateSiteSettingsBodyColorAccentForegroundDarkMax).nullish(),
+  "colorMutedDark": zod.string().max(updateSiteSettingsBodyColorMutedDarkMax).nullish(),
+  "colorMutedForegroundDark": zod.string().max(updateSiteSettingsBodyColorMutedForegroundDarkMax).nullish(),
+  "colorDestructiveDark": zod.string().max(updateSiteSettingsBodyColorDestructiveDarkMax).nullish(),
+  "colorDestructiveForegroundDark": zod.string().max(updateSiteSettingsBodyColorDestructiveForegroundDarkMax).nullish(),
   "heroHeading": zod.string().max(updateSiteSettingsBodyHeroHeadingMax).optional(),
   "heroSubheading": zod.string().max(updateSiteSettingsBodyHeroSubheadingMax).optional(),
   "aboutHeading": zod.string().max(updateSiteSettingsBodyAboutHeadingMax).optional(),
@@ -1223,6 +1275,20 @@ export const UpdateSiteSettingsResponse = zod.object({
   "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']),
   "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']),
   "siteTitle": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "logoDarkUrl": zod.string().nullish(),
+  "logoLayout": zod.enum(['text_only', 'icon_and_text', 'integrated_wordmark']),
+  "defaultThemeMode": zod.enum(['system', 'light', 'dark']).optional(),
+  "colorPrimaryDark": zod.string().nullish(),
+  "colorPrimaryForegroundDark": zod.string().nullish(),
+  "colorSecondaryDark": zod.string().nullish(),
+  "colorSecondaryForegroundDark": zod.string().nullish(),
+  "colorAccentDark": zod.string().nullish(),
+  "colorAccentForegroundDark": zod.string().nullish(),
+  "colorMutedDark": zod.string().nullish(),
+  "colorMutedForegroundDark": zod.string().nullish(),
+  "colorDestructiveDark": zod.string().nullish(),
+  "colorDestructiveForegroundDark": zod.string().nullish(),
   "heroHeading": zod.string(),
   "heroSubheading": zod.string(),
   "aboutHeading": zod.string(),

@@ -3823,6 +3823,54 @@ components:
             - pastel
         siteTitle:
           type: string
+        logoUrl:
+          type: string
+          nullable: true
+        logoDarkUrl:
+          type: string
+          nullable: true
+        logoLayout:
+          type: string
+          enum:
+            - text_only
+            - icon_and_text
+            - integrated_wordmark
+        defaultThemeMode:
+          type: string
+          enum:
+            - system
+            - light
+            - dark
+        colorPrimaryDark:
+          type: string
+          nullable: true
+        colorPrimaryForegroundDark:
+          type: string
+          nullable: true
+        colorSecondaryDark:
+          type: string
+          nullable: true
+        colorSecondaryForegroundDark:
+          type: string
+          nullable: true
+        colorAccentDark:
+          type: string
+          nullable: true
+        colorAccentForegroundDark:
+          type: string
+          nullable: true
+        colorMutedDark:
+          type: string
+          nullable: true
+        colorMutedForegroundDark:
+          type: string
+          nullable: true
+        colorDestructiveDark:
+          type: string
+          nullable: true
+        colorDestructiveForegroundDark:
+          type: string
+          nullable: true
         heroHeading:
           type: string
         heroSubheading:
@@ -3896,6 +3944,7 @@ components:
       required:
         - theme
         - palette
+        - logoLayout
         - siteTitle
         - heroHeading
         - heroSubheading
@@ -4533,6 +4582,67 @@ components:
         siteTitle:
           type: string
           maxLength: 255
+        logoUrl:
+          type: string
+          maxLength: 2048
+          nullable: true
+        logoDarkUrl:
+          type: string
+          maxLength: 2048
+          nullable: true
+        logoLayout:
+          type: string
+          enum:
+            - text_only
+            - icon_and_text
+            - integrated_wordmark
+        defaultThemeMode:
+          type: string
+          enum:
+            - system
+            - light
+            - dark
+          nullable: true
+        colorPrimaryDark:
+          type: string
+          maxLength: 64
+          nullable: true
+        colorPrimaryForegroundDark:
+          type: string
+          maxLength: 64
+          nullable: true
+        colorSecondaryDark:
+          type: string
+          maxLength: 64
+          nullable: true
+        colorSecondaryForegroundDark:
+          type: string
+          maxLength: 64
+          nullable: true
+        colorAccentDark:
+          type: string
+          maxLength: 64
+          nullable: true
+        colorAccentForegroundDark:
+          type: string
+          maxLength: 64
+          nullable: true
+        colorMutedDark:
+          type: string
+          maxLength: 64
+          nullable: true
+        colorMutedForegroundDark:
+          type: string
+          maxLength: 64
+          nullable: true
+        colorDestructiveDark:
+          type: string
+          maxLength: 64
+          nullable: true
+        colorDestructiveForegroundDark:
+          type: string
+          maxLength: 64
+          nullable: true
         heroHeading:
           type: string
           maxLength: 255

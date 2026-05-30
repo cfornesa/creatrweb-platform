@@ -2,6 +2,9 @@
 to the human before proceeding. Do not act on a pending entry — wait for explicit confirmation
 or rejection. -->
 
+2026-05-30 · IMAGE UPLOADS · Enable dynamic fallback to the preferred AI description vendor (via `useOwnerAiVendors`) inside `FeaturedImagePicker` when `altTextVendor` prop is omitted. This ensures the AI Sparkles button is robustly available during the staged details step of the upload process across all frontend surfaces, including Settings and Feed Sources.
+    [Implemented 2026-05-30; verified from `FeaturedImagePicker.tsx` updates, passing Focused Picker tests, and monorepo typecheck.]
+
 2026-05-30 · PROFILE PHOTOS · Authenticated users can upload DB-backed profile photos from Settings. Member uploads are stored as profile-only images in `profile_photo_assets` and served from `/api/profile-photos/:fileName`; owner uploads and owner-selected profile images use `media_assets` and `/api/media/:fileName` so they appear in the Image Library. Human profile photo changes cascade to existing owner-authored posts by updating `posts.author_image_url` for both current and legacy author columns.
     [Implemented 2026-05-30; verified from `users.ts`, `profile-photo-assets.ts`, `migrate.ts`, OpenAPI/codegen output, Settings UI updates, focused profile-photo API tests, focused Settings tests, and workspace typecheck.]
 

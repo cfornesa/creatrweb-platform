@@ -32,6 +32,78 @@ options regardless of session context. -->
 - [x] 2026-04-28 Public interaction model is confirmed at a high level: visitors may log in, comment, and react; only the site owner may publish canonical posts.
 - [x] 2026-04-28 Initial owner bootstrap policy selected: manual database promotion after the owner's first Auth.js-backed login.
 
+## 2026-05-30 — Theme-Responsive Logos & Global Dark Mode
+
+### Trigger
+The user wanted to customize the website's logo in the Admin panel, with options to upload a custom logo image, use separate light/dark mode assets, and toggle whether the site title text is shown next to it or hidden. Additionally, the user wanted a global light/dark mode option, a floating toggle button in the bottom-left corner, and full customizability of dark-mode specific primary, secondary, and accent colors for every theme.
+
+### Decisions Confirmed
+- Implemented a unified layout selection system (`logoLayout` with presets: `'text_only'`, `'icon_and_text'`, and `'integrated_wordmark'`) to give precise branding layout control.
+- Supported separate light and dark mode logo uploads (`logoUrl` and `logoDarkUrl`) using the premium `FeaturedImagePicker` (reusing the Image Library).
+- Swapped custom logos dynamically in the navbar via Tailwind's CSS variant classes (`block dark:hidden` and `hidden dark:block`), ensuring instantaneous browser toggling with no hydration lag.
+- Built a visually hidden screen-reader fallback (`sr-only` site title rendering) when using full integrated wordmarks to keep the site 100% compliant with Search Engine Optimization (SEO) and web accessibility (A11y/Screen Reader) standards.
+- Engineered a global floating `ThemeToggle` component in the bottom-left corner with smooth glassmorphism, Sun/Moon micro-animations, localStorage persistence, and reactive system-preference matching (`prefers-color-scheme`).
+- Added 10 customizable dark-mode override color columns (`color_primary_dark`, `color_primary_foreground_dark`, etc.) on the `site_settings` table. These colors fall back safely to standard palette colors when unset.
+- Updated the backend (`meta-injection.ts`) and frontend (`ThemeInjector.tsx`) injectors to seamlessly compile and render these dark-mode color overrides when the `.dark` class is active, completely eliminating style flashes.
+- Documented SQL schema upgrades in `install.sql` and `site_settings_install.sql`, and successfully ran typecheck to ensure monorepo compiler safety.
+
+### Outcome
+- Visual settings panel under `/admin/site` now exposes full branding layout, dual logo upload inputs, and custom dark mode HSL palette overrides.
+- Universal header resolves light and dark branding styles perfectly.
+- Floating dark-mode toggler works instantly across all pages and persists correctly.
+
+## 2026-05-30 — Resolved Dark Mode High-Contrast Fallback Bug
+
+### Trigger
+In dark mode, stock palettes (like Monochrome, Newsprint, Ocean, etc.) suffered from unreadable black-on-black or dark-on-dark text (such as body paragraphs, labels, or links rendering in dark grey or black). This happened because when individual dark color overrides (e.g. `colorPrimaryDark`, `colorSecondaryDark`, `colorAccentDark`) were empty or unset in the database settings, the server and client injectors fell back directly to the corresponding customized light-mode colors (which are black or dark grey in those palettes), completely ignoring the beautiful, hand-tuned dark colors defined for those stock palettes in `site-themes.ts`.
+
+### Decisions Confirmed
+- Implemented **Option A**: Auto-fallback to the active stock palette's dark colors when database overrides are blank.
+- Modified the client-side injector (`ThemeInjector.tsx`) to retrieve the stock palette's dark variant and apply it as the dark color variable fallback, defaulting to the light color only if no stock dark variant exists.
+- Updated `ThemePalettePicker.tsx` to include all 10 dark-mode override keys in the in-memory preview colors object, preventing TypeScript compilation errors and ensuring theme selectors render faithfully.
+- Duplicated the catalog of stock palettes' dark HSL parameters on the server side in `meta-injection.ts` and updated the `buildThemeInjection` helper to resolve empty DB settings columns using the stock dark values. This fully prevents FOUC (flash of un-themed black text) during initial HTML rendering on Express.
+- Hardened the `getCanonicalOrigin` helper in `origin.ts` to verify that `req.header` and `req.get` are functions, preventing unit tests utilizing partial express request mocks from throwing runtime errors.
+
+### Outcome
+- All 9 stock themes now render with beautiful, high-contrast, highly readable typography immediately when toggled to dark mode, with zero visual flashes or black-on-black text.
+- Full workspace typecheck and unit tests compile and pass successfully.
+
+## 2026-05-30 — Fixed Bauhaus Dark Muted Contrast Bug
+
+### Trigger
+In dark mode, the instruction text ("Sort and filter through my posts.") and the post card action icons (expand, edit, delete, comment, embed, share) rendered in pure black on a black page background, making them completely invisible. This occurred because they all use Tailwind's `text-muted-foreground` utility, which maps to `--muted-foreground`. In the default `bauhaus` theme/palette, `colorMutedForegroundDark` was set to pure black (`0 0% 0%`) because `colorMutedDark` in light/dark Bauhaus defaults was yellow (`60 100% 50%`). However, since `text-muted-foreground` is almost always rendered on the raw dark page background rather than on yellow, this caused severe contrast violations.
+
+### Decisions Confirmed
+- Corrected the neutral `muted` colors of the default `bauhaus` theme in dark mode to be dark-mode friendly:
+  - Updated `colorMutedDark` from `"60 100% 50%"` (yellow) to `"0 0% 15%"` (dark neutral background).
+  - Updated `colorMutedForegroundDark` from `"0 0% 0%"` (black) to `"0 0% 70%"` (high-contrast light grey neutral text).
+- Applied this update in:
+  - Frontend stock palette catalog (`site-themes.ts` in `PALETTES` array).
+  - Backend stock palette catalog (`meta-injection.ts` in `PALETTES` object).
+  - CSS fallback variables (`index.css` inside the `.dark` class block).
+
+### Outcome
+- Instruction descriptions and post card action icons now render with beautiful, highly legible, high-contrast light grey styling, blending perfectly into the brutalist dark theme.
+- Typecheck compiles cleanly with no errors.
+
+---
+
+## 2026-05-30 — Auto-Fallback for AI Alt Text Vendor in Image Uploads
+
+### Trigger
+When uploading or importing an image, the staged image detail panel did not display the AI Sparkles button. This occurred because the AI button was only rendered if the `altTextVendor` prop was supplied by the parent page. While the Post Editor passed this prop, other vital upload surfaces like Settings (for profile photos) and Feed Sources (for blog profile photos) did not, leaving the user with only the manual description input and Save button.
+
+### Decisions Confirmed
+- Resolved the missing AI Sparkles button systemically by modifying the shared `FeaturedImagePicker` component to dynamically fall back to the owner's configured AI settings via the `useOwnerAiVendors` hook if `altTextVendor` is not explicitly passed as a prop.
+- By resolving the active AI vendor internally, all current and future image upload/staged surfaces seamlessly inherit AI description capability.
+- Mocked the hooks (`useOwnerAiVendors` and `useCurrentUser`) inside `FeaturedImagePicker.test.tsx` to maintain full mock isolation for unit testing.
+
+### Outcome
+- The AI Sparkles button now automatically renders next to the description input field immediately after a successful upload or import in Settings, Feed Sources, and the Post Editor.
+- Unit tests for the picker and the workspace typechecks compile and pass cleanly.
+
+---
+
 ## 2026-05-30 — Profile Photos for Users and Feed Sources
 
 ### Trigger
@@ -2923,3 +2995,25 @@ Exhibits with more than a few animated pieces became unusable on mobile and Chro
 - Persisted thumbnails are generated for newly saved current piece versions and can be backfilled for existing pieces from both owner admin and owner exhibit views.
 - Public exhibit walls use real stored thumbnails when present and reserve “Preview unavailable” for genuine missing-thumbnail failure states.
 - Verified with focused API/frontend tests and `npm run typecheck`.
+
+---
+
+## 2026-05-30 — High-Contrast Highlights & Persisted Default Theme Mode
+
+### Trigger
+The user wanted a way to make sure the selected theme card in the site customization gallery is properly and beautifully highlighted (Option A selected: Premium Border & Scale Pop), and wanted to introduce a setting in the admin panel to determine whether the default page load color scheme (for a first-time visitor with no `localStorage` set) is *System Preference*, *Always Light*, or *Always Dark*, fully persisted in the database with zero-flash HTML loading.
+
+### Decisions Confirmed
+- Implemented **Option A** for theme card selection highlighting in `ThemePalettePicker.tsx` using a premium border highlight (`border-primary`), subtle scale (`scale-[1.02]`), shadow (`shadow-lg`), and an explicit "✓ Active" badge rendered next to the theme name, with custom in-progress state preview tethers.
+- Supported persisting a `defaultThemeMode` setting (varchar with options `'system'`, `'light'`, `'dark'`, default `'system'`) on the `site_settings` table.
+- Exposed "Default Color Scheme (First Load)" select dropdown inside `SiteCustomizationCard.tsx` next to the layout and palette configurations to allow owners to declare their default theme preferences easily.
+- Updated `lib/api-spec/openapi.yaml` schemas for `SiteSettings` and `UpdateSiteSettingsBody` to declare the `defaultThemeMode` enum, and successfully executed `npm --workspace=@workspace/api-spec run codegen` to keep backend zod validation and frontend react fetching hooks 100% typed.
+- Built a shared `buildGlobalScripts` helper in `meta-injection.ts` which compiles and injects a synchronous HTML bootstrapping `<script id="theme-mode-bootstrap">` inside the `<head>` of all page endpoints (site data, user themes, category feeds, page feeds, and post embeds). This bootstrap script detects existing `localStorage` preferences and falls back to `defaultThemeMode` (and system preferences if `'system'`) to toggle the `.dark` class instantly before the browser paints, achieving 100% flash-free page loads.
+- Refactored `ThemeToggle.tsx` to read its initial mounting state directly from the document class name (set by the server-side bootstrap script) and synchronized it reactively to the resolved `defaultThemeMode` setting *only* when no user preference (`localStorage.getItem("theme-mode")`) has been explicitly saved yet.
+- Resolved and isolated the mock test environment by importing `.env` loading in `vitest.config.ts` so that Vitest correctly inherits the `DB_HOST` database environment variables and unit tests pass cleanly.
+
+### Outcome
+- Visual settings panel under `/admin/site` now exposes full branding layout, dual logo uploads, and default color scheme selections.
+- Theme picker features a gorgeous, highly responsive brut-aesthetic active theme highlight card.
+- New visitors experience flash-free custom page loading aligning with the owner's chosen default mode, while returning visitors' custom toggles take absolute precedence.
+- Full workspace typecheck and unit tests compile and pass successfully.
