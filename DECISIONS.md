@@ -3012,6 +3012,12 @@ The user wanted a way to make sure the selected theme card in the site customiza
 - Refactored `ThemeToggle.tsx` to read its initial mounting state directly from the document class name (set by the server-side bootstrap script) and synchronized it reactively to the resolved `defaultThemeMode` setting *only* when no user preference (`localStorage.getItem("theme-mode")`) has been explicitly saved yet.
 - Resolved and isolated the mock test environment by importing `.env` loading in `vitest.config.ts` so that Vitest correctly inherits the `DB_HOST` database environment variables and unit tests pass cleanly.
 
+### Implementation Notes
+- **Brutalist Gallery Selection**: Modified `ThemePalettePicker.tsx` to apply `border-primary`, `ring-4`, `ring-primary/20`, and `scale-[1.02]` highlights on the selected theme card wrapper, along with rendering a `✓ Active` badge inside the card description footer.
+- **Form State Mapping**: Updated `SiteCustomizationCard.tsx` state model and submit hooks to map `defaultThemeMode` and render the dropdown selector.
+- **Server-Side Injection**: Integrated `buildGlobalScripts` helper in `meta-injection.ts` and wired it into all page injectors (`injectThemeData`, `injectUserTheme`, `injectCategoryFeedLinks`, `injectPageFeedLinks`, and `injectPostMetadata`).
+- **Synchronized Hydration**: Configured `ThemeToggle.tsx` hook states and effects to respect both `localStorage` overrides and server-rendered layout bootstrapping styles.
+
 ### Outcome
 - Visual settings panel under `/admin/site` now exposes full branding layout, dual logo uploads, and default color scheme selections.
 - Theme picker features a gorgeous, highly responsive brut-aesthetic active theme highlight card.

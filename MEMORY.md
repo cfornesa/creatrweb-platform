@@ -2,6 +2,15 @@
 to the human before proceeding. Do not act on a pending entry — wait for explicit confirmation
 or rejection. -->
 
+2026-05-30 · THEME HIGHLIGHTS · Selected theme card in the site customization gallery is now highlighted using a premium Brutalist theme container (thick primary border, scale shift, accent tint, and a bold checkmark badge), perfectly synced with other customizer configurations.
+    [Implemented 2026-05-30; verified from ThemePalettePicker.tsx updates and successful monorepo typecheck.]
+
+2026-05-30 · DEFAULT THEME MODE · Persisted default theme mode setting (system, light, dark) added to site settings. Injects a tiny, synchronous bootstrapping script in all Express HTML output <head> tags to ensure zero light-mode flashes for new visitors, while returning user preferences in localStorage are fully preserved and prioritized.
+    [Implemented 2026-05-30; verified from SiteCustomizationCard.tsx, ThemeToggle.tsx, openapi.yaml, meta-injection.ts updates, and successful workspace validation.]
+
+2026-05-30 · TEST STABILITY · Hardened vitest configurations to resolve root env variables in vitest.config.ts, ensuring that all database-dependent integration tests execute successfully.
+    [Implemented 2026-05-30; verified from vitest.config.ts updates and isolated test runs.]
+
 2026-05-30 · IMAGE UPLOADS · Enable dynamic fallback to the preferred AI description vendor (via `useOwnerAiVendors`) inside `FeaturedImagePicker` when `altTextVendor` prop is omitted. This ensures the AI Sparkles button is robustly available during the staged details step of the upload process across all frontend surfaces, including Settings and Feed Sources.
     [Implemented 2026-05-30; verified from `FeaturedImagePicker.tsx` updates, passing Focused Picker tests, and monorepo typecheck.]
 

@@ -174,6 +174,15 @@
      user to review — consolidate stable patterns into Derived
      Identity and archive older entries to docs/design-archive.md. -->
 
+2026-05-30 · DIRECTION · Values high-contrast, prominent brutalist styling (thick primary borders, container scaling, and explicit active state badges) to highlight active selections in settings and customization galleries, preserving interaction clarity.
+    [Surfaced when the user requested that selected themes be properly and visibly highlighted in the admin site customization gallery, choosing Option A: Premium Border & Scale Pop.]
+
+2026-05-30 · DIRECTION · Prioritizes zero-flash visual transitions on page load by enforcing synchronous, server-side injected bootstrapping scripts to immediately apply color schemes before painting the DOM.
+    [Surfaced from the requirement to determine a dark or light mode default upon page load without visual flashes (FOUC).]
+
+2026-05-30 · TENSION · Wants to establish a solid default brand presentation for new visitors (owner-configured page load scheme) while respecting and giving ultimate precedence to the visitor's individual choice once they interact with the theme toggle.
+    [Surfaced when aligning on the default theme mode behavior, ensuring that returning user local preferences in localStorage take precedence over site settings.]
+
 2026-05-29 · DIRECTION · Prioritizes viewport-stable navigation (preserving active camera/target viewpoint) over forced auto-fit framing in immersive/VR modes during browser resize events.
     [Surfaced when the user reported wild shifts in immersive VR mode on Android Chrome due to address bar resizing, preferring stability that matches individual Three.js art piece stages.]
 
