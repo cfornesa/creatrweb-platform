@@ -17,9 +17,9 @@ At a high level, the app provides:
 - owner-only post publishing and editing with a rich WYSIWYG editor
 - POSSE outbound syndication to WordPress.com, self-hosted WordPress, Blogger, Substack, Bluesky, LinkedIn, Facebook Page, and Instagram, with per-post syndication badges on post cards
 - inbound feed aggregation (PESOS) — subscribe to external RSS/Atom feeds, import posts for review, and publish a profile page for each subscribed blog
-- authenticated member comments and reactions
+- authenticated member comments, reactions, profile editing, and DB-backed profile photo uploads
 - owner-managed post categories with public archive pages and search filtering
-- owner-managed Image Library for reusable local post media, including title/alt-text editing, AI visual descriptions, immersive preview launch, and exhibit assignment
+- owner-managed Image Library for reusable local post media, including title/alt-text editing, AI visual descriptions, immersive preview launch, exhibit assignment, owner profile photos, and feed-source profile photos
 - owner-managed external navigation links and a sitewide footer surfacing the owner's social profiles
 - standardized public feeds (Atom, JSON Feed, mf2-JSON) and per-category/per-page feed variants
 - AI-assisted post rewriting and validated interactive piece generation - p5, Three.js, and C2.js (optional, owner-configured) via OpenRouter, OpenCode Zen, OpenCode Go, or Google Gemini
@@ -31,8 +31,8 @@ At a high level, the app provides:
 
 ### Roles And Permissions
 
-- `owner`: can create, edit, and delete posts; upload media; moderate comments; manage categories, nav links, feeds, and platform connections
-- `member`: can sign in, comment, and edit their own comments
+- `owner`: can create, edit, and delete posts; upload media; moderate comments; manage categories, nav links, feeds, platform connections, and Image Library-backed profile photos
+- `member`: can sign in, comment, edit their own comments, manage their profile, and upload a profile-only photo
 - unauthenticated visitors: can read the public site and consume its feeds
 
 Publishing authority is intentionally separate from authentication. Logging in does not grant the right to publish posts.
@@ -140,7 +140,21 @@ After a post is cross-posted successfully, its card on the home feed shows platf
 
 The owner can subscribe to external RSS or Atom feeds from `/admin/feeds`. Imported items appear in a pending queue for review before publication. The scheduled refresh runs hourly via the included GitHub Actions workflow.
 
-Each feed source can optionally be given a **username** (enabling a friendly profile URL at `/users/@handle`), a **bio**, and a **site URL**. Once set, clicking an imported post's author name navigates to that feed's profile page, which shows the blog name, bio, site URL as a link, an "Automated feed" badge, and all published posts imported from that source. The numeric URL (`/users/feed:N`) always works regardless of whether a username is set.
+Each feed source can optionally be given a **username** (enabling a friendly profile URL at `/users/@handle`), a **bio**, a **site URL**, and an owner-managed profile photo. The photo can be uploaded from the feed source card or selected from the Image Library; uploads use the same `/api/media/...` storage path as other reusable media, so they appear in the Image Library. Changing a feed source photo immediately cascades to all existing posts imported from that source, and future imports use the source photo as the post byline avatar.
+
+Once set, clicking an imported post's author name navigates to that feed's profile page, which shows the blog name, profile photo, bio, site URL as a link, an "Automated feed" badge, and all published posts imported from that source. The numeric URL (`/users/feed:N`) always works regardless of whether a username is set.
+
+### Profile Photos
+
+Every authenticated user can manage a profile photo from `/settings`.
+
+- Members upload profile photos through `POST /api/users/me/profile-photo`. Valid images are stored in the database-backed `profile_photo_assets` table and served from `/api/profile-photos/:fileName`; these member profile-only images do not appear in the Image Library.
+- Owners use the same upload control, but owner uploads are stored through the existing `media_assets` path and served from `/api/media/:fileName`, so they appear in the Image Library.
+- Owners can also choose an existing Image Library image as their profile photo. `PATCH /api/users/me` accepts `imageUrl` for this owner-only selection path and validates that the URL points to an existing `/api/media/*` asset.
+- Updating a human user's profile photo writes `users.image` and cascades to existing owner-authored posts by updating `posts.author_image_url` for both current `author_user_id` rows and legacy `author_id` rows.
+- Feed source profile photos are owner-only. `POST /api/feed-sources/:id/profile-photo` uploads a new Image Library asset and stores its URL on `feed_sources.image_url`; `PATCH /api/feed-sources/:id` accepts `imageUrl` for selecting an existing Image Library asset.
+
+This cascade is deliberate: post rows keep denormalized author display data for feed and archive performance, but profile photo changes should still be reflected on existing posts.
 
 ### Reading Experience
 
@@ -205,7 +219,7 @@ AI is owner-only and disabled per vendor by default. Saved API keys are encrypte
 | `/admin/library` | Manage reusable images, titles, alt text, AI visual descriptions, local media URLs, immersive previews, and exhibit assignments |
 | `/admin/categories` | Create and manage post categories |
 | `/admin/platforms` | Connect and configure outbound syndication platforms |
-| `/admin/feeds` | Manage inbound feed subscriptions; set username, bio, and site URL for each source's profile page |
+| `/admin/feeds` | Manage inbound feed subscriptions; set username, bio, site URL, and Image Library-backed profile photo for each source's profile page |
 | `/admin/ai` | Configure AI writing assistant vendors |
 | `/admin/pieces` | Manage reusable p5, Three.js, and C2.js pieces, regenerate versions, generate/backfill persisted exhibit thumbnails, copy iframe embed codes, and launch immersive previews |
 | `/admin/exhibits` | Create and manage exhibits (named collections of pieces and images); set name, slug, description, artist statement, biography, and grid layout (rows × columns), then review immersive exhibit-wall output |
@@ -329,6 +343,13 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ### Schema Changes
 
 The API server runs `ensureTables()` automatically on every startup via `lib/db/src/migrate.ts`. New tables and columns are applied with `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` — no manual migration step is required after a code pull.
+
+Current profile-photo-related schema is additive:
+
+- `profile_photo_assets`: database-backed member profile-only image bytes served by `/api/profile-photos/:fileName`.
+- `media_assets`: reusable Image Library storage for post media, owner profile photos, and feed-source profile photos served by `/api/media/:fileName`.
+- `feed_sources.image_url`: optional feed-source avatar URL, owner-managed from `/admin/feeds`.
+- `posts.author_image_url`: denormalized post avatar URL. Startup reconciliation and profile/feed-source photo updates backfill existing rows so old posts show the current chosen photo.
 
 For interactive schema inspection during development:
 

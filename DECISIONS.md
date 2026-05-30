@@ -32,6 +32,30 @@ options regardless of session context. -->
 - [x] 2026-04-28 Public interaction model is confirmed at a high level: visitors may log in, comment, and react; only the site owner may publish canonical posts.
 - [x] 2026-04-28 Initial owner bootstrap policy selected: manual database promotion after the owner's first Auth.js-backed login.
 
+## 2026-05-30 — Profile Photos for Users and Feed Sources
+
+### Trigger
+The owner wanted profile photos to work across the app rather than only on the current settings/profile surfaces. Specifically: every authenticated user should be able to upload a profile photo saved in the database; owner/admin users should have their uploads included in the Image Library; selected library photos should update existing owner-authored posts; and each inbound feed source/blog should have an owner-managed profile photo that can be selected from or uploaded into the Image Library.
+
+### Decisions Confirmed
+- The existing `owner` role remains the only admin/elevated role; no new persisted role values were introduced.
+- Member profile photo uploads are stored in the new `profile_photo_assets` table and served by `GET /api/profile-photos/:fileName`. These profile-only photos do not appear in the Image Library.
+- Owner profile photo uploads reuse the existing Image Library media path (`media_assets`, `GET /api/media/:fileName`) so the uploaded image is reusable from `/admin/library`.
+- Owners can select an existing Image Library image as their profile photo through `PATCH /api/users/me` with `imageUrl`; the API validates that the URL points to an existing `/api/media/*` asset.
+- Human profile photo changes update `users.image` and cascade to existing owner-authored posts by rewriting `posts.author_image_url` for both current `author_user_id` rows and legacy `author_id` rows.
+- Feed sources gained `feed_sources.image_url`. Owner-only feed source photo uploads use the Image Library path, and owner-only library selection validates an existing `/api/media/*` asset.
+- Feed source profile photo changes cascade to all existing imported posts for that source by rewriting `posts.author_image_url` where `posts.source_feed_id` matches the source. Future imports use the source image as the imported post avatar.
+- Startup reconciliation in `ensureTables()` backfills human-authored post avatars from `users.image` and feed-imported post avatars from `feed_sources.image_url`, preserving the denormalized post avatar column while keeping visible avatars current.
+
+### Outcome
+- Settings now shows profile photo upload for all users and an Image Library picker for owners.
+- `/admin/feeds` now shows source avatars and owner-only controls to upload or choose a profile photo for each feed source.
+- Navbar, profile pages, post cards, comments/composer-adjacent profile surfaces, and feed source profile pages update via query invalidation after photo changes.
+- No external runtime service or new vendor dependency was added.
+- Focused API/frontend tests and workspace typecheck passed for the implemented surface.
+
+---
+
 ## 2026-05-29 — Resolved Immersive VR Mode Viewport Snapping for Exhibit Wall
 
 ### Trigger

@@ -2,6 +2,12 @@
 to the human before proceeding. Do not act on a pending entry — wait for explicit confirmation
 or rejection. -->
 
+2026-05-30 · PROFILE PHOTOS · Authenticated users can upload DB-backed profile photos from Settings. Member uploads are stored as profile-only images in `profile_photo_assets` and served from `/api/profile-photos/:fileName`; owner uploads and owner-selected profile images use `media_assets` and `/api/media/:fileName` so they appear in the Image Library. Human profile photo changes cascade to existing owner-authored posts by updating `posts.author_image_url` for both current and legacy author columns.
+    [Implemented 2026-05-30; verified from `users.ts`, `profile-photo-assets.ts`, `migrate.ts`, OpenAPI/codegen output, Settings UI updates, focused profile-photo API tests, focused Settings tests, and workspace typecheck.]
+
+2026-05-30 · INBOUND FEEDS · Feed sources/blogs now have owner-managed profile photos. Owners can upload a feed-source photo into the Image Library or select an existing library image; the URL is stored in `feed_sources.image_url`, displayed on feed source profiles and admin source cards, cascaded to all existing imported posts from that source, and used by future imports.
+    [Implemented 2026-05-30; verified from `feed-sources.ts`, `admin-feeds.tsx`, `feeds.ts` schema, `migrate.ts`, OpenAPI/codegen output, focused feed-source profile-photo API tests, and workspace typecheck.]
+
 2026-05-29 · EXHIBITS · Resolved immersive VR mode camera stability and rendering artifacts on mobile Chrome: adding a `resetCamera` parameter to `fitMultiFrameExhibitCamera` and `fitMountedGalleryCamera` bypasses camera/target snapping on resize, while enforcing a `50px` minimum dimension threshold prevents layout distortions (upside-down or out-of-bounds camera positioning) during mount. Additionally, unmounting the background scene inside `ImmersiveRouteShell.tsx` when `isFullscreen` is active avoids concurrent WebGL context creation conflicts and GPU overload, standardizing immersive behavior across exhibits, images, and pieces.
     [Implemented 2026-05-29; verified from updates in `immersive-gallery.ts`, `ImmersiveRouteShell.tsx`, `immersive-exhibit-wall.tsx`, `immersive-image.tsx`, `immersive-piece.tsx`, and successful monorepo typecheck.]
 

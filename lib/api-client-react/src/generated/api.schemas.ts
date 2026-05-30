@@ -603,6 +603,11 @@ export interface UpdateUserProfileBody {
   bio?: string;
   website?: string;
   socialLinks?: UpdateUserProfileBodySocialLinks;
+  /**
+     * Owner-only existing Image Library URL to use as the profile photo.
+     * @maxLength 2048
+     */
+  imageUrl?: string;
   theme?: UpdateUserProfileBodyTheme;
   palette?: UpdateUserProfileBodyPalette;
   /**
@@ -1540,6 +1545,11 @@ export interface FeedSource {
      * @maxLength 255
      */
   authorName?: string | null;
+  /**
+     * Optional profile photo URL for this feed source.
+     * @maxLength 2048
+     */
+  imageUrl?: string | null;
   feedUrl: string;
   siteUrl?: string | null;
   cadence: FeedSourceCadence;
@@ -1592,6 +1602,11 @@ export interface CreateFeedSourceBody {
      * @maxLength 255
      */
   authorName?: string | null;
+  /**
+     * Existing Image Library URL to use as the feed source profile photo.
+     * @maxLength 2048
+     */
+  imageUrl?: string | null;
   /** @maxLength 2048 */
   feedUrl: string;
   /** @maxLength 2048 */
@@ -1627,6 +1642,11 @@ export interface UpdateFeedSourceBody {
      * @maxLength 255
      */
   authorName?: string | null;
+  /**
+     * Existing Image Library URL to use as the feed source profile photo.
+     * @maxLength 2048
+     */
+  imageUrl?: string | null;
   /** @maxLength 2048 */
   feedUrl?: string;
   /** @maxLength 2048 */
@@ -2004,6 +2024,10 @@ page?: number;
 limit?: number;
 };
 
+export type UploadProfilePhotoBody = {
+  file: Blob;
+};
+
 export type DescribeImageBodyVendor = typeof DescribeImageBodyVendor[keyof typeof DescribeImageBodyVendor];
 
 
@@ -2051,6 +2075,10 @@ export type UploadMediaBody = {
 export type ListPendingPostsParams = {
 page?: number;
 limit?: number;
+};
+
+export type UploadFeedSourceProfilePhotoBody = {
+  file: Blob;
 };
 
 export type RefreshAllFeedSourcesParams = {

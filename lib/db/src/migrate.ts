@@ -281,6 +281,32 @@ export async function ensureTables(): Promise<void> {
   `);
 
   await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS profile_photo_assets (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      user_id VARCHAR(191) NOT NULL,
+      url VARCHAR(2048) NOT NULL,
+      filename VARCHAR(255) NOT NULL,
+      mime_type VARCHAR(64) NOT NULL,
+      uploaded_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      file_data MEDIUMBLOB NOT NULL,
+      CONSTRAINT profile_photo_assets_user_id_fk
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await ensureIndex(
+    "profile_photo_assets",
+    "profile_photo_assets_user_id_idx",
+    "CREATE INDEX profile_photo_assets_user_id_idx ON profile_photo_assets (user_id)",
+  );
+  await ensureIndex(
+    "profile_photo_assets",
+    "profile_photo_assets_uploaded_at_idx",
+    "CREATE INDEX profile_photo_assets_uploaded_at_idx ON profile_photo_assets (uploaded_at)",
+  );
+
+  await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS art_pieces (
       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
       owner_user_id VARCHAR(191) NOT NULL,
@@ -658,6 +684,20 @@ export async function ensureTables(): Promise<void> {
     "preferred_art_piece_vendor VARCHAR(64) NULL",
   );
 
+  // Keep denormalized post avatars aligned with the current user profile
+  // photo. This corrects rows written before profile-photo updates cascaded
+  // to posts, while leaving feed-imported rows alone.
+  await mysqlPool.query(`
+    UPDATE posts p
+    INNER JOIN users u
+      ON p.author_user_id = u.id
+      OR (p.author_user_id IS NULL AND p.author_id = u.id)
+    SET p.author_image_url = u.image
+    WHERE p.source_feed_id IS NULL
+      AND u.image IS NOT NULL
+      AND (p.author_image_url IS NULL OR p.author_image_url <> u.image)
+  `);
+
   await mysqlPool.query(`
     CREATE TABLE IF NOT EXISTS site_settings (
       id INT NOT NULL PRIMARY KEY DEFAULT 1,
@@ -794,6 +834,11 @@ export async function ensureTables(): Promise<void> {
   );
   await ensureColumn(
     "feed_sources",
+    "image_url",
+    "image_url VARCHAR(2048) NULL",
+  );
+  await ensureColumn(
+    "feed_sources",
     "username",
     "username VARCHAR(100) NULL",
   );
@@ -802,6 +847,14 @@ export async function ensureTables(): Promise<void> {
     "bio",
     "bio TEXT NULL",
   );
+
+  await mysqlPool.query(`
+    UPDATE posts p
+    INNER JOIN feed_sources fs ON p.source_feed_id = fs.id
+    SET p.author_image_url = fs.image_url
+    WHERE fs.image_url IS NOT NULL
+      AND (p.author_image_url IS NULL OR p.author_image_url <> fs.image_url)
+  `);
 
   // FK from `posts.source_feed_id` → `feed_sources.id`. Has to live
   // here (after both tables exist) rather than inline on the posts

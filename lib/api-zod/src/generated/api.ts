@@ -553,6 +553,8 @@ export const updateMeBodyNameRegExp = new RegExp('.\*\\S.\*');
 export const updateMeBodyUsernameRegExp = new RegExp('^[a-zA-Z0-9_]{3,30}$');
 export const updateMeBodyBioMax = 500;
 
+export const updateMeBodyImageUrlMax = 2048;
+
 export const updateMeBodyColorBackgroundMax = 32;
 
 
@@ -617,6 +619,7 @@ export const UpdateMeBody = zod.object({
   "bio": zod.string().max(updateMeBodyBioMax).optional(),
   "website": zod.string().url().optional(),
   "socialLinks": zod.record(zod.string(), zod.string()).optional(),
+  "imageUrl": zod.string().max(updateMeBodyImageUrlMax).optional().describe('Owner-only existing Image Library URL to use as the profile photo.'),
   "theme": zod.enum(['bauhaus', 'traditional', 'minimalist', 'academic', 'airy', 'nature', 'comfort', 'audacious', 'artistic']).nullish(),
   "palette": zod.enum(['bauhaus', 'monochrome', 'newsprint', 'ocean', 'forest', 'sunset', 'sepia', 'high-contrast', 'pastel']).nullish(),
   "colorBackground": zod.string().max(updateMeBodyColorBackgroundMax).regex(updateMeBodyColorBackgroundRegExp).nullish(),
@@ -662,6 +665,22 @@ export const UpdateMeResponse = zod.object({
   "colorDestructiveForeground": zod.string().nullish(),
   "sourceType": zod.enum(['feed']).nullish().describe('Present only when the profile represents an external blog feed source rather than a human user.'),
   "siteUrl": zod.string().nullish().describe('The blog\'s canonical site URL. Present when sourceType is \"feed\".')
+})
+
+
+/**
+ * @summary Upload the current user's profile photo
+ */
+export const UploadProfilePhotoBody = zod.object({
+  "file": zod.instanceof(File)
+})
+
+
+/**
+ * @summary Fetch a member profile photo
+ */
+export const GetProfilePhotoParams = zod.object({
+  "fileName": zod.coerce.string()
 })
 
 
@@ -1311,6 +1330,8 @@ export const ListPublicFeedSourcesResponse = zod.object({
  */
 export const listFeedSourcesResponseSourcesItemAuthorNameMax = 255;
 
+export const listFeedSourcesResponseSourcesItemImageUrlMax = 2048;
+
 
 
 export const ListFeedSourcesResponse = zod.object({
@@ -1320,6 +1341,7 @@ export const ListFeedSourcesResponse = zod.object({
   "username": zod.string().nullish().describe('Optional URL-safe handle for the feed\'s profile page (enables \/users\/@handle).'),
   "bio": zod.string().nullish().describe('Optional short description shown on the feed\'s profile page.'),
   "authorName": zod.string().max(listFeedSourcesResponseSourcesItemAuthorNameMax).nullish().describe('Optional display name to use for all posts imported from this source. Falls back to the feed item\'s author, then the source name.'),
+  "imageUrl": zod.string().max(listFeedSourcesResponseSourcesItemImageUrlMax).nullish().describe('Optional profile photo URL for this feed source.'),
   "feedUrl": zod.string(),
   "siteUrl": zod.string().nullish(),
   "cadence": zod.enum(['daily', 'weekly', 'monthly']),
@@ -1344,6 +1366,8 @@ export const createFeedSourceBodyBioMax = 500;
 
 export const createFeedSourceBodyAuthorNameMax = 255;
 
+export const createFeedSourceBodyImageUrlMax = 2048;
+
 export const createFeedSourceBodyFeedUrlMax = 2048;
 
 export const createFeedSourceBodySiteUrlMax = 2048;
@@ -1355,6 +1379,7 @@ export const CreateFeedSourceBody = zod.object({
   "name": zod.string().max(createFeedSourceBodyNameMax),
   "bio": zod.string().max(createFeedSourceBodyBioMax).nullish().describe('Optional short description shown on the feed\'s profile page.'),
   "authorName": zod.string().max(createFeedSourceBodyAuthorNameMax).nullish().describe('Optional display name to use for all posts imported from this source.'),
+  "imageUrl": zod.string().max(createFeedSourceBodyImageUrlMax).nullish().describe('Existing Image Library URL to use as the feed source profile photo.'),
   "feedUrl": zod.string().url().max(createFeedSourceBodyFeedUrlMax),
   "siteUrl": zod.string().url().max(createFeedSourceBodySiteUrlMax).nullish(),
   "cadence": zod.enum(['daily', 'weekly', 'monthly']).default(createFeedSourceBodyCadenceDefault),
@@ -1377,6 +1402,8 @@ export const updateFeedSourceBodyBioMax = 500;
 
 export const updateFeedSourceBodyAuthorNameMax = 255;
 
+export const updateFeedSourceBodyImageUrlMax = 2048;
+
 export const updateFeedSourceBodyFeedUrlMax = 2048;
 
 export const updateFeedSourceBodySiteUrlMax = 2048;
@@ -1388,6 +1415,7 @@ export const UpdateFeedSourceBody = zod.object({
   "username": zod.string().max(updateFeedSourceBodyUsernameMax).nullish().describe('Optional URL-safe handle (enables \/users\/@handle). Must be 2–30 lowercase letters, numbers, or underscores.'),
   "bio": zod.string().max(updateFeedSourceBodyBioMax).nullish().describe('Optional short description shown on the feed\'s profile page.'),
   "authorName": zod.string().max(updateFeedSourceBodyAuthorNameMax).nullish().describe('Optional display name to use for all posts imported from this source.'),
+  "imageUrl": zod.string().max(updateFeedSourceBodyImageUrlMax).nullish().describe('Existing Image Library URL to use as the feed source profile photo.'),
   "feedUrl": zod.string().url().max(updateFeedSourceBodyFeedUrlMax).optional(),
   "siteUrl": zod.string().url().max(updateFeedSourceBodySiteUrlMax).nullish(),
   "cadence": zod.enum(['daily', 'weekly', 'monthly']).optional(),
@@ -1395,6 +1423,8 @@ export const UpdateFeedSourceBody = zod.object({
 })
 
 export const updateFeedSourceResponseAuthorNameMax = 255;
+
+export const updateFeedSourceResponseImageUrlMax = 2048;
 
 
 
@@ -1404,6 +1434,7 @@ export const UpdateFeedSourceResponse = zod.object({
   "username": zod.string().nullish().describe('Optional URL-safe handle for the feed\'s profile page (enables \/users\/@handle).'),
   "bio": zod.string().nullish().describe('Optional short description shown on the feed\'s profile page.'),
   "authorName": zod.string().max(updateFeedSourceResponseAuthorNameMax).nullish().describe('Optional display name to use for all posts imported from this source. Falls back to the feed item\'s author, then the source name.'),
+  "imageUrl": zod.string().max(updateFeedSourceResponseImageUrlMax).nullish().describe('Optional profile photo URL for this feed source.'),
   "feedUrl": zod.string(),
   "siteUrl": zod.string().nullish(),
   "cadence": zod.enum(['daily', 'weekly', 'monthly']),
@@ -1448,6 +1479,18 @@ export const RefreshFeedSourceResponse = zod.object({
   "status": zod.enum(['ok', 'error']),
   "error": zod.string().nullish(),
   "alreadyInProgress": zod.boolean().optional().describe('True when the per-source refresh endpoint was called while a\nbackground fetch for this source was already running. The\nendpoint returns `status: \"ok\"` with all counters at 0 and\ndoes not start a duplicate fetch.\n')
+})
+
+
+/**
+ * @summary Upload a feed source profile photo into the Image Library (owner only)
+ */
+export const UploadFeedSourceProfilePhotoParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UploadFeedSourceProfilePhotoBody = zod.object({
+  "file": zod.instanceof(File)
 })
 
 

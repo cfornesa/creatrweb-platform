@@ -284,6 +284,10 @@ CREATE TABLE IF NOT EXISTS `verification_tokens` (
 CREATE TABLE IF NOT EXISTS `feed_sources` (
   `id`               INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `name`             VARCHAR(255)  NOT NULL,                        -- display name (e.g. "Jane's Blog")
+  `username`         VARCHAR(100),                                  -- optional /users/@<handle> profile URL
+  `bio`              TEXT,                                          -- profile description
+  `author_name`      VARCHAR(255),                                  -- byline override
+  `image_url`        VARCHAR(2048),                                 -- profile photo
   `feed_url`         VARCHAR(2048) NOT NULL,                        -- the actual RSS/Atom URL
   `site_url`         VARCHAR(2048),                                 -- optional homepage of the source
   `cadence`          VARCHAR(16) NOT NULL DEFAULT 'daily',          -- 'daily' | 'weekly' | 'monthly'
@@ -722,6 +726,23 @@ CREATE TABLE IF NOT EXISTS `media_assets` (
   `alt_text` VARCHAR(500) NULL,
   `uploaded_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   INDEX `media_assets_uploaded_at_idx` (`uploaded_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Profile-only photo storage for regular members. Owner profile uploads use
+-- media_assets instead so they appear in the Image Library.
+CREATE TABLE IF NOT EXISTS `profile_photo_assets` (
+  `id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `user_id` VARCHAR(191) NOT NULL,
+  `url` VARCHAR(2048) NOT NULL,
+  `filename` VARCHAR(255) NOT NULL,
+  `mime_type` VARCHAR(64) NOT NULL,
+  `uploaded_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `file_data` MEDIUMBLOB NOT NULL,
+  INDEX `profile_photo_assets_user_id_idx` (`user_id`),
+  INDEX `profile_photo_assets_uploaded_at_idx` (`uploaded_at`),
+  CONSTRAINT `profile_photo_assets_user_id_fk`
+    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
+    ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 18. Hard-reset per-user theme on a single user (snaps them back to the
