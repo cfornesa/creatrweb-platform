@@ -3086,4 +3086,24 @@ The user wanted to ensure that post cards and images are only loaded when they e
 - Network bandwidth is fully preserved by lazy-loading all inline and featured images natively.
 - Scrollbar remains completely stable with zero layout feedback loops.
 
+---
+
+## 2026-05-30 — Context-Aware Back Navigation to Parent Posts
+
+### Trigger
+The user wanted to ensure that when clicking the "VR" button on any art piece, image, or exhibit (embedded or not), the viewer's "Back" button redirects directly to that post's expanded page (`/posts/:postId`) instead of going to a generic host or home page, providing a logical, circular navigation flow.
+
+### Decisions Confirmed
+- Extended the three immersive gallery URL builders in `immersive-view.ts` (`buildImmersiveImageHref`, `buildImmersivePieceHref`, and `buildImmersiveExhibitHref`) to accept and propagate an optional `postId` in the query string (`?post=postId`).
+- Modified `enhanceImmersiveHtml` inside `PostContent.tsx` to read the post ID from its properties and pass it cleanly into the image, piece, and exhibit href builders.
+- Updated the React component `<PostContent>` and its parent `<PostCard>` and `post-embed` views to pass `postId={post.id}` down to the content parser.
+- Upgraded the `useReturnToPrevious` hook inside all three immersive pages (`immersive-piece.tsx`, `immersive-image.tsx`, and `immersive-exhibit-wall.tsx`) to check for the presence of the `post` query parameter. If `postId` is present, clicking "Back" navigates the visitor directly to `/posts/:postId`.
+- Standardized the fallback flow: if no `post` ID is supplied, the viewer falls back to browser history (`window.history.back()`) or the standard home catalog (`/`).
+
+### Outcome
+- Visitors clicking a piece, image, or exhibit's VR affordance on any platform surface or external embed now easily route back to the post's expanded detail view.
+- Back routing is completely context-aware and maintains visual continuity across embeds.
+- Verified with focused client and server vitest runs and complete typescript compile-safety.
+
+
 

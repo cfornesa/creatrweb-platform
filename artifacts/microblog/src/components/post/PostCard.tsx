@@ -499,6 +499,7 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
               content={displayPost.content}
               contentFormat={displayPost.contentFormat}
               highlightQuery={highlightQuery}
+              postId={displayPost.id}
             />
           </>
         )}

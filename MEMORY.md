@@ -2,6 +2,9 @@
 to the human before proceeding. Do not act on a pending entry — wait for explicit confirmation
 or rejection. -->
 
+2026-05-30 · IMMERSIVE NAVIGATION · Viewport-lazy post cards and embeds now carry context-aware post references when launching immersive viewer tabs. Propagates a `?post=postId` parameter via `buildImmersiveImageHref`, `buildImmersivePieceHref`, and `buildImmersiveExhibitHref` when triggered within a parsed `<PostContent>` wrapper. Inside the immersive pages (`immersive-piece.tsx`, `immersive-image.tsx`, and `immersive-exhibit-wall.tsx`), the `useReturnToPrevious` hook has been upgraded to intercept the `post` query parameter and navigate the visitor directly back to that post's expanded detail view `/posts/:postId` instead of leaving their context or going to an empty host page.
+    [Implemented 2026-05-30; verified from `immersive-view.ts`, `PostContent.tsx`, `PostCard.tsx`, `post-embed.tsx`, `immersive-piece.tsx`, `immersive-image.tsx`, `immersive-exhibit-wall.tsx` updates, successful client/server vitest runs, and monorepo typecheck.]
+
 2026-05-30 · PERFORMANCE · Timeline post cards now render viewport-lazy via a virtualized windowing IntersectionObserver and ResizeObserver inside `PostCard.tsx`. Off-screen cards render a lightweight skeleton placeholder (completely unmounting heavy nested DOM, text parsers, and images to reclaim 100% of memory), while on-screen cards mount full contents once scrolled within 350px. Height is preserved dynamically when unrendered to guarantee zero layout shift (CLS = 0). Additionally, all featured and post body images are equipped with native browser `loading="lazy"` tags to prevent eager network fetches below the fold.
     [Implemented 2026-05-30; verified from `PostCard.tsx` and `PostContent.tsx` updates, successful client/server vitest runs, and monorepo typecheck.]
 

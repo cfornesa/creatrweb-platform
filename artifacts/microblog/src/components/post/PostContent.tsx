@@ -20,6 +20,7 @@ type PostContentProps = {
    * `<style>`, and existing `<mark>` nodes.
    */
   highlightQuery?: string | null;
+  postId?: number | null;
 };
 
 function tokenizeQuery(q: string): string[] {
@@ -229,7 +230,7 @@ function enhanceLazyIframes(root: HTMLElement) {
   return () => observer.disconnect();
 }
 
-function enhanceImmersiveHtml(html: string, canonicalOrigin: string): string {
+function enhanceImmersiveHtml(html: string, canonicalOrigin: string, postId?: number | null): string {
   if (typeof DOMParser === "undefined") return html;
   // First, normalize all piece embed URLs in the raw HTML to use the canonical origin.
   // This ensures they render correctly even if the stored HTML has a different origin.
@@ -255,7 +256,7 @@ function enhanceImmersiveHtml(html: string, canonicalOrigin: string): string {
         buildImmersiveImageHref(src, {
           alt: image.getAttribute("alt"),
           title: image.getAttribute("title"),
-        }),
+        }, canonicalOrigin, postId),
         "Open image in immersive view",
       ),
     );
@@ -276,7 +277,7 @@ function enhanceImmersiveHtml(html: string, canonicalOrigin: string): string {
       "piece",
       `piece:${meta.id}:${meta.versionId ?? ""}`,
       title,
-      buildImmersivePieceHref(meta.id, meta.versionId, meta.pieceOrigin || canonicalOrigin),
+      buildImmersivePieceHref(meta.id, meta.versionId, meta.pieceOrigin || canonicalOrigin, postId),
       "Open piece in immersive view",
     );
     frame.replaceWith(preview);
@@ -313,7 +314,7 @@ function enhanceImmersiveHtml(html: string, canonicalOrigin: string): string {
       "exhibit",
       `exhibit:${slug}`,
       frame.getAttribute("title")?.trim() || `Exhibit ${slug}`,
-      buildImmersiveExhibitHref(slug, exhibitOrigin),
+      buildImmersiveExhibitHref(slug, exhibitOrigin, postId),
       "Open exhibit in immersive view",
     );
     frame.replaceWith(wrapper);
@@ -338,6 +339,7 @@ export const PostContent = memo(function PostContent({
   contentFormat,
   className,
   highlightQuery,
+  postId,
 }: PostContentProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canonicalOriginRef = useRef(
@@ -356,8 +358,8 @@ export const PostContent = memo(function PostContent({
     [content, contentFormat, regex],
   );
   const immersiveHtml = useMemo(
-    () => (contentFormat === "html" ? enhanceImmersiveHtml(renderedHtml, canonicalOrigin) : renderedHtml),
-    [contentFormat, renderedHtml, canonicalOrigin],
+    () => (contentFormat === "html" ? enhanceImmersiveHtml(renderedHtml, canonicalOrigin, postId) : renderedHtml),
+    [contentFormat, renderedHtml, canonicalOrigin, postId],
   );
 
   useLayoutEffect(() => {

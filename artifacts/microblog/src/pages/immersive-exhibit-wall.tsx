@@ -38,6 +38,12 @@ export type WallItem =
 
 function useReturnToPrevious() {
   return () => {
+    const params = new URLSearchParams(window.location.search);
+    const postId = params.get("post");
+    if (postId && !isNaN(Number(postId))) {
+      window.location.href = `/posts/${postId}`;
+      return;
+    }
     if (window.history.length > 1) {
       window.history.back();
       return;
