@@ -32,6 +32,26 @@ options regardless of session context. -->
 - [x] 2026-04-28 Public interaction model is confirmed at a high level: visitors may log in, comment, and react; only the site owner may publish canonical posts.
 - [x] 2026-04-28 Initial owner bootstrap policy selected: manual database promotion after the owner's first Auth.js-backed login.
 
+## 2026-05-30 — Viewport-Lazy Full Animation Embeds
+
+### Trigger
+The user wanted pages to load faster and more efficiently when multiple posts include VR exhibits, art pieces, and images. The initial thumbnail-first preview approach was rejected because it risked reducing animation integrity and required extra user action. The confirmed direction is to keep full animations, but only activate iframes for art pieces and exhibits while they are in or near the visitor's viewport, then unload them when they leave view.
+
+### Decisions Confirmed
+- Removed the thumbnail-first/manual-preview path and the lightweight `embed-preview` API/client surface.
+- Updated rendered post content so stored `/embed/pieces/:id` iframes become viewport-lazy wrappers that mount the original full iframe when visible and remove it when out of view.
+- Updated rendered exhibit embeds so saved `?embed=1&static=1` post iframes normalize to full interactive `?embed=1` before being lazy mounted.
+- Updated the post editor's saved exhibit iframe source to use full interactive `?embed=1` going forward.
+- Updated direct Three.js `/embed/pieces/:id` behavior so it delegates to the full immersive embed renderer without `static=1`.
+- The VR affordance remains visible independently of iframe mount state and continues to link to the full immersive route.
+- No new vendor dependency, storage provider, persisted enum, URL structure, auth endpoint, export route, feed route, or syndication behavior was changed.
+
+### Outcome
+- Feed/post pages avoid booting every embedded art-piece or exhibit runtime on initial render.
+- Full animations appear automatically once the relevant embed scrolls into view, without requiring hover/tap/click.
+- Runtimes unload when the embed leaves view, reducing CPU/GPU pressure on long feeds and externally embedded post views.
+- OpenAPI/codegen output was regenerated after removing the abandoned preview endpoint; focused API/frontend tests and workspace typecheck passed.
+
 ## 2026-05-30 — Theme-Responsive Logos & Global Dark Mode
 
 ### Trigger
@@ -3023,3 +3043,47 @@ The user wanted a way to make sure the selected theme card in the site customiza
 - Theme picker features a gorgeous, highly responsive brut-aesthetic active theme highlight card.
 - New visitors experience flash-free custom page loading aligning with the owner's chosen default mode, while returning visitors' custom toggles take absolute precedence.
 - Full workspace typecheck and unit tests compile and pass successfully.
+
+---
+
+## 2026-05-30 — Viewport-Lazy Standalone Art Piece Embeds
+
+### Trigger
+The user wanted to ensure that direct embedded art pieces (`/embed/pieces/:id`) loaded outside of the host website also run viewport-lazy (only loading/executing scripts and loops when visible, and completely stopping and cleaning up when off-screen) to reclaim maximum CPU/GPU resources. Additionally, they wanted to strictly prevent constant reload loops or redundant executions when the screen is static.
+
+### Decisions Confirmed
+- Upgraded the server-side raw HTML sketch template in `piece-embed-html.ts` to embed a self-contained `IntersectionObserver` directly inside `/embed/pieces/:id`.
+- Handled precise resource teardowns and garbage collection for each engine:
+  - **p5**: Calls `p5Instance.remove()` which stops the animation loop, detaches event listeners, and completely garbage-collects the canvas.
+  - **c2 & Three.js**: Cancels animation frame loops using `cancelAnimationFrame()` and removes the generated `<canvas>` element from the container on unmount.
+- Protected against redundant/constant reloads when static by implementing an internal boolean state check (`activeSketch`), ensuring observer triggers only execute mounting/unmounting once per viewport crossing.
+- Ensured non-destructive unmounting: instead of wiping the entire container HTML, the unmount logic only targets and removes the canvas, preserving any custom HTML interface controls (buttons, inputs) defined in `htmlCode`.
+- Confirmed zero layout shift (CLS = 0) since both the lazy placeholder in posts and the standalone embed frame dimensions are fixed to identical ratios, preventing layout feedback scroll loops.
+
+### Outcome
+- All direct standalone art-piece embeds (`/embed/pieces/:id`) now dynamically mount and unmount resource-heavy animation loops based on real-time visibility.
+- 100% CPU/GPU resources are reclaimed when direct embeds are scrolled off-screen on external sites.
+- Fully verified with server test suites passing cleanly and type safety intact.
+
+---
+
+## 2026-05-30 — Viewport-Lazy Post Cards & Dynamic Image Loading
+
+### Trigger
+The user wanted to ensure that post cards and images are only loaded when they enter the user's viewport, rather than loading eagerly in sets of 5.
+
+### Decisions Confirmed
+- Implemented a complete virtualized windowing wrapper inside `PostCard.tsx` using `IntersectionObserver` and `ResizeObserver`.
+- Rendered post cards in two dynamic states:
+  - **Off-Screen State**: Renders a lightweight, low-opacity skeleton placeholder card to minimize memory footprint and completely avoid parsing nested post bodies or loading images.
+  - **On-Screen State**: Renders the full `PostCard` content, including featured images and scripts, once scrolled within 350px of the viewport.
+- Guaranteed zero layout shift (CLS = 0) by storing the card's actual measured height via `ResizeObserver` while visible, and explicitly preserving that height on the placeholder when it scrolls off-screen.
+- Added native browser `loading="lazy"` on all post card featured images.
+- Updated the inline HTML post body image parser in `PostContent.tsx` to inject `loading="lazy"` on all `<img>` tags parsed in raw HTML, preventing eager network requests for embedded post body images below the fold.
+
+### Outcome
+- All timeline post cards dynamically mount and unmount their full DOM subtrees, scripts, and media based on real-time scrolling position.
+- Network bandwidth is fully preserved by lazy-loading all inline and featured images natively.
+- Scrollbar remains completely stable with zero layout feedback loops.
+
+

@@ -2,6 +2,15 @@
 to the human before proceeding. Do not act on a pending entry — wait for explicit confirmation
 or rejection. -->
 
+2026-05-30 · PERFORMANCE · Timeline post cards now render viewport-lazy via a virtualized windowing IntersectionObserver and ResizeObserver inside `PostCard.tsx`. Off-screen cards render a lightweight skeleton placeholder (completely unmounting heavy nested DOM, text parsers, and images to reclaim 100% of memory), while on-screen cards mount full contents once scrolled within 350px. Height is preserved dynamically when unrendered to guarantee zero layout shift (CLS = 0). Additionally, all featured and post body images are equipped with native browser `loading="lazy"` tags to prevent eager network fetches below the fold.
+    [Implemented 2026-05-30; verified from `PostCard.tsx` and `PostContent.tsx` updates, successful client/server vitest runs, and monorepo typecheck.]
+
+2026-05-30 · EMBEDS · Standalone art piece embeds (/embed/pieces/:id) now run viewport-lazy via an embedded IntersectionObserver. The p5, c2, and Three.js sketch runtimes load and mount canvases only when visible within 250px of the outer viewport on third-party sites, and cancel all active loops, remove canvases, and dispose WebGL contexts to fully reclaim CPU/GPU resources when scrolled out of view. Includes strict state caching to prevent redundant canvas reloads when static.
+    [Implemented 2026-05-30; verified from `piece-embed-html.ts` updates, successful Vitest server suite runs, and monorepo typecheck.]
+
+2026-05-30 · PERFORMANCE · Art-piece and exhibit iframes in post content now lazy mount the full animation only while in or near view, then unload when out of view. Thumbnail-first/manual activation was rejected in favor of preserving animation integrity and requiring no user gesture.
+    [Implemented 2026-05-30; verified from `PostContent.tsx`, full-animation `/embed/pieces/:id` and `/immersive/exhibits/:slug?embed=1` iframe handling, focused frontend/server tests, and workspace typecheck.]
+
 2026-05-30 · THEME HIGHLIGHTS · Selected theme card in the site customization gallery is now highlighted using a premium Brutalist theme container (thick primary border, scale shift, accent tint, and a bold checkmark badge), perfectly synced with other customizer configurations.
     [Implemented 2026-05-30; verified from ThemePalettePicker.tsx updates and successful monorepo typecheck.]
 

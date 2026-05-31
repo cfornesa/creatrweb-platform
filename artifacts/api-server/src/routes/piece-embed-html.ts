@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { artPiecesTable, artPieceVersionsTable, db, eq } from "@workspace/db";
 import { z } from "zod";
-import { buildStaticImmersiveThreeEmbedHtml } from "./piece-embed-html.helpers";
+import { buildImmersiveThreeEmbedHtml } from "./piece-embed-html.helpers";
 import { getCanonicalOrigin } from "../lib/origin";
 
 const router = Router();
@@ -50,7 +50,7 @@ router.get("/embed/pieces/:id", async (req: Request, res: Response) => {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     const origin = getCanonicalOrigin(req);
     if (version.engine === "three") {
-      return res.send(buildStaticImmersiveThreeEmbedHtml(piece.title, piece.id, version.id, origin));
+      return res.send(buildImmersiveThreeEmbedHtml(piece.title, piece.id, version.id, origin));
     }
     return res.send(pieceEmbedHtml(piece.title, version.engine, version.generatedCode, version.htmlCode, version.cssCode, origin));
   } catch (err) {
@@ -96,6 +96,11 @@ function pieceEmbedHtml(title: string, engine: string, code: string, htmlCode: s
       window.THREE = THREE;
       
       const state = { scene: null, camera: null, objects: [] };
+      let activeSketch = false;
+      let animationFrameId = null;
+      let isLooping = false;
+      let frameCount = 0;
+      let currentHandler = null;
 
       function autoFit() {
         if (!state.scene || !state.camera) return;
@@ -120,111 +125,200 @@ function pieceEmbedHtml(title: string, engine: string, code: string, htmlCode: s
       }
 
       function startFrame(handler) {
-        let frameCount = 0;
+        currentHandler = handler;
+        isLooping = true;
         function tick() {
+          if (!isLooping) return;
           frameCount++;
-          handler(frameCount);
+          currentHandler(frameCount);
           if (frameCount === 15) autoFit();
-          requestAnimationFrame(tick);
+          animationFrameId = requestAnimationFrame(tick);
         }
-        requestAnimationFrame(tick);
+        animationFrameId = requestAnimationFrame(tick);
       }
 
-      try {
-        const codeContent = ${safeCode};
-        let sketchFactory;
-        try {
-          sketchFactory = new Function('return (' + codeContent + ')')();
-        } catch(e) {
-          new Function(codeContent)();
-          sketchFactory = window.sketch;
+      function stopFrame() {
+        isLooping = false;
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+          animationFrameId = null;
         }
-        if (typeof sketchFactory === 'function') {
-          let canvas = document.querySelector('canvas');
-          if (!canvas) {
-            canvas = document.createElement('canvas');
-            const container = document.getElementById('container') || document.getElementById('canvas-container') || document.getElementById('sketch-container') || document.body;
-            container.appendChild(canvas);
-          }
-          canvas.style.width = '100%'; canvas.style.height = '100%'; canvas.style.display = 'block';
+      }
 
-          const instrumentedThree = { ...THREE };
-          const originalScene = THREE.Scene;
-          instrumentedThree.Scene = class extends originalScene { 
-            constructor() { super(); state.scene = this; } 
-            add(...objs) {
-              objs.forEach(obj => { if (obj.geometry) state.objects.push(obj); });
-              return super.add(...objs);
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            if (activeSketch) return;
+            try {
+              const codeContent = ${safeCode};
+              let sketchFactory;
+              try {
+                sketchFactory = new Function('return (' + codeContent + ')')();
+              } catch(e) {
+                new Function(codeContent)();
+                sketchFactory = window.sketch;
+              }
+              if (typeof sketchFactory === 'function') {
+                const container = document.getElementById('container') || document.getElementById('canvas-container') || document.getElementById('sketch-container') || document.body;
+                let canvas = container.querySelector('canvas');
+                if (!canvas) {
+                  canvas = document.createElement('canvas');
+                  container.appendChild(canvas);
+                }
+                canvas.style.width = '100%'; canvas.style.height = '100%'; canvas.style.display = 'block';
+
+                const instrumentedThree = { ...THREE };
+                const originalScene = THREE.Scene;
+                instrumentedThree.Scene = class extends originalScene { 
+                  constructor() { super(); state.scene = this; } 
+                  add(...objs) {
+                    objs.forEach(obj => { if (obj.geometry) state.objects.push(obj); });
+                    return super.add(...objs);
+                  }
+                };
+                const originalCamera = THREE.PerspectiveCamera;
+                instrumentedThree.PerspectiveCamera = class extends originalCamera { constructor(...args) { super(...args); state.camera = this; } };
+
+                sketchFactory({ THREE: instrumentedThree, canvas, startFrame });
+                activeSketch = true;
+                window.parent.postMessage({ type: 'sketch-status', valid: true }, '*');
+              } else {
+                throw new Error('Sketch factory not found. Ensure your JS assigns a function to window.sketch.');
+              }
+            } catch(err) {
+              window.dispatchEvent(new ErrorEvent('error', { message: err.message }));
             }
-          };
-          const originalCamera = THREE.PerspectiveCamera;
-          instrumentedThree.PerspectiveCamera = class extends originalCamera { constructor(...args) { super(...args); state.camera = this; } };
-
-          sketchFactory({ THREE: instrumentedThree, canvas, startFrame });
-          window.parent.postMessage({ type: 'sketch-status', valid: true }, '*');
-        } else {
-          throw new Error('Sketch factory not found. Ensure your JS assigns a function to window.sketch.');
-        }
-      } catch(err) {
-        window.dispatchEvent(new ErrorEvent('error', { message: err.message }));
-      }
+          } else {
+            if (!activeSketch) return;
+            stopFrame();
+            const container = document.getElementById('container') || document.getElementById('canvas-container') || document.getElementById('sketch-container') || document.body;
+            const canvas = container.querySelector('canvas');
+            if (canvas) canvas.remove();
+            activeSketch = false;
+            frameCount = 0;
+            state.scene = null;
+            state.camera = null;
+            state.objects = [];
+          }
+        });
+      }, { rootMargin: '250px 0px' });
+      observer.observe(document.body);
     `;
   } else if (engine === "c2") {
     engineInit = `
+      let activeSketch = false;
+      let animationFrameId = null;
+      let isLooping = false;
+      let frameCount = 0;
+      let currentHandler = null;
+
       function startFrame(handler) {
-        let frameCount = 0;
+        currentHandler = handler;
+        isLooping = true;
         function tick() {
+          if (!isLooping) return;
           frameCount++;
-          handler(frameCount);
-          requestAnimationFrame(tick);
+          currentHandler(frameCount);
+          animationFrameId = requestAnimationFrame(tick);
         }
-        requestAnimationFrame(tick);
+        animationFrameId = requestAnimationFrame(tick);
       }
 
-      try {
-        const codeContent = ${safeCode};
-        let sketchFactory;
-        try {
-          sketchFactory = new Function('return (' + codeContent + ')')();
-        } catch(e) {
-          new Function(codeContent)();
-          sketchFactory = window.sketch;
+      function stopFrame() {
+        isLooping = false;
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+          animationFrameId = null;
         }
-
-        if (typeof sketchFactory === 'function') {
-          const canvas = document.querySelector('canvas') || document.createElement('canvas');
-          if (!canvas.parentNode) document.body.appendChild(canvas);
-          sketchFactory({ c2: window.c2, canvas, startFrame });
-          window.parent.postMessage({ type: 'sketch-status', valid: true }, '*');
-        } else {
-          throw new Error('Sketch factory not found. Ensure your JS assigns a function to window.sketch.');
-        }
-      } catch(err) {
-        window.dispatchEvent(new ErrorEvent('error', { message: err.message }));
       }
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            if (activeSketch) return;
+            try {
+              const codeContent = ${safeCode};
+              let sketchFactory;
+              try {
+                sketchFactory = new Function('return (' + codeContent + ')')();
+              } catch(e) {
+                new Function(codeContent)();
+                sketchFactory = window.sketch;
+              }
+
+              if (typeof sketchFactory === 'function') {
+                const container = document.getElementById('canvas-container') || document.getElementById('sketch-container') || document.body;
+                let canvas = container.querySelector('canvas');
+                if (!canvas) {
+                  canvas = document.createElement('canvas');
+                  container.appendChild(canvas);
+                }
+                canvas.style.display = 'block';
+                sketchFactory({ c2: window.c2, canvas, startFrame });
+                activeSketch = true;
+                window.parent.postMessage({ type: 'sketch-status', valid: true }, '*');
+              } else {
+                throw new Error('Sketch factory not found. Ensure your JS assigns a function to window.sketch.');
+              }
+            } catch(err) {
+              window.dispatchEvent(new ErrorEvent('error', { message: err.message }));
+            }
+          } else {
+            if (!activeSketch) return;
+            stopFrame();
+            const container = document.getElementById('canvas-container') || document.getElementById('sketch-container') || document.body;
+            const canvas = container.querySelector('canvas');
+            if (canvas) canvas.remove();
+            activeSketch = false;
+            frameCount = 0;
+          }
+        });
+      }, { rootMargin: '250px 0px' });
+      observer.observe(document.body);
     `;
   } else {
     engineInit = `
-      try {
-        const codeContent = ${safeCode};
-        let sketchFactory;
-        try {
-          sketchFactory = new Function('return (' + codeContent + ')')();
-        } catch(e) {
-          new Function(codeContent)();
-          sketchFactory = window.sketch;
-        }
+      let p5Instance = null;
+      let activeSketch = false;
 
-        if (typeof sketchFactory === 'function') {
-          const container = document.getElementById('canvas-container') || document.getElementById('sketch-container') || document.body;
-          new p5(sketchFactory, container);
-          window.parent.postMessage({ type: 'sketch-status', valid: true }, '*');
-        } else {
-          throw new Error('Sketch factory not found. Ensure your JS assigns a function to window.sketch.');
-        }
-      } catch(err) {
-        window.dispatchEvent(new ErrorEvent('error', { message: err.message }));
-      }
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            if (activeSketch) return;
+            try {
+              const codeContent = ${safeCode};
+              let sketchFactory;
+              try {
+                sketchFactory = new Function('return (' + codeContent + ')')();
+              } catch(e) {
+                new Function(codeContent)();
+                sketchFactory = window.sketch;
+              }
+
+              if (typeof sketchFactory === 'function') {
+                const container = document.getElementById('canvas-container') || document.getElementById('sketch-container') || document.body;
+                p5Instance = new p5(sketchFactory, container);
+                activeSketch = true;
+                window.parent.postMessage({ type: 'sketch-status', valid: true }, '*');
+              } else {
+                throw new Error('Sketch factory not found. Ensure your JS assigns a function to window.sketch.');
+              }
+            } catch(err) {
+              window.dispatchEvent(new ErrorEvent('error', { message: err.message }));
+            }
+          } else {
+            if (!activeSketch) return;
+            if (p5Instance) {
+              try {
+                p5Instance.remove();
+              } catch(e) {}
+              p5Instance = null;
+            }
+            activeSketch = false;
+          }
+        });
+      }, { rootMargin: '250px 0px' });
+      observer.observe(document.body);
     `;
   }
 
