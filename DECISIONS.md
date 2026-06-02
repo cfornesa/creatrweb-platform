@@ -3105,5 +3105,121 @@ The user wanted to ensure that when clicking the "VR" button on any art piece, i
 - Back routing is completely context-aware and maintains visual continuity across embeds.
 - Verified with focused client and server vitest runs and complete typescript compile-safety.
 
+---
+
+## 2026-06-01 — AI Vendor Profile System
+
+### Trigger
+- The owner re-added Opencode Zen and Opencode Go as piece-generation vendors. Opencode Go's endpoint selection was hard-coded by model slug (two frozen sets in `ai-providers.ts`), meaning new releases like Minimax M3 required a code change before they could be used.
+- The existing `(user_id, vendor)` composite primary key on `user_ai_vendor_settings` forced one config per vendor, blocking multiple model setups sharing the same API key.
+- The owner needed per-task model preferences to resolve to a specific profile (e.g., one Opencode Go profile for text tasks, a different one for art pieces), not merely to a vendor.
+
+### Decisions Confirmed
+
+**Schema (irreversible — confirmed by owner):**
+- `user_ai_vendor_settings` composite PK `(user_id, vendor)` replaced with `id INT AUTO_INCREMENT PRIMARY KEY`; new columns `profile_name VARCHAR(128)` and `endpoint_kind VARCHAR(32)` added; UNIQUE on `(user_id, vendor, profile_name)`.
+- Three `preferred_*_vendor VARCHAR(64)` columns on `users` replaced with `preferred_*_profile_id INT` columns. Existing vendor-string preferences migrated to profile IDs on first boot.
+- All schema changes applied automatically via `ensureTables()` in `lib/db/src/migrate.ts` on server startup — no manual SQL needed.
+
+**API contract (breaking change — affects all AI surfaces):**
+- `/ai/process`, `/ai/describe-image`, and `/art-pieces/generate` now accept `profileId: integer` instead of `vendor: string`. The server looks up the profile by ID, reads its vendor/model/key/endpointKind, and validates ownership before processing.
+- `GET/PATCH /users/me/ai-settings` now returns/accepts `profiles[]` (with profile IDs) and `preferred*ProfileId` integers instead of `settings[]` and vendor-string preferences.
+
+**Endpoint kind (future-proofing for Opencode vendors):**
+- `endpoint_kind VARCHAR(32)` stored per profile. When set, `getOpencodeGoTransportAttempt()` and `getOpencodeZenTransportAttempt()` skip model-slug detection entirely and use the explicit endpoint. When null, existing model-slug detection is used as fallback.
+- Allowed values: `chat-completions`, `anthropic-messages`, `openai-responses`, `google-generate`.
+- Only Opencode Go and Opencode Zen expose the endpoint kind dropdown in the admin UI.
+
+**Profile naming convention:**
+- Default auto-generated name on creation: `{vendorLabel} - {model}` (e.g., `Opencode Go - minimax-m3`).
+- Profile name tracks the model slug automatically until the user manually edits it, at which point auto-tracking stops.
+- Existing rows renamed to `{vendor} - {model}` (or just `{vendor}` if no model was saved) by the startup migration.
+- Profile names are freely user-renameable from Admin → AI.
+
+**Unset-profile safeguards:**
+- Every AI sparkles button (image alt text, piece description, piece prompt improvement) now shows a warning toast if no configured profile exists for that task category, instead of silently doing nothing or hiding the button.
+- The button is always visible; the warning fires pre-flight before any API call.
+
+### Files Changed
+| Layer | Files |
+|---|---|
+| DB schema | `lib/db/src/schema/user-ai-settings.ts`, `lib/db/src/schema/users.ts` |
+| Migration (auto-applied) | `lib/db/src/migrate.ts`, `docs/migrations/2026-06-01-ai-vendor-profiles.sql`, `lib/db/install.sql` |
+| API spec | `lib/api-spec/openapi.yaml` |
+| Zod schemas | `lib/api-zod/src/generated/api.ts` |
+| API client types | `lib/api-client-react/src/generated/api.schemas.ts` |
+| AI settings lib | `artifacts/api-server/src/lib/ai-settings.ts` |
+| Provider routing | `artifacts/api-server/src/lib/ai-providers.ts` |
+| Routes | `artifacts/api-server/src/routes/ai.ts`, `artifacts/api-server/src/routes/art-pieces.ts` |
+| Tests | `artifacts/api-server/src/lib/ai-settings.test.ts`, `artifacts/api-server/src/routes/ai.route.test.ts` |
+| Hook | `artifacts/microblog/src/hooks/use-owner-ai-vendors.ts` |
+| Admin UI | `artifacts/microblog/src/pages/admin/admin-ai.tsx`, `artifacts/microblog/src/pages/admin/admin-pieces.tsx` |
+| Editor | `artifacts/microblog/src/components/post/RichPostEditor.tsx`, `artifacts/microblog/src/components/post/PostEditor.tsx`, `artifacts/microblog/src/components/post/PostCard.tsx` |
+| Dialogs | `artifacts/microblog/src/components/post/dialogs/ImageEditDialog.tsx`, `artifacts/microblog/src/components/post/dialogs/PieceEditDialog.tsx`, `artifacts/microblog/src/components/post/dialogs/ImageInsertDialog.tsx` |
+| Media | `artifacts/microblog/src/components/media/FeaturedImagePicker.tsx` |
+| Pages | `artifacts/microblog/src/pages/admin-pending.tsx`, `artifacts/microblog/src/pages/admin/admin-library.tsx` |
+
+### Outcome
+- `npm run dev` applies the full migration automatically on first boot; idempotent on subsequent boots.
+- New Opencode models work immediately by setting endpoint kind in Admin → AI — no code change needed.
+- Multiple profiles per vendor are supported; each profile can be assigned as the default for a specific task.
+- Unset-profile states surface a clear, actionable warning rather than silent failure.
+
+---
+
+## 2026-06-01 — AI Vendor Profile Migration Fix (Data Preservation)
+
+### Trigger
+The initial migration used a single compound `ALTER TABLE user_ai_vendor_settings DROP PRIMARY KEY, ADD COLUMN id INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST, ...`. This statement is fragile across MySQL versions: InnoDB's requirement that an AUTO_INCREMENT column must be part of a key at all times can cause the entire statement to be rejected when the old PK is dropped mid-statement. The rollback left the schema in the old state but the application code expecting the new one — causing `SELECT id` (via Drizzle) to fail with "Unknown column", which manifested as all AI settings routes returning 500 errors. The user saw the admin page fail to load and interpreted it as their API keys being deleted.
+
+### Decision
+Replaced the single compound ALTER TABLE with seven individually idempotent steps, each checking current schema state before acting:
+
+1. **Add `id INT NULL`** — safe with existing data; no AUTO_INCREMENT yet.
+2. **Fill NULL id values** — uses `mysqlPool.getConnection()` to pin a dedicated connection for session variable (`@ai_id`) visibility across SET and UPDATE.
+3. **Make `id` NOT NULL** — only after values are guaranteed non-null.
+4. **Swap primary key** — checks INFORMATION_SCHEMA to confirm the old composite PK still owns the slot before issuing `DROP PRIMARY KEY, MODIFY COLUMN id AUTO_INCREMENT, ADD PRIMARY KEY (id)`.
+5. **Add `profile_name` and `endpoint_kind` via `ensureColumn`** — idempotent by design.
+6. **Add unique index via `tryEnsureIndex`** — non-fatal on failure.
+7. **Rename existing rows** — only rows still named `'Default'` are touched; encrypted_api_key and all other data are never modified.
+
+### Root cause of data loss (confirmed)
+The original compound `ALTER TABLE ... ADD COLUMN id INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST` used the `FIRST` positional hint. On some MySQL 5.7 variants used by Replit, when a full table rebuild is triggered by a compound DDL that includes a positional column insertion (`FIRST`/`AFTER`), TEXT columns that appear **after the insertion point** in the original schema are silently nulled rather than copied. VARCHAR columns before the insertion point (e.g. `model`) survived; the TEXT `encrypted_api_key` column did not. This is a MySQL engine quirk, not application logic.
+
+### Key guarantee
+No migration step uses `FIRST` or `AFTER` positional clauses — columns land at the end of the table, which is semantically equivalent (code references columns by name, not position). Steps A–G only ADD new columns and restructure the primary key. The `encrypted_api_key`, `model`, `enabled`, `created_at`, and `updated_at` values of existing rows are never modified by any migration step. If any step fails, the next server restart resumes from that step rather than starting over.
 
 
+
+
+---
+
+## 2026-06-01 — Separate AI API Keys from AI Profiles
+
+### Trigger
+Every time the owner added a second profile for a vendor they already had configured, the admin UI showed a blank API key field — there was no way to share the key between profiles. The root cause: `encrypted_api_key` was stored per-profile row in `user_ai_vendor_settings`, so each profile needed its own key. This also caused the confusing "Paste your API key" placeholder even for vendors the owner had previously configured.
+
+### Decisions Confirmed
+
+**New table `user_ai_vendor_keys`** — one row per `(user_id, vendor)`, stores just the encrypted key. The old `encrypted_api_key` column is dropped from `user_ai_vendor_settings`.
+
+**UI split into two sections:**
+- "AI API Keys" — one compact row per vendor showing key status + a password input. Enter a key once; it applies to all profiles for that vendor automatically.
+- "AI Profiles" — profile cards with model slug, endpoint kind, enabled checkbox, no API key field.
+
+**`configured` flag semantics** — a profile is now `configured` (and thus available for task assignment) when the vendor has a saved key AND the profile has a model slug. The server computes this via a join between the two tables.
+
+**API contract:**
+- `GET /users/me/ai-settings` response gains `vendorKeys: {vendor, vendorLabel, hasKey}[]` alongside `profiles[]`.
+- `PATCH /users/me/ai-settings` body gains `vendorKeys?: {vendor, apiKey}[]` and drops `apiKey` from profile entries.
+- AI task endpoints (`/ai/process`, `/ai/describe-image`, `/art-pieces/generate`) now call `loadVendorKey(userId, vendor)` separately after loading the profile.
+
+**Migration** — runs automatically in `ensureTables()` on next `npm run dev`:
+1. `CREATE TABLE IF NOT EXISTS user_ai_vendor_keys` (idempotent).
+2. `INSERT IGNORE INTO user_ai_vendor_keys` — picks the key from the most recently created profile per `(user_id, vendor)`.
+3. `ALTER TABLE user_ai_vendor_settings DROP COLUMN encrypted_api_key` (only after data is migrated).
+
+### Outcome
+- API keys entered once, shared across all profiles for a vendor.
+- Adding a second profile for the same vendor no longer requires re-entering the key.
+- The admin UI is cleaner: key management is clearly separated from profile configuration.

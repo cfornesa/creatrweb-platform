@@ -15,6 +15,7 @@ type ProcessTextInput = {
   apiKey: string;
   systemPrompt: string;
   vendor: AiVendor;
+  endpointKind?: string | null;
   intent?: ProviderIntent;
   signal?: AbortSignal;
 };
@@ -352,9 +353,9 @@ function getTransportAttempts(input: ProcessTextInput): TransportAttempt[] {
         },
       ];
     case "opencode-zen":
-      return getOpencodeZenTransportAttempt(input.model);
+      return getOpencodeZenTransportAttempt(input.model, input.endpointKind);
     case "opencode-go":
-      return getOpencodeGoTransportAttempt(input.model);
+      return getOpencodeGoTransportAttempt(input.model, input.endpointKind);
     case "mistral":
     case "mistral-vibe":
       return [
@@ -367,45 +368,31 @@ function getTransportAttempts(input: ProcessTextInput): TransportAttempt[] {
   }
 }
 
-function getOpencodeZenTransportAttempt(model: string): TransportAttempt[] {
+function getOpencodeZenTransportAttempt(model: string, endpointKind?: string | null): TransportAttempt[] {
+  if (endpointKind === "openai-responses") {
+    return [{ kind: "openai-responses", url: "https://opencode.ai/zen/v1/responses", endpointFamily: "responses" }];
+  }
+  if (endpointKind === "anthropic-messages") {
+    return [{ kind: "anthropic-messages", url: "https://opencode.ai/zen/v1/messages", endpointFamily: "messages" }];
+  }
+  if (endpointKind === "google-generate") {
+    return [{ kind: "google-generate-content", url: "https://opencode.ai/zen/v1/models", endpointFamily: "generate_content" }];
+  }
+  if (endpointKind === "chat-completions") {
+    return [{ kind: "chat-completions", url: "https://opencode.ai/zen/v1/chat/completions", endpointFamily: "chat_completions" }];
+  }
+
   if (isOpencodeZenResponsesModel(model)) {
-    return [
-      {
-        kind: "openai-responses",
-        url: "https://opencode.ai/zen/v1/responses",
-        endpointFamily: "responses",
-      },
-    ];
+    return [{ kind: "openai-responses", url: "https://opencode.ai/zen/v1/responses", endpointFamily: "responses" }];
   }
-
   if (isOpencodeZenAnthropicModel(model)) {
-    return [
-      {
-        kind: "anthropic-messages",
-        url: "https://opencode.ai/zen/v1/messages",
-        endpointFamily: "messages",
-      },
-    ];
+    return [{ kind: "anthropic-messages", url: "https://opencode.ai/zen/v1/messages", endpointFamily: "messages" }];
   }
-
   if (isOpencodeZenGoogleModel(model)) {
-    return [
-      {
-        kind: "google-generate-content",
-        url: "https://opencode.ai/zen/v1/models",
-        endpointFamily: "generate_content",
-      },
-    ];
+    return [{ kind: "google-generate-content", url: "https://opencode.ai/zen/v1/models", endpointFamily: "generate_content" }];
   }
-
   if (isOpencodeZenChatCompletionsModel(model)) {
-    return [
-      {
-        kind: "chat-completions",
-        url: "https://opencode.ai/zen/v1/chat/completions",
-        endpointFamily: "chat_completions",
-      },
-    ];
+    return [{ kind: "chat-completions", url: "https://opencode.ai/zen/v1/chat/completions", endpointFamily: "chat_completions" }];
   }
 
   throw new AiProviderError(
@@ -441,29 +428,23 @@ function isOpencodeZenChatCompletionsModel(model: string): boolean {
   ].some((prefix) => model.startsWith(prefix));
 }
 
-function getOpencodeGoTransportAttempt(model: string): TransportAttempt[] {
-  if (isOpencodeGoChatCompletionsModel(model)) {
-    return [
-      {
-        kind: "chat-completions",
-        url: "https://opencode.ai/zen/go/v1/chat/completions",
-        endpointFamily: "chat_completions",
-      },
-    ];
+function getOpencodeGoTransportAttempt(model: string, endpointKind?: string | null): TransportAttempt[] {
+  if (endpointKind === "anthropic-messages") {
+    return [{ kind: "anthropic-messages", url: "https://opencode.ai/zen/go/v1/messages", endpointFamily: "messages" }];
+  }
+  if (endpointKind === "chat-completions") {
+    return [{ kind: "chat-completions", url: "https://opencode.ai/zen/go/v1/chat/completions", endpointFamily: "chat_completions" }];
   }
 
+  if (isOpencodeGoChatCompletionsModel(model)) {
+    return [{ kind: "chat-completions", url: "https://opencode.ai/zen/go/v1/chat/completions", endpointFamily: "chat_completions" }];
+  }
   if (isOpencodeGoAnthropicModel(model)) {
-    return [
-      {
-        kind: "anthropic-messages",
-        url: "https://opencode.ai/zen/go/v1/messages",
-        endpointFamily: "messages",
-      },
-    ];
+    return [{ kind: "anthropic-messages", url: "https://opencode.ai/zen/go/v1/messages", endpointFamily: "messages" }];
   }
 
   throw new AiProviderError(
-    `Unknown OpenCode Go model slug "${model}". Pick a documented OpenCode Go model and try again.`,
+    `Unknown OpenCode Go model slug "${model}". Set an Endpoint Kind in Admin → AI to override auto-detection, or pick a documented OpenCode Go model.`,
     {
       statusCode: 400,
       retryable: false,
