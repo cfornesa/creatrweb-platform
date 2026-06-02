@@ -317,11 +317,12 @@ describe("processTextWithProvider", () => {
         model: "minimax-m3-free",
         max_tokens: 4096,
         thinking: { type: "disabled" },
-        messages: [
-          { role: "system", content: "Piece system prompt" },
-          { role: "user", content: "Make a Three.js sculpture" },
-        ],
       });
+      expect(body.messages[0].role).toBe("system");
+      expect(body.messages[0].content).toContain("Piece system prompt");
+      expect(body.messages[0].content).toContain("Do not output <think>");
+      expect(body.messages[0].content).toContain("Output only the required fenced HTML, CSS, and JavaScript code blocks");
+      expect(body.messages[1]).toMatchObject({ role: "user", content: "Make a Three.js sculpture" });
 
       return new Response(
         JSON.stringify({
@@ -367,6 +368,7 @@ describe("processTextWithProvider", () => {
           { role: "user", content: "Hello world" },
         ],
       });
+      expect(body.thinking).toBeUndefined();
 
       return new Response(
         JSON.stringify({
@@ -406,12 +408,13 @@ describe("processTextWithProvider", () => {
       expect(body).toMatchObject({
         model: "minimax-m3",
         max_tokens: 4096,
-        messages: [
-          { role: "system", content: "Piece system prompt" },
-          { role: "user", content: "Make a p5 kinetic sketch" },
-        ],
+        thinking: { type: "disabled" },
       });
-      expect(body.thinking).toBeUndefined();
+      expect(body.messages[0].role).toBe("system");
+      expect(body.messages[0].content).toContain("Piece system prompt");
+      expect(body.messages[0].content).toContain("Do not output <think>");
+      expect(body.messages[0].content).toContain("Output only the required fenced HTML, CSS, and JavaScript code blocks");
+      expect(body.messages[1]).toMatchObject({ role: "user", content: "Make a p5 kinetic sketch" });
 
       return new Response(
         JSON.stringify({

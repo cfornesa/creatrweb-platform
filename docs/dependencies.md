@@ -106,7 +106,7 @@
 - **Sends data off-domain:** Yes, when the owner explicitly triggers AI from the post editor or the interactive-piece generation flow.
 - **What breaks if it changes or is removed:** AI-assisted rewriting and AI-assisted interactive piece generation for users who selected OpenCode Zen stop working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
 - **Self-hosting alternative:** Not permitted for this product direction. Hosted-provider-only.
-- **Routing note:** Uses Opencode Zen's compatibility endpoints by model family. Chat-completions art-piece requests, including `minimax-m3-free`, use the gateway-safe 4096-token cap and send `thinking: { type: "disabled" }` so Zen returns final HTML/CSS/JS instead of reasoning-only output. Piece-generation provider requests share the 20-minute generation budget and retry retryable upstream failures inside the existing attempt budget.
+- **Routing note:** Uses Opencode Zen's compatibility endpoints by model family. Chat-completions art-piece requests, including `minimax-m3-free`, use the gateway-safe 4096-token cap and send `thinking: { type: "disabled" }` plus an explicit no-`<think>` system directive so Zen returns final HTML/CSS/JS instead of reasoning-only output. Piece-generation provider requests share the 20-minute generation budget and retry retryable upstream failures inside the existing attempt budget.
 
 ## OpenCode Go
 
@@ -114,7 +114,7 @@
 - **Sends data off-domain:** Yes, when the owner explicitly triggers AI from the post editor or the interactive-piece generation flow.
 - **What breaks if it changes or is removed:** AI-assisted rewriting and AI-assisted interactive piece generation for users who selected OpenCode Go stop working until the adapter is updated or the user switches vendors; the rest of the app remains functional.
 - **Self-hosting alternative:** Not permitted for this product direction. Hosted-provider-only.
-- **Routing note:** Uses Opencode Go's compatibility endpoints by model family. `minimax-m3` routes to `/zen/go/v1/chat/completions` and may also be saved as `opencode-go/minimax-m3`. Piece-generation provider requests share the 20-minute generation budget and retry retryable upstream failures inside the existing attempt budget.
+- **Routing note:** Uses Opencode Go's compatibility endpoints by model family. `minimax-m3` routes to `/zen/go/v1/chat/completions` and may also be saved as `opencode-go/minimax-m3`. Chat-completions art-piece requests use the gateway-safe 4096-token cap and send `thinking: { type: "disabled" }` plus an explicit no-`<think>` system directive. Piece-generation provider requests share the 20-minute generation budget and retry retryable upstream failures inside the existing attempt budget.
 
 ## Google Gemini API
 

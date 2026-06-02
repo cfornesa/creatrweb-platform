@@ -5,6 +5,8 @@ const AI_TIMEOUT_MS = 120_000;
 const DEFAULT_CHAT_MAX_TOKENS = 4096;
 const ART_PIECE_CHAT_MAX_TOKENS = 12000;
 const ART_PIECE_PROVIDER_TIMEOUT_MS = 1_200_000;
+const ART_PIECE_NO_THINKING_DIRECTIVE =
+  "CRITICAL: Do not output <think>, reasoning, analysis, planning notes, explanations, or prose. Output only the required fenced HTML, CSS, and JavaScript code blocks.";
 
 type FailureClass = "timeout" | "upstream_http" | "network" | "parse" | "unknown_model";
 type EndpointFamily = "responses" | "chat_completions" | "messages" | "generate_content";
@@ -545,7 +547,11 @@ async function postOpenAiResponses(url: string, input: ProcessTextInput): Promis
 async function postChatCompletions(url: string, input: ProcessTextInput): Promise<TransportResult> {
   const isArtPieceRequest = input.intent === "art-piece";
   const isDeepSeek = input.vendor === "deepseek" || input.model.includes("deepseek");
-  const shouldDisableThinking = isArtPieceRequest && (isDeepSeek || input.vendor === "opencode-zen");
+  const isOpencode = input.vendor === "opencode-zen" || input.vendor === "opencode-go";
+  const shouldDisableThinking = isArtPieceRequest && (isDeepSeek || isOpencode);
+  const systemPrompt = isArtPieceRequest && isOpencode
+    ? `${input.systemPrompt} ${ART_PIECE_NO_THINKING_DIRECTIVE}`
+    : input.systemPrompt;
   const result = await postJson(url, {
     transportKind: "chat-completions",
     endpointFamily: "chat_completions",
@@ -569,7 +575,7 @@ async function postChatCompletions(url: string, input: ProcessTextInput): Promis
       max_tokens: isArtPieceRequest && isDeepSeek ? ART_PIECE_CHAT_MAX_TOKENS : DEFAULT_CHAT_MAX_TOKENS,
       ...(shouldDisableThinking ? { thinking: { type: "disabled" } } : {}),
       messages: [
-        { role: "system", content: input.systemPrompt },
+        { role: "system", content: systemPrompt },
         { role: "user", content: input.plainText },
       ],
     },

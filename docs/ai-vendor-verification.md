@@ -129,7 +129,7 @@ Verify routing by model family:
 - `gemini-*` -> `/zen/v1/models/...`
 - `big-pickle`, `minimax-*`, `glm-*`, `kimi-*`, `qwen*`, `nemotron-*` -> `/zen/v1/chat/completions`
 
-For validated piece generation, confirm Zen chat-completions requests include `thinking: { type: "disabled" }`, keep the gateway-safe `max_tokens: 4096` cap, and still return final HTML/CSS/JS code blocks.
+For validated piece generation, confirm Zen chat-completions requests include `thinking: { type: "disabled" }`, include the no-`<think>` system directive, keep the gateway-safe `max_tokens: 4096` cap, and still return final HTML/CSS/JS code blocks.
 
 Unknown Zen model slugs must fail fast before any outbound request.
 
@@ -140,6 +140,7 @@ Unknown Zen model slugs must fail fast before any outbound request.
   - `minimax-m3` -> `/zen/go/v1/chat/completions`
   - `minimax-m2.7`, `minimax-m2.5` -> `/zen/go/v1/messages`
 - Confirm both raw model IDs and `opencode-go/<model-id>` prefixed slugs behave correctly when saved in `/admin/ai`.
+- For validated piece generation, confirm Go chat-completions requests include `thinking: { type: "disabled" }`, include the no-`<think>` system directive, keep the gateway-safe `max_tokens: 4096` cap, and still return final HTML/CSS/JS code blocks.
 - Unknown Go model slugs must fail fast before any outbound request.
 
 ### Google
