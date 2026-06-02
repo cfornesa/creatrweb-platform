@@ -1358,20 +1358,26 @@ export async function ensureTables(): Promise<void> {
   await mysqlPool.query(`
     UPDATE user_ai_vendor_settings SET vendor = 'mistral-vibe' WHERE vendor = 'codestral'
   `);
-  // Fix profile_names stamped with the old slug. UPDATE IGNORE skips any row
-  // where the renamed value would violate the UNIQUE (user_id, vendor, profile_name)
-  // constraint — which happens when the user already has a fresh mistral-vibe row
-  // with the same resulting name. After the IGNORE pass, delete whatever
-  // codestral-origin rows remain (they are superseded by the fresh rows).
-  await mysqlPool.query(`
-    UPDATE IGNORE user_ai_vendor_settings
-    SET profile_name = CONCAT('mistral-vibe', SUBSTR(profile_name, LENGTH('codestral') + 1))
-    WHERE vendor = 'mistral-vibe' AND profile_name LIKE 'codestral%'
-  `);
-  await mysqlPool.query(`
-    DELETE FROM user_ai_vendor_settings
-    WHERE vendor = 'mistral-vibe' AND profile_name LIKE 'codestral%'
-  `);
+  // Fix profile_names stamped with the old slug only after that column exists.
+  // Some sibling repos may still be migrating from the pre-profile schema, where
+  // `profile_name` is added later by the AI Vendor Profile Migration below.
+  const aiVendorColsForCodestralRename = await getColumnNames("user_ai_vendor_settings");
+  if (aiVendorColsForCodestralRename.has("profile_name")) {
+    // UPDATE IGNORE skips any row where the renamed value would violate the
+    // UNIQUE (user_id, vendor, profile_name) constraint — which happens when the
+    // user already has a fresh mistral-vibe row with the same resulting name.
+    // After the IGNORE pass, delete whatever codestral-origin rows remain (they
+    // are superseded by the fresh rows).
+    await mysqlPool.query(`
+      UPDATE IGNORE user_ai_vendor_settings
+      SET profile_name = CONCAT('mistral-vibe', SUBSTR(profile_name, LENGTH('codestral') + 1))
+      WHERE vendor = 'mistral-vibe' AND profile_name LIKE 'codestral%'
+    `);
+    await mysqlPool.query(`
+      DELETE FROM user_ai_vendor_settings
+      WHERE vendor = 'mistral-vibe' AND profile_name LIKE 'codestral%'
+    `);
+  }
   // If the old preference columns still exist, rename any 'codestral' values too.
   const colsForCodestralRename = await getColumnNames("users");
   if (colsForCodestralRename.has("preferred_art_piece_vendor")) {
