@@ -149,6 +149,7 @@ export default function AdminPiecesPage() {
   const [creationMode, setCreationMode] = useState<null | "ai" | "manual">(null);
   const [draft, setDraft] = useState<GeneratedArtPieceDraft | null>(null);
   const [draftOpen, setDraftOpen] = useState(false);
+  const [savingDraftToken, setSavingDraftToken] = useState<string | null>(null);
   const [generationState, setGenerationState] = useState<ArtPieceGenerationState | null>(null);
   const generationAbortRef = useRef<AbortController | null>(null);
   const [isImprovingText, setIsImprovingText] = useState(false);
@@ -410,21 +411,34 @@ canvas { display: block; }`;
   }
 
   async function handleCreatePiece(data: Parameters<typeof createPiece.mutateAsync>[0]["data"]) {
+    if (data.draftToken && savingDraftToken === data.draftToken) {
+      return;
+    }
+    if (data.draftToken) {
+      setSavingDraftToken(data.draftToken);
+    }
+    let pieceWasCreated = false;
     try {
       const response = await createPiece.mutateAsync({ data });
+      pieceWasCreated = true;
       if (pieceExhibitIds.length > 0) {
         setArtPieceExhibits.mutate({ id: response.id, data: { exhibitIds: pieceExhibitIds } });
       }
       queryClient.invalidateQueries({ queryKey: getListArtPiecesQueryKey() });
       setSelectedId(response.id);
-      await handleSavedCurrentPiece(response);
       setCreationMode(null);
       setDraftOpen(false);
       setDraft(null);
+      setSavingDraftToken(null);
+      await handleSavedCurrentPiece(response);
       toast({ title: "New piece saved" });
     } catch (error) {
       if (error instanceof Error && error.message === "Thumbnail generation failed.") return;
       toast({ title: "Failed to save piece", variant: "destructive" });
+    } finally {
+      if (!pieceWasCreated && data.draftToken) {
+        setSavingDraftToken((current) => current === data.draftToken ? null : current);
+      }
     }
   }
 
@@ -432,8 +446,16 @@ canvas { display: block; }`;
     id: number,
     data: Parameters<typeof createVersion.mutateAsync>[0]["data"],
   ) {
+    if (data.draftToken && savingDraftToken === data.draftToken) {
+      return;
+    }
+    if (data.draftToken) {
+      setSavingDraftToken(data.draftToken);
+    }
+    let versionWasCreated = false;
     try {
       const response = await createVersion.mutateAsync({ id, data });
+      versionWasCreated = true;
       setTitle(response.piece.title);
       setPrompt(response.piece.prompt);
       setSelectedEngine(response.version.engine);
@@ -443,15 +465,20 @@ canvas { display: block; }`;
       setArtPieceExhibits.mutate({ id: response.piece.id, data: { exhibitIds: pieceExhibitIds } });
       queryClient.invalidateQueries({ queryKey: getListArtPiecesQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetArtPieceQueryKey(response.piece.id) });
+      setDraftOpen(false);
+      setDraft(null);
+      setSavingDraftToken(null);
       if (response.piece.currentVersionId === response.version.id) {
         await handleSavedCurrentPiece(response.piece);
       }
-      setDraftOpen(false);
-      setDraft(null);
       toast({ title: "New piece version saved" });
     } catch (error) {
       if (error instanceof Error && error.message === "Thumbnail generation failed.") return;
       toast({ title: "Failed to save new version", variant: "destructive" });
+    } finally {
+      if (!versionWasCreated && data.draftToken) {
+        setSavingDraftToken((current) => current === data.draftToken ? null : current);
+      }
     }
   }
 
@@ -1107,11 +1134,12 @@ canvas { display: block; }`;
           setDraftOpen(open);
           if (!open) {
             setDraft(null);
+            setSavingDraftToken(null);
           }
         }}
         draft={draft}
         prompt={prompt}
-        isSaving={creationMode === "ai" ? createPiece.isPending || isPersistingThumbnail : createVersion.isPending || isPersistingThumbnail}
+        isSaving={Boolean(savingDraftToken) || (creationMode === "ai" ? createPiece.isPending || isPersistingThumbnail : createVersion.isPending || isPersistingThumbnail)}
         onSaveAndInsert={() => {
           if (!draft) return;
           if (creationMode === "ai") {

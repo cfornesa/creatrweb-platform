@@ -211,6 +211,7 @@ export function RichPostEditor({
   const [pieceDraft, setPieceDraft] = useState<GeneratedArtPieceDraft | null>(null);
   const [pieceDraftPrompt, setPieceDraftPrompt] = useState("");
   const [isPieceDraftOpen, setIsPieceDraftOpen] = useState(false);
+  const [savingPieceDraftToken, setSavingPieceDraftToken] = useState<string | null>(null);
   const [isPersistingPieceThumbnail, setIsPersistingPieceThumbnail] = useState(false);
   const [isPieceLibraryOpen, setIsPieceLibraryOpen] = useState(false);
   const [isExhibitLibraryOpen, setIsExhibitLibraryOpen] = useState(false);
@@ -286,6 +287,8 @@ export function RichPostEditor({
 
   async function handleSavePieceDraftAndInsert() {
     if (!pieceDraft || !editor) return;
+    if (savingPieceDraftToken === pieceDraft.draftToken) return;
+    setSavingPieceDraftToken(pieceDraft.draftToken);
     let pieceWasSaved = false;
     try {
       const response = await createArtPiece.mutateAsync({
@@ -294,6 +297,9 @@ export function RichPostEditor({
         },
       });
       pieceWasSaved = true;
+      setIsPieceDraftOpen(false);
+      setPieceDraft(null);
+      setSavingPieceDraftToken(null);
       setIsPersistingPieceThumbnail(true);
       await persistArtPieceThumbnail(response);
       editor.chain().focus().insertIframe(
@@ -304,8 +310,6 @@ export function RichPostEditor({
           currentVersionId: response.currentVersionId!,
         }),
       ).run();
-      setIsPieceDraftOpen(false);
-      setPieceDraft(null);
       toast({
         title: "Piece saved",
         description: "The new piece was saved with a thumbnail and embedded into the post.",
@@ -321,6 +325,9 @@ export function RichPostEditor({
       });
     } finally {
       setIsPersistingPieceThumbnail(false);
+      if (!pieceWasSaved) {
+        setSavingPieceDraftToken((current) => current === pieceDraft.draftToken ? null : current);
+      }
     }
   }
 
@@ -1479,10 +1486,16 @@ export function RichPostEditor({
 
       <ArtPieceDraftDialog
         open={isPieceDraftOpen}
-        onOpenChange={setIsPieceDraftOpen}
+        onOpenChange={(open) => {
+          setIsPieceDraftOpen(open);
+          if (!open) {
+            setPieceDraft(null);
+            setSavingPieceDraftToken(null);
+          }
+        }}
         draft={pieceDraft}
         prompt={pieceDraftPrompt}
-        isSaving={createArtPiece.isPending || isPersistingPieceThumbnail}
+        isSaving={Boolean(savingPieceDraftToken) || createArtPiece.isPending || isPersistingPieceThumbnail}
         onSaveAndInsert={() => void handleSavePieceDraftAndInsert()}
       />
 
