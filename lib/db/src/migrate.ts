@@ -1453,6 +1453,16 @@ export async function ensureTables(): Promise<void> {
     `);
   }
 
+  // The legacy composite PRIMARY KEY (user_id, vendor) also served as the
+  // supporting index for the user_id foreign key. Add an explicit replacement
+  // before dropping that PK, otherwise InnoDB rejects the table rebuild on
+  // older databases with "Foreign key constraint is incorrectly formed".
+  await ensureIndex(
+    "user_ai_vendor_settings",
+    "user_ai_vendor_settings_user_id_idx",
+    "CREATE INDEX user_ai_vendor_settings_user_id_idx ON user_ai_vendor_settings (user_id)",
+  );
+
   // Step D: Swap the primary key from (user_id, vendor) to id with AUTO_INCREMENT.
   // Detect whether the old composite PK still owns the primary key slot by checking
   // if user_id appears in the PRIMARY constraint.
