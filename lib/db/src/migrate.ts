@@ -1504,9 +1504,18 @@ export async function ensureTables(): Promise<void> {
   `);
 
   // Diagnostic: log current state of all AI vendor profiles
-  const [diagRows] = await mysqlPool.query<RowDataPacket[]>(
-    "SELECT id, user_id, vendor, profile_name, enabled, model IS NOT NULL AS has_model, encrypted_api_key IS NOT NULL AS has_key FROM user_ai_vendor_settings",
-  );
+  const settingsCols = await getColumnNames("user_ai_vendor_settings");
+  let diagQuery = "";
+  if (settingsCols.has("encrypted_api_key")) {
+    diagQuery = "SELECT id, user_id, vendor, profile_name, enabled, model IS NOT NULL AS has_model, encrypted_api_key IS NOT NULL AS has_key FROM user_ai_vendor_settings";
+  } else {
+    diagQuery = `
+      SELECT s.id, s.user_id, s.vendor, s.profile_name, s.enabled, s.model IS NOT NULL AS has_model, k.encrypted_api_key IS NOT NULL AS has_key
+      FROM user_ai_vendor_settings s
+      LEFT JOIN user_ai_vendor_keys k ON s.user_id = k.user_id AND s.vendor = k.vendor
+    `;
+  }
+  const [diagRows] = await mysqlPool.query<RowDataPacket[]>(diagQuery);
   console.log("[migrate] AI vendor profiles after migration:", JSON.stringify(diagRows));
 
   // Add profile-ID preference columns to users (new names, integer type).

@@ -4,6 +4,7 @@ import type { AiVendor } from "./ai-settings";
 const AI_TIMEOUT_MS = 120_000;
 const DEFAULT_CHAT_MAX_TOKENS = 4096;
 const ART_PIECE_CHAT_MAX_TOKENS = 12000;
+const ART_PIECE_PROVIDER_TIMEOUT_MS = 1_200_000;
 
 type FailureClass = "timeout" | "upstream_http" | "network" | "parse" | "unknown_model";
 type EndpointFamily = "responses" | "chat_completions" | "messages" | "generate_content";
@@ -467,6 +468,9 @@ function normalizeModelForProvider(vendor: AiVendor, model: string): string {
 }
 
 function isOpencodeGoChatCompletionsModel(model: string): boolean {
+  if (model.startsWith("minimax-m3")) {
+    return true;
+  }
   return new Set([
     "glm-5.1",
     "glm-5",
@@ -539,11 +543,14 @@ async function postOpenAiResponses(url: string, input: ProcessTextInput): Promis
 }
 
 async function postChatCompletions(url: string, input: ProcessTextInput): Promise<TransportResult> {
-  const isDeepSeekArtPieceRequest = input.vendor === "deepseek" && input.intent === "art-piece";
+  const isArtPieceRequest = input.intent === "art-piece";
+  const isDeepSeek = input.vendor === "deepseek" || input.model.includes("deepseek");
+  const shouldDisableThinking = isArtPieceRequest && (isDeepSeek || input.vendor === "opencode-zen");
   const result = await postJson(url, {
     transportKind: "chat-completions",
     endpointFamily: "chat_completions",
     signal: input.signal,
+    timeoutMs: isArtPieceRequest ? ART_PIECE_PROVIDER_TIMEOUT_MS : undefined,
     headers: {
       Authorization: `Bearer ${input.apiKey}`,
       ...(input.vendor === "openrouter"
@@ -559,8 +566,8 @@ async function postChatCompletions(url: string, input: ProcessTextInput): Promis
     },
     body: {
       model: input.model,
-      max_tokens: isDeepSeekArtPieceRequest ? ART_PIECE_CHAT_MAX_TOKENS : DEFAULT_CHAT_MAX_TOKENS,
-      ...(isDeepSeekArtPieceRequest ? { thinking: { type: "disabled" } } : {}),
+      max_tokens: isArtPieceRequest && isDeepSeek ? ART_PIECE_CHAT_MAX_TOKENS : DEFAULT_CHAT_MAX_TOKENS,
+      ...(shouldDisableThinking ? { thinking: { type: "disabled" } } : {}),
       messages: [
         { role: "system", content: input.systemPrompt },
         { role: "user", content: input.plainText },
@@ -581,18 +588,22 @@ async function postChatCompletions(url: string, input: ProcessTextInput): Promis
 }
 
 async function postAnthropicMessages(url: string, input: ProcessTextInput): Promise<TransportResult> {
+  const isArtPieceRequest = input.intent === "art-piece";
   const result = await postJson(url, {
     transportKind: "anthropic-messages",
     endpointFamily: "messages",
     signal: input.signal,
+    timeoutMs: isArtPieceRequest ? ART_PIECE_PROVIDER_TIMEOUT_MS : undefined,
     headers: {
       "x-api-key": input.apiKey,
       "anthropic-version": "2023-06-01",
     },
     body: {
       model: input.model,
-      max_tokens: 4096,
-      system: input.systemPrompt,
+      max_tokens: isArtPieceRequest ? 8192 : 4096,
+      system: isArtPieceRequest
+        ? `${input.systemPrompt} CRITICAL: Skip all internal chain-of-thought, reasoning steps, or step-by-step planning. Output the three requested code blocks directly and immediately to prevent gateway timeouts.`
+        : input.systemPrompt,
       messages: [
         { role: "user", content: input.plainText },
       ],
@@ -622,10 +633,12 @@ async function postAnthropicMessages(url: string, input: ProcessTextInput): Prom
 async function postGoogleGenerateContent(url: string, input: ProcessTextInput): Promise<TransportResult> {
   const modelPath = input.model.startsWith("models/") ? input.model : `models/${input.model}`;
   const endpoint = `${url}/${modelPath.replace(/^models\//, "")}:generateContent?key=${encodeURIComponent(input.apiKey)}`;
+  const isArtPieceRequest = input.intent === "art-piece";
   const result = await postJson(endpoint, {
     transportKind: "google-generate-content",
     endpointFamily: "generate_content",
     signal: input.signal,
+    timeoutMs: isArtPieceRequest ? ART_PIECE_PROVIDER_TIMEOUT_MS : undefined,
     body: {
       systemInstruction: {
         parts: [{ text: input.systemPrompt }],
@@ -637,7 +650,7 @@ async function postGoogleGenerateContent(url: string, input: ProcessTextInput): 
         },
       ],
       generationConfig: {
-        maxOutputTokens: 4096,
+        maxOutputTokens: isArtPieceRequest ? 8192 : 4096,
       },
     },
   });
@@ -670,13 +683,15 @@ async function postJson(
     headers?: Record<string, string>;
     body: unknown;
     signal?: AbortSignal;
+    timeoutMs?: number;
   },
 ): Promise<
   | { ok: true; json: unknown; rawText: string }
   | Extract<TransportResult, { ok: false }>
 > {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+  const timeoutMs = input.timeoutMs ?? AI_TIMEOUT_MS;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const abortListener = () => controller.abort();
   input.signal?.addEventListener("abort", abortListener);
 

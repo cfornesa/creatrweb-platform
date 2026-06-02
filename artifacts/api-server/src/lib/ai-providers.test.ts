@@ -276,6 +276,7 @@ describe("processTextWithProvider", () => {
           { role: "user", content: "Hello world" },
         ],
       });
+      expect(body.thinking).toBeUndefined();
 
       return new Response(
         JSON.stringify({
@@ -305,6 +306,54 @@ describe("processTextWithProvider", () => {
 
     expect(result).toBe("Expanded via Big Pickle");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes Opencode Zen MiniMax art-piece requests to chat completions with the art-piece timeout budget", async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("https://opencode.ai/zen/v1/chat/completions");
+      const body = JSON.parse(String(init?.body));
+      expect(body).toMatchObject({
+        model: "minimax-m3-free",
+        max_tokens: 4096,
+        thinking: { type: "disabled" },
+        messages: [
+          { role: "system", content: "Piece system prompt" },
+          { role: "user", content: "Make a Three.js sculpture" },
+        ],
+      });
+
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              finish_reason: "stop",
+              message: {
+                content: "```html\n<div id=\"container\"></div>\n```\n```css\n#container{height:100%;}\n```\n```javascript\nwindow.sketch = (runtime) => {};\n```",
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    const result = await processTextWithProvider({
+      vendor: "opencode-zen",
+      model: "minimax-m3-free",
+      apiKey: "sk-zen",
+      plainText: "Make a Three.js sculpture",
+      systemPrompt: "Piece system prompt",
+      intent: "art-piece",
+    });
+
+    expect(result).toContain("window.sketch");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(setTimeoutSpy.mock.calls.some((call) => call[1] === 1_200_000)).toBe(true);
   });
 
   it("routes documented OpenCode Go chat-completions models to the Go chat endpoint", async () => {
@@ -347,6 +396,54 @@ describe("processTextWithProvider", () => {
 
     expect(result).toBe("Expanded via OpenCode Go chat endpoint");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes OpenCode Go minimax-m3 art-piece requests to chat completions with the art-piece timeout budget", async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("https://opencode.ai/zen/go/v1/chat/completions");
+      const body = JSON.parse(String(init?.body));
+      expect(body).toMatchObject({
+        model: "minimax-m3",
+        max_tokens: 4096,
+        messages: [
+          { role: "system", content: "Piece system prompt" },
+          { role: "user", content: "Make a p5 kinetic sketch" },
+        ],
+      });
+      expect(body.thinking).toBeUndefined();
+
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              finish_reason: "stop",
+              message: {
+                content: "```html\n<div id=\"canvas-container\"></div>\n```\n```css\n#canvas-container{height:100%;}\n```\n```javascript\nwindow.sketch = (p) => {};\n```",
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    const result = await processTextWithProvider({
+      vendor: "opencode-go",
+      model: "opencode-go/minimax-m3",
+      apiKey: "sk-go",
+      plainText: "Make a p5 kinetic sketch",
+      systemPrompt: "Piece system prompt",
+      intent: "art-piece",
+    });
+
+    expect(result).toContain("window.sketch");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(setTimeoutSpy.mock.calls.some((call) => call[1] === 1_200_000)).toBe(true);
   });
 
   it("routes documented OpenCode Go MiniMax models to the Go messages endpoint", async () => {
@@ -399,7 +496,7 @@ describe("processTextWithProvider", () => {
       name: "AiProviderError",
       statusCode: 400,
       message:
-        'Unknown OpenCode Go model slug "not-a-documented-go-model". Pick a documented OpenCode Go model and try again.',
+        'Unknown OpenCode Go model slug "not-a-documented-go-model". Set an Endpoint Kind in Admin → AI to override auto-detection, or pick a documented OpenCode Go model.',
     } satisfies Partial<AiProviderError>);
     expect(fetchMock).not.toHaveBeenCalled();
   });

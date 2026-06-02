@@ -176,21 +176,26 @@ async function loadVersionById(id: number) {
   return rows[0] ?? null;
 }
 
-function createGenerationAbortController(req: Request) {
+export function createGenerationAbortController(req: Request, res?: Response) {
   const controller = new AbortController();
   const { timeoutMs } = getArtPieceGenerationLimits();
   const timeout = setTimeout(() => controller.abort("timed_out"), timeoutMs);
   const cancel = () => controller.abort("cancelled");
+  const cancelIfResponseClosedBeforeEnd = () => {
+    if (!res?.writableEnded) {
+      cancel();
+    }
+  };
 
   req.on("aborted", cancel);
-  req.on("close", cancel);
+  res?.on("close", cancelIfResponseClosedBeforeEnd);
 
   return {
     signal: controller.signal,
     cleanup() {
       clearTimeout(timeout);
       req.off("aborted", cancel);
-      req.off("close", cancel);
+      res?.off("close", cancelIfResponseClosedBeforeEnd);
     },
   };
 }
@@ -237,7 +242,23 @@ function classifyGenerationFailureStage(message: string): string {
   return "generation_validation";
 }
 
-async function generateValidatedDraft(input: {
+function classifyAiProviderFailureStage(error: AiProviderError): string {
+  if (error.failureClass === "timeout") {
+    return "provider_timeout";
+  }
+  if (error.failureClass === "upstream_http") {
+    return "provider_upstream_http";
+  }
+  if (error.failureClass === "parse") {
+    return "provider_parse";
+  }
+  if (error.failureClass === "unknown_model") {
+    return "provider_unknown_model";
+  }
+  return "provider_request";
+}
+
+export async function generateValidatedDraft(input: {
   ownerUserId: string;
   prompt: string;
   engine: z.infer<typeof artPieceEngineSchema>;
@@ -332,15 +353,38 @@ async function generateValidatedDraft(input: {
       if (input.signal.aborted) {
         throwIfGenerationAborted(input.signal, attemptCount);
       }
-      if (error instanceof AiProviderError && attemptCount >= maxAttempts) {
-        throw new ArtPieceGenerationError(error.message, {
-          statusCode: error.statusCode,
+
+      if (error instanceof AiProviderError) {
+        previousFailureMessage = error.message;
+        const failureStage = classifyAiProviderFailureStage(error);
+        console.warn("Art piece provider attempt failed", {
+          engine: input.engine,
+          vendor: input.vendor,
+          model: input.model,
           attemptCount,
           maxAttempts,
-          engine: input.engine,
-          failureStage: "provider_request",
+          failureStage,
+          failureMessage: error.message,
+          failureClass: error.failureClass,
+          transportKind: error.transportKind,
+          endpointFamily: error.endpointFamily,
+          upstreamStatus: error.upstreamStatus,
+          retryable: error.retryable,
           rawResponsePreview: error.rawResponsePreview?.slice(0, 600) ?? previousRawResponse?.slice(0, 600) ?? null,
         });
+
+        if (!error.retryable || attemptCount >= maxAttempts) {
+          throw new ArtPieceGenerationError(error.message, {
+            statusCode: error.statusCode,
+            attemptCount,
+            maxAttempts,
+            engine: input.engine,
+            failureStage,
+            rawResponsePreview: error.rawResponsePreview?.slice(0, 600) ?? previousRawResponse?.slice(0, 600) ?? null,
+          });
+        }
+
+        continue;
       }
 
       previousFailureMessage = error instanceof Error
@@ -496,7 +540,7 @@ router.get("/art-pieces/:id/embed", async (req: Request, res: Response) => {
 });
 
 router.post("/art-pieces/generate", requireAuth, requireOwner, async (req: Request, res: Response) => {
-  const generation = createGenerationAbortController(req);
+  const generation = createGenerationAbortController(req, res);
 
   try {
     const parsed = GenerateArtPieceBody.safeParse(req.body);
