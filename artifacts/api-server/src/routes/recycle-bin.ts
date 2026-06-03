@@ -4,6 +4,10 @@ import {
   postsTable,
   artPiecesTable,
   mediaAssetsTable,
+  exhibitsTable,
+  pagesTable,
+  categoriesTable,
+  navLinksTable,
   eq,
   and,
   isNull,
@@ -23,6 +27,9 @@ const BulkDeleteBody = z.object({
   postIds: z.array(z.number().int().positive()).optional(),
   pieceIds: z.array(z.number().int().positive()).optional(),
   mediaIds: z.array(z.number().int().positive()).optional(),
+  exhibitIds: z.array(z.number().int().positive()).optional(),
+  pageIds: z.array(z.number().int().positive()).optional(),
+  categoryIds: z.array(z.number().int().positive()).optional(),
 });
 
 // GET /recycle-bin — list all soft-deleted items
@@ -30,7 +37,7 @@ router.get("/recycle-bin", requireAuth, requireOwner, async (req: Request, res: 
   try {
     const userId = req.currentUser!.id;
 
-    const [posts, pieces, media] = await Promise.all([
+    const [posts, pieces, media, exhibits, pages, categories] = await Promise.all([
       db
         .select({
           id: postsTable.id,
@@ -72,9 +79,48 @@ router.get("/recycle-bin", requireAuth, requireOwner, async (req: Request, res: 
         .from(mediaAssetsTable)
         .where(isNotNull(mediaAssetsTable.deletedAt))
         .orderBy(desc(mediaAssetsTable.deletedAt)),
+
+      db
+        .select({
+          id: exhibitsTable.id,
+          name: exhibitsTable.name,
+          slug: exhibitsTable.slug,
+          description: exhibitsTable.description,
+          createdAt: exhibitsTable.createdAt,
+          deletedAt: exhibitsTable.deletedAt,
+        })
+        .from(exhibitsTable)
+        .where(isNotNull(exhibitsTable.deletedAt))
+        .orderBy(desc(exhibitsTable.deletedAt)),
+
+      db
+        .select({
+          id: pagesTable.id,
+          slug: pagesTable.slug,
+          title: pagesTable.title,
+          status: pagesTable.status,
+          createdAt: pagesTable.createdAt,
+          deletedAt: pagesTable.deletedAt,
+        })
+        .from(pagesTable)
+        .where(isNotNull(pagesTable.deletedAt))
+        .orderBy(desc(pagesTable.deletedAt)),
+
+      db
+        .select({
+          id: categoriesTable.id,
+          slug: categoriesTable.slug,
+          name: categoriesTable.name,
+          description: categoriesTable.description,
+          createdAt: categoriesTable.createdAt,
+          deletedAt: categoriesTable.deletedAt,
+        })
+        .from(categoriesTable)
+        .where(isNotNull(categoriesTable.deletedAt))
+        .orderBy(desc(categoriesTable.deletedAt)),
     ]);
 
-    return res.json({ posts, pieces, media });
+    return res.json({ posts, pieces, media, exhibits, pages, categories });
   } catch (err) {
     console.error("GET /recycle-bin failed:", err);
     return res.status(500).json({ error: "Server error" });
@@ -240,8 +286,139 @@ router.delete("/recycle-bin", requireAuth, requireOwner, async (req: Request, re
             ),
           )
         : Promise.resolve(),
+
+      body.exhibitIds?.length
+        ? db.delete(exhibitsTable).where(
+            and(
+              inArray(exhibitsTable.id, body.exhibitIds),
+              isNotNull(exhibitsTable.deletedAt),
+            ),
+          )
+        : Promise.resolve(),
+
+      body.pageIds?.length
+        ? db.delete(pagesTable).where(
+            and(
+              inArray(pagesTable.id, body.pageIds),
+              isNotNull(pagesTable.deletedAt),
+            ),
+          )
+        : Promise.resolve(),
+
+      body.categoryIds?.length
+        ? db.delete(categoriesTable).where(
+            and(
+              inArray(categoriesTable.id, body.categoryIds),
+              isNotNull(categoriesTable.deletedAt),
+            ),
+          )
+        : Promise.resolve(),
     ]);
 
+    return res.status(204).send();
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// POST /recycle-bin/exhibits/:id/restore
+router.post("/recycle-bin/exhibits/:id/restore", requireAuth, requireOwner, async (req: Request, res: Response) => {
+  try {
+    const { id } = IdParam.parse(req.params);
+    const [exhibit] = await db
+      .select({ id: exhibitsTable.id })
+      .from(exhibitsTable)
+      .where(and(eq(exhibitsTable.id, id), isNotNull(exhibitsTable.deletedAt)))
+      .limit(1);
+    if (!exhibit) return res.status(404).json({ error: "Not found in Recycle Bin" });
+    await db.update(exhibitsTable).set({ deletedAt: null }).where(eq(exhibitsTable.id, id));
+    return res.status(204).send();
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// DELETE /recycle-bin/exhibits/:id
+router.delete("/recycle-bin/exhibits/:id", requireAuth, requireOwner, async (req: Request, res: Response) => {
+  try {
+    const { id } = IdParam.parse(req.params);
+    const [exhibit] = await db
+      .select({ id: exhibitsTable.id })
+      .from(exhibitsTable)
+      .where(and(eq(exhibitsTable.id, id), isNotNull(exhibitsTable.deletedAt)))
+      .limit(1);
+    if (!exhibit) return res.status(404).json({ error: "Not found in Recycle Bin" });
+    await db.delete(exhibitsTable).where(eq(exhibitsTable.id, id));
+    return res.status(204).send();
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// POST /recycle-bin/pages/:id/restore — also restores the nav_link visibility
+router.post("/recycle-bin/pages/:id/restore", requireAuth, requireOwner, async (req: Request, res: Response) => {
+  try {
+    const { id } = IdParam.parse(req.params);
+    const [page] = await db
+      .select({ id: pagesTable.id, showInNav: pagesTable.showInNav, status: pagesTable.status })
+      .from(pagesTable)
+      .where(and(eq(pagesTable.id, id), isNotNull(pagesTable.deletedAt)))
+      .limit(1);
+    if (!page) return res.status(404).json({ error: "Not found in Recycle Bin" });
+    await db.update(pagesTable).set({ deletedAt: null }).where(eq(pagesTable.id, id));
+    const navVisible = page.showInNav && page.status === "published";
+    await db.update(navLinksTable).set({ visible: navVisible }).where(eq(navLinksTable.pageId, id));
+    return res.status(204).send();
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// DELETE /recycle-bin/pages/:id
+router.delete("/recycle-bin/pages/:id", requireAuth, requireOwner, async (req: Request, res: Response) => {
+  try {
+    const { id } = IdParam.parse(req.params);
+    const [page] = await db
+      .select({ id: pagesTable.id })
+      .from(pagesTable)
+      .where(and(eq(pagesTable.id, id), isNotNull(pagesTable.deletedAt)))
+      .limit(1);
+    if (!page) return res.status(404).json({ error: "Not found in Recycle Bin" });
+    await db.delete(pagesTable).where(eq(pagesTable.id, id));
+    return res.status(204).send();
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// POST /recycle-bin/categories/:id/restore
+router.post("/recycle-bin/categories/:id/restore", requireAuth, requireOwner, async (req: Request, res: Response) => {
+  try {
+    const { id } = IdParam.parse(req.params);
+    const [cat] = await db
+      .select({ id: categoriesTable.id })
+      .from(categoriesTable)
+      .where(and(eq(categoriesTable.id, id), isNotNull(categoriesTable.deletedAt)))
+      .limit(1);
+    if (!cat) return res.status(404).json({ error: "Not found in Recycle Bin" });
+    await db.update(categoriesTable).set({ deletedAt: null }).where(eq(categoriesTable.id, id));
+    return res.status(204).send();
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// DELETE /recycle-bin/categories/:id
+router.delete("/recycle-bin/categories/:id", requireAuth, requireOwner, async (req: Request, res: Response) => {
+  try {
+    const { id } = IdParam.parse(req.params);
+    const [cat] = await db
+      .select({ id: categoriesTable.id })
+      .from(categoriesTable)
+      .where(and(eq(categoriesTable.id, id), isNotNull(categoriesTable.deletedAt)))
+      .limit(1);
+    if (!cat) return res.status(404).json({ error: "Not found in Recycle Bin" });
+    await db.delete(categoriesTable).where(eq(categoriesTable.id, id));
     return res.status(204).send();
   } catch (err) {
     return res.status(400).json({ error: "Invalid request" });

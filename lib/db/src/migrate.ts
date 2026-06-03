@@ -1607,6 +1607,9 @@ export async function ensureTables(): Promise<void> {
   await ensureColumn("posts", "deleted_at", "deleted_at DATETIME(3) NULL");
   await ensureColumn("art_pieces", "deleted_at", "deleted_at DATETIME(3) NULL");
   await ensureColumn("media_assets", "deleted_at", "deleted_at DATETIME(3) NULL");
+  await ensureColumn("exhibits", "deleted_at", "deleted_at DATETIME(3) NULL");
+  await ensureColumn("pages", "deleted_at", "deleted_at DATETIME(3) NULL");
+  await ensureColumn("categories", "deleted_at", "deleted_at DATETIME(3) NULL");
 
   // -------------------------------------------------------------------------
   // AI Vendor Keys Migration (2026-06-01 v2)

@@ -2014,16 +2014,49 @@ export interface TrashedMedia {
   deletedAt?: string | null;
 }
 
+export interface TrashedExhibit {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string | null;
+  createdAt: string;
+  deletedAt?: string | null;
+}
+
+export interface TrashedPage {
+  id: number;
+  slug: string;
+  title: string;
+  status: string;
+  createdAt: string;
+  deletedAt?: string | null;
+}
+
+export interface TrashedCategory {
+  id: number;
+  slug: string;
+  name: string;
+  description?: string | null;
+  createdAt: string;
+  deletedAt?: string | null;
+}
+
 export interface RecycleBinResponse {
   posts: TrashedPost[];
   pieces: TrashedPiece[];
   media: TrashedMedia[];
+  exhibits: TrashedExhibit[];
+  pages: TrashedPage[];
+  categories: TrashedCategory[];
 }
 
 export interface BulkPermanentDeleteBody {
   postIds?: number[];
   pieceIds?: number[];
   mediaIds?: number[];
+  exhibitIds?: number[];
+  pageIds?: number[];
+  categoryIds?: number[];
 }
 
 export type ListPostsParams = {

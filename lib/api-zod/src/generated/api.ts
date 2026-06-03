@@ -2469,6 +2469,30 @@ export const GetRecycleBinResponse = zod.object({
   "altText": zod.string().nullish(),
   "uploadedAt": zod.string(),
   "deletedAt": zod.string().nullish()
+})),
+  "exhibits": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "deletedAt": zod.string().nullish()
+})),
+  "pages": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "title": zod.string(),
+  "status": zod.string(),
+  "createdAt": zod.string(),
+  "deletedAt": zod.string().nullish()
+})),
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "deletedAt": zod.string().nullish()
 }))
 })
 
@@ -2479,7 +2503,10 @@ export const GetRecycleBinResponse = zod.object({
 export const BulkPermanentDeleteBody = zod.object({
   "postIds": zod.array(zod.number()).optional(),
   "pieceIds": zod.array(zod.number()).optional(),
-  "mediaIds": zod.array(zod.number()).optional()
+  "mediaIds": zod.array(zod.number()).optional(),
+  "exhibitIds": zod.array(zod.number()).optional(),
+  "pageIds": zod.array(zod.number()).optional(),
+  "categoryIds": zod.array(zod.number()).optional()
 })
 
 
@@ -2527,5 +2554,53 @@ export const PermanentDeleteTrashedPieceParams = zod.object({
  * @summary Permanently delete a single trashed image
  */
 export const PermanentDeleteTrashedMediaParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Restore a trashed exhibit
+ */
+export const RestoreTrashedExhibitParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Permanently delete a single trashed exhibit
+ */
+export const PermanentDeleteTrashedExhibitParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Restore a trashed page and re-show its nav link if applicable
+ */
+export const RestoreTrashedPageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Permanently delete a single trashed page
+ */
+export const PermanentDeleteTrashedPageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Restore a trashed category (restores post assignments intact)
+ */
+export const RestoreTrashedCategoryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Permanently delete a single trashed category
+ */
+export const PermanentDeleteTrashedCategoryParams = zod.object({
   "id": zod.coerce.number()
 })

@@ -2358,6 +2358,132 @@ paths:
         "404":
           description: Not found in Recycle Bin
 
+  /recycle-bin/exhibits/{id}/restore:
+    post:
+      operationId: restoreTrashedExhibit
+      tags: [recycle-bin]
+      summary: Restore a trashed exhibit
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Restored
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found in Recycle Bin
+
+  /recycle-bin/exhibits/{id}:
+    delete:
+      operationId: permanentDeleteTrashedExhibit
+      tags: [recycle-bin]
+      summary: Permanently delete a single trashed exhibit
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Permanently deleted
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found in Recycle Bin
+
+  /recycle-bin/pages/{id}/restore:
+    post:
+      operationId: restoreTrashedPage
+      tags: [recycle-bin]
+      summary: Restore a trashed page and re-show its nav link if applicable
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Restored
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found in Recycle Bin
+
+  /recycle-bin/pages/{id}:
+    delete:
+      operationId: permanentDeleteTrashedPage
+      tags: [recycle-bin]
+      summary: Permanently delete a single trashed page
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Permanently deleted
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found in Recycle Bin
+
+  /recycle-bin/categories/{id}/restore:
+    post:
+      operationId: restoreTrashedCategory
+      tags: [recycle-bin]
+      summary: Restore a trashed category (restores post assignments intact)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Restored
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found in Recycle Bin
+
+  /recycle-bin/categories/{id}:
+    delete:
+      operationId: permanentDeleteTrashedCategory
+      tags: [recycle-bin]
+      summary: Permanently delete a single trashed category
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Permanently deleted
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found in Recycle Bin
+
 components:
   schemas:
     HealthStatus:
@@ -5202,10 +5328,94 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TrashedMedia"
+        exhibits:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrashedExhibit"
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrashedPage"
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrashedCategory"
       required:
         - posts
         - pieces
         - media
+        - exhibits
+        - pages
+        - categories
+
+    TrashedExhibit:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        deletedAt:
+          type: string
+          nullable: true
+      required:
+        - id
+        - name
+        - slug
+        - createdAt
+
+    TrashedPage:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+        deletedAt:
+          type: string
+          nullable: true
+      required:
+        - id
+        - slug
+        - title
+        - status
+        - createdAt
+
+    TrashedCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        deletedAt:
+          type: string
+          nullable: true
+      required:
+        - id
+        - slug
+        - name
+        - createdAt
 
     BulkPermanentDeleteBody:
       type: object
@@ -5219,6 +5429,18 @@ components:
           items:
             type: integer
         mediaIds:
+          type: array
+          items:
+            type: integer
+        exhibitIds:
+          type: array
+          items:
+            type: integer
+        pageIds:
+          type: array
+          items:
+            type: integer
+        categoryIds:
           type: array
           items:
             type: integer
