@@ -3400,3 +3400,21 @@ Even after routing `minimax-m3` on `opencode-go` to the native `/go/v1/chat/comp
 - Gateway validation failures are eliminated, preventing all HTTP 500 errors on both Opencode Zen and Go completions routers.
 - Minimax M3 and Minimax M3 Free successfully generate and stream Three.js pieces in under 30 seconds.
 - All workspace TypeScript compilation checks and unit tests continue to pass successfully.
+
+---
+
+## 2026-06-03 — SVG Piece Animation in VR and Immersive Views
+
+### Trigger
+Generated SVG pieces did not animate in either the default VR view (3D gallery room) or the immersive VR view (fullscreen overlay). The Three.js CanvasTexture pipeline used for SVG pieces in these views was only syncing four properties (`transform`, `opacity`, `fill`, `stroke`) and omitted crucial SVG geometry and layout styles (like circle radius `r`), freezing animations. Additionally, the immersive fullscreen view ran the SVG on a canvas texture at 10 FPS instead of using the browser's native rendering capabilities.
+
+### Decisions Confirmed
+- **Comprehensive SVG/CSS Property Synchronization:** Expanded the synchronized property set in `drawSvgSnapshot` inside both [immersive-piece.tsx](file:///Users/Fornesus/Code/creatrweb-platform/artifacts/microblog/src/pages/immersive-piece.tsx) and [immersive-exhibit-wall.tsx](file:///Users/Fornesus/Code/creatrweb-platform/artifacts/microblog/src/pages/immersive-exhibit-wall.tsx) to sync geometry attributes (`cx`, `cy`, `r`, `rx`, `ry`, `x`, `y`, `width`, `height`), line styles (`stroke-width`, `stroke-dasharray`, `stroke-dashoffset`), gradient parameters (`stop-color`, `stop-opacity`, `offset`), and layout/render modes (`display`, `visibility`, `filter`, `clip-path`, `mask`). This allows all typical CSS `@keyframes` animations to render correctly on the 3D wall texture.
+- **Native Fullscreen SVG Rendering in Immersive Mode:** Updated the `renderScene` logic in `ImmersivePiecePage` to render SVG pieces inside a native fullscreen `ArtPieceRenderer` iframe when `fullscreen` is active, bypassing the Three.js 3D gallery canvas pipeline. This enables full-resolution vector rendering at 60 FPS natively in the browser.
+- **Dynamic Fullscreen Iframe Sizing:** Added `windowHeight` state tracking to `ImmersivePiecePage` to dynamically size the native iframe matching the user's viewport on resize.
+
+### Outcome
+- SVG animations run smoothly in both VR views: rendering inside a picture frame at 10 FPS in the default VR view, and rendering at native 60 FPS in the immersive fullscreen view.
+- Three.js, P5.js, and C2.js VR flows are completely unaffected.
+- The monorepo continues to compile and pass all typechecks.
+

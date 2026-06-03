@@ -511,18 +511,29 @@ function ExhibitWallStage({
               const svgClone = svgEl!.cloneNode(true) as SVGSVGElement;
               const liveEls = Array.from(svgEl!.querySelectorAll("*"));
               const cloneEls = Array.from(svgClone.querySelectorAll("*"));
+              const propertiesToSync = [
+                "transform", "transform-origin", "opacity", "fill", "stroke",
+                "stroke-width", "stroke-dasharray", "stroke-dashoffset",
+                "fill-opacity", "stroke-opacity",
+                "cx", "cy", "r", "rx", "ry", "x", "y", "width", "height",
+                "stop-color", "stop-opacity", "offset",
+                "filter", "clip-path", "mask", "display", "visibility"
+              ];
               liveEls.forEach((liveEl, i) => {
                 const cloneEl = cloneEls[i] as SVGElement | undefined;
                 if (!cloneEl) return;
                 const s = window.getComputedStyle(liveEl);
-                const t = s.transform;
-                if (t && t !== "none" && t !== "matrix(1, 0, 0, 1, 0, 0)") cloneEl.style.transform = t;
-                const o = s.opacity;
-                if (o && o !== "1") cloneEl.style.opacity = o;
-                const f = s.fill;
-                if (f && f !== "none" && f !== "rgb(0, 0, 0)") cloneEl.style.fill = f;
-                const sk = s.stroke;
-                if (sk && sk !== "none") cloneEl.style.stroke = sk;
+                propertiesToSync.forEach((prop) => {
+                  const val = s.getPropertyValue(prop);
+                  if (val !== undefined && val !== null && val !== "") {
+                    // Skip copying default/unaltered values to keep styles lightweight
+                    if (prop === "transform" && (val === "none" || val === "matrix(1, 0, 0, 1, 0, 0)")) return;
+                    if (prop === "opacity" && val === "1") return;
+                    if (prop === "fill" && (val === "none" || val === "rgb(0, 0, 0)")) return;
+                    if (prop === "stroke" && val === "none") return;
+                    cloneEl.style.setProperty(prop, val);
+                  }
+                });
               });
               if (item.cssCode) {
                 const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
