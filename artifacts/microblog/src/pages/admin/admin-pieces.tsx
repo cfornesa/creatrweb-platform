@@ -926,6 +926,7 @@ canvas { display: block; }`;
                             <option value="p5">p5</option>
                             <option value="c2">c2</option>
                             <option value="three">Three.js</option>
+                            <option value="svg">SVG</option>
                           </select>
                         </div>
                         <div className="space-y-2">

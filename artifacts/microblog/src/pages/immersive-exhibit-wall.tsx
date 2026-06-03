@@ -28,7 +28,6 @@ import {
   ImmersiveRouteShell,
 } from "@/components/immersive/ImmersiveRouteShell";
 import { buildExhibitGalleryEmbedHtml } from "@/lib/immersive-view";
-import { buildArtPieceSrcDoc } from "@/lib/art-piece-runtime";
 import { persistArtPieceThumbnail } from "@/lib/art-piece-thumbnail";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useQueryClient } from "@tanstack/react-query";
@@ -452,50 +451,54 @@ function ExhibitWallStage({
             host.remove();
             return null;
           }
+
+          // Shadow DOM scopes piece CSS — no leakage; parent-context rAF never throttled
+          const shadowHost = document.createElement("div");
+          shadowHost.style.cssText = `position:fixed;left:-10000px;top:0;width:${runtimeSize.width}px;height:${runtimeSize.height}px;pointer-events:none;`;
+          const shadowRoot = shadowHost.attachShadow({ mode: "open" });
+          if (item.cssCode) {
+            const styleEl = document.createElement("style");
+            styleEl.textContent = item.cssCode;
+            shadowRoot.appendChild(styleEl);
+          }
+          const svgContainer = document.createElement("div");
+          svgContainer.style.cssText = "width:100%;height:100%;";
+          svgContainer.innerHTML = item.htmlCode?.trim()
+            ? item.htmlCode
+            : '<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"></svg>';
+          shadowRoot.appendChild(svgContainer);
+          document.body.appendChild(shadowHost);
+
+          const svgEl = shadowRoot.querySelector("svg");
+          if (!svgEl) {
+            shadowHost.remove();
+            host.remove();
+            return null;
+          }
+
           const svgCanvas = document.createElement("canvas");
           svgCanvas.width = runtimeSize.width;
           svgCanvas.height = runtimeSize.height;
           syncCanvas(svgCanvas);
 
-          // Hidden iframe scopes CSS/JS — no global style leakage
-          const pieceIframe = document.createElement("iframe");
-          pieceIframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${runtimeSize.width}px;height:${runtimeSize.height}px;border:none;visibility:hidden;`;
-          pieceIframe.srcdoc = buildArtPieceSrcDoc("svg", item.generatedCode, item.htmlCode, item.cssCode);
-          document.body.appendChild(pieceIframe);
-
-          await new Promise<void>((resolve) => {
-            pieceIframe.onload = () => resolve();
-          });
-
-          if (disposed || slotStates[idx]?.token !== token) {
-            pieceIframe.remove();
-            host.remove();
-            return null;
-          }
-
-          const iframeDoc = pieceIframe.contentDocument;
-          const iframeWin = pieceIframe.contentWindow;
-          const svgEl = iframeDoc?.querySelector("svg") ?? null;
-
-          if (!svgEl || !iframeWin) {
-            pieceIframe.remove();
-            host.remove();
-            return null;
+          (window as any).svgRoot = svgEl;
+          const sketchFactory = resolveSketchFactory(item.generatedCode);
+          if (typeof sketchFactory === "function") {
+            try { sketchFactory(); } catch { /* ignore */ }
           }
 
           let drawPending = false;
           async function drawSvgSnapshot() {
-            if (drawPending || disposed || !svgEl || !iframeWin) return;
+            if (drawPending || disposed) return;
             drawPending = true;
             try {
-              const svgClone = svgEl.cloneNode(true) as SVGSVGElement;
-
-              const liveEls = Array.from(svgEl.querySelectorAll("*"));
+              const svgClone = svgEl!.cloneNode(true) as SVGSVGElement;
+              const liveEls = Array.from(svgEl!.querySelectorAll("*"));
               const cloneEls = Array.from(svgClone.querySelectorAll("*"));
               liveEls.forEach((liveEl, i) => {
                 const cloneEl = cloneEls[i] as SVGElement | undefined;
                 if (!cloneEl) return;
-                const s = iframeWin.getComputedStyle(liveEl);
+                const s = window.getComputedStyle(liveEl);
                 const t = s.transform;
                 if (t && t !== "none" && t !== "matrix(1, 0, 0, 1, 0, 0)") cloneEl.style.transform = t;
                 const o = s.opacity;
@@ -505,7 +508,6 @@ function ExhibitWallStage({
                 const sk = s.stroke;
                 if (sk && sk !== "none") cloneEl.style.stroke = sk;
               });
-
               if (item.cssCode) {
                 const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
                 styleEl.textContent = item.cssCode;
@@ -533,11 +535,11 @@ function ExhibitWallStage({
           }
 
           await drawSvgSnapshot();
-
           const intervalId = window.setInterval(() => { drawSvgSnapshot().catch(() => {}); }, 100);
           stopSourceLoop = () => {
             window.clearInterval(intervalId);
-            pieceIframe.remove();
+            shadowHost.remove();
+            delete (window as any).svgRoot;
           };
         } else {
           // c2

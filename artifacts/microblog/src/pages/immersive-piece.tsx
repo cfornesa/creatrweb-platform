@@ -41,7 +41,6 @@ import {
   buildImmersivePieceHref,
   buildPieceGalleryEmbedHtml,
 } from "@/lib/immersive-view";
-import { buildArtPieceSrcDoc } from "@/lib/art-piece-runtime";
 
 function useReturnToPrevious() {
   const [, setLocation] = useLocation();
@@ -210,50 +209,56 @@ function ImmersiveGalleryPieceStage({
         }
 
         if (engine === "svg") {
+          // Shadow DOM scopes piece CSS — prevents svg{}/body{} rules leaking to page UI.
+          // Running in parent context means rAF and @keyframes are never throttled by Chrome.
+          const shadowHost = document.createElement("div");
+          shadowHost.style.cssText = `position:fixed;left:-10000px;top:0;width:${runtimeSize.width}px;height:${runtimeSize.height}px;pointer-events:none;`;
+          const shadowRoot = shadowHost.attachShadow({ mode: "open" });
+          if (cssCode) {
+            const styleEl = document.createElement("style");
+            styleEl.textContent = cssCode;
+            shadowRoot.appendChild(styleEl);
+          }
+          const svgContainer = document.createElement("div");
+          svgContainer.style.cssText = "width:100%;height:100%;";
+          svgContainer.innerHTML = htmlCode?.trim()
+            ? htmlCode
+            : '<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"></svg>';
+          shadowRoot.appendChild(svgContainer);
+          document.body.appendChild(shadowHost);
+
+          const svgEl = shadowRoot.querySelector("svg");
+          if (!svgEl) {
+            onError("This SVG piece has no <svg> element for gallery display.");
+            shadowHost.remove();
+            return;
+          }
+
           const svgCanvas = document.createElement("canvas");
           svgCanvas.width = runtimeSize.width;
           svgCanvas.height = runtimeSize.height;
           syncCanvas(svgCanvas);
 
-          // Hidden iframe runs the full piece — CSS and JS are scoped inside, no global leakage.
-          // allow-same-origin lets the parent read contentDocument and contentWindow.getComputedStyle.
-          const pieceIframe = document.createElement("iframe");
-          pieceIframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${runtimeSize.width}px;height:${runtimeSize.height}px;border:none;visibility:hidden;`;
-          pieceIframe.srcdoc = buildArtPieceSrcDoc("svg", code, htmlCode, cssCode);
-          document.body.appendChild(pieceIframe);
-
-          await new Promise<void>((resolve) => {
-            pieceIframe.onload = () => resolve();
-          });
-
-          if (disposed) { pieceIframe.remove(); return; }
-
-          const iframeDoc = pieceIframe.contentDocument;
-          const iframeWin = pieceIframe.contentWindow;
-          const svgEl = iframeDoc?.querySelector("svg") ?? null;
-
-          if (!svgEl || !iframeWin) {
-            onError("This SVG piece has no <svg> element for gallery display.");
-            pieceIframe.remove();
-            return;
+          // Expose the shadow DOM SVG so window.sketch() can find it
+          (window as any).svgRoot = svgEl;
+          const sketchFactory = resolveSketchFactory(code);
+          if (typeof sketchFactory === "function") {
+            try { sketchFactory(); } catch { /* ignore */ }
           }
 
           let drawPending = false;
           async function drawSvgSnapshot() {
-            if (drawPending || disposed || !svgEl || !iframeWin) return;
+            if (drawPending || disposed) return;
             drawPending = true;
             try {
-              const svgClone = svgEl.cloneNode(true) as SVGSVGElement;
-
-              // Sample current animated state from the iframe's live SVG.
-              // iframeWin.getComputedStyle sees the running CSS animations inside the iframe.
-              // Applying values as inline styles overrides the frozen @keyframes in <img> rendering.
-              const liveEls = Array.from(svgEl.querySelectorAll("*"));
+              const svgClone = svgEl!.cloneNode(true) as SVGSVGElement;
+              // Sample current animated state — getComputedStyle sees shadow DOM CSS animations
+              const liveEls = Array.from(svgEl!.querySelectorAll("*"));
               const cloneEls = Array.from(svgClone.querySelectorAll("*"));
               liveEls.forEach((liveEl, i) => {
                 const cloneEl = cloneEls[i] as SVGElement | undefined;
                 if (!cloneEl) return;
-                const s = iframeWin.getComputedStyle(liveEl);
+                const s = window.getComputedStyle(liveEl);
                 const t = s.transform;
                 if (t && t !== "none" && t !== "matrix(1, 0, 0, 1, 0, 0)") cloneEl.style.transform = t;
                 const o = s.opacity;
@@ -263,7 +268,6 @@ function ImmersiveGalleryPieceStage({
                 const sk = s.stroke;
                 if (sk && sk !== "none") cloneEl.style.stroke = sk;
               });
-
               if (cssCode) {
                 const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
                 styleEl.textContent = cssCode;
@@ -291,11 +295,11 @@ function ImmersiveGalleryPieceStage({
           }
 
           await drawSvgSnapshot();
-
           const intervalId = window.setInterval(() => { drawSvgSnapshot().catch(() => {}); }, 100);
           stopSourceLoop = () => {
             window.clearInterval(intervalId);
-            pieceIframe.remove();
+            shadowHost.remove();
+            delete (window as any).svgRoot;
           };
           return;
         }
