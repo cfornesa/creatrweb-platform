@@ -297,8 +297,8 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
       ? displayPost.authorName
       : null;
 
-  const canDelete = isOwnerAuthorPost || (isOwner && isFeedImportedPost);
-  const canEdit = isOwnerAuthorPost || (isOwner && isFeedImportedPost);
+  const canDelete = isOwner;
+  const canEdit = isOwner;
 
   const handleCommentClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
