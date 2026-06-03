@@ -193,6 +193,11 @@ function enhanceLazyIframes(root: HTMLElement) {
     const template = wrapper.querySelector<HTMLTemplateElement>("[data-lazy-iframe-template='true']");
     const frame = template?.content.firstElementChild?.cloneNode(true);
     if (!media || !(frame instanceof HTMLIFrameElement)) return;
+    // Remove the browser's native lazy-loading: the outer IntersectionObserver already
+    // controls when this iframe enters the DOM, so the iframe should load immediately
+    // once mounted. Keeping loading="lazy" causes the browser to defer loading with a
+    // different (potentially smaller) threshold, leaving the bg-muted placeholder visible.
+    frame.removeAttribute("loading");
     media.innerHTML = "";
     media.appendChild(frame);
     wrapper.setAttribute("data-lazy-iframe-active", "true");

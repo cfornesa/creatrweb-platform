@@ -27,6 +27,16 @@ import { ArtPieceRenderer } from "@/components/post/ArtPieceRenderer";
 import { ArtPieceDraftDialog } from "@/components/post/ArtPieceDraftDialog";
 import { ArtPieceGenerationDialog, type ArtPieceGenerationState } from "@/components/post/ArtPieceGenerationDialog";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -158,6 +168,7 @@ export default function AdminPiecesPage() {
   const [isPersistingThumbnail, setIsPersistingThumbnail] = useState(false);
   const thumbnailQueueRef = useRef<Promise<void>>(Promise.resolve());
   const thumbnailQueuedIdsRef = useRef<Set<number>>(new Set());
+  const [pieceToDelete, setPieceToDelete] = useState<{ id: number; title: string } | null>(null);
 
   const pieces = useListArtPieces();
   const filtered = useMemo(() => {
@@ -743,9 +754,7 @@ canvas { display: block; }`;
                     disabled={deletePiece.isPending}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (window.confirm(`Delete "${piece.title}"? This cannot be undone.`)) {
-                        deletePiece.mutate({ id: piece.id });
-                      }
+                      setPieceToDelete({ id: piece.id, title: piece.title });
                     }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
                   >
@@ -1127,6 +1136,31 @@ canvas { display: block; }`;
           onRetry={() => void handleGenerate()}
         />
       ) : null}
+
+      <AlertDialog open={pieceToDelete !== null} onOpenChange={(open) => { if (!open) setPieceToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Move "{pieceToDelete?.title}" to the Recycle Bin?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This piece will be moved to the Recycle Bin. You can restore it or permanently delete it from the Recycle Bin in the Admin panel.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pieceToDelete) {
+                  deletePiece.mutate({ id: pieceToDelete.id });
+                  setPieceToDelete(null);
+                }
+              }}
+            >
+              Move to Recycle Bin
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ArtPieceDraftDialog
         open={draftOpen}

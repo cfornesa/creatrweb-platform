@@ -29,6 +29,7 @@ export const artPiecesTable = mysqlTable(
     updatedAt: datetime("updated_at", { mode: "string", fsp: 3 })
       .notNull()
       .default(sql`CURRENT_TIMESTAMP(3)`),
+    deletedAt: datetime("deleted_at", { mode: "string", fsp: 3 }),
   },
   (table) => ({
     ownerIdx: index("art_pieces_owner_idx").on(table.ownerUserId),

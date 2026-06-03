@@ -32,6 +32,38 @@ options regardless of session context. -->
 - [x] 2026-04-28 Public interaction model is confirmed at a high level: visitors may log in, comment, and react; only the site owner may publish canonical posts.
 - [x] 2026-04-28 Initial owner bootstrap policy selected: manual database promotion after the owner's first Auth.js-backed login.
 
+## 2026-06-03 — Recycle Bin, OpenAPI vendorKeys Fix, and Piece Embed Lazy-Load Fix
+
+### Trigger
+Three separate items addressed in the same session:
+1. The user requested a Recycle Bin — soft-delete for posts, art pieces, and images, with a recovery/permanent-delete admin UI.
+2. A `clean: true` Orval codegen run exposed pre-existing TypeScript build failures in `ai.ts` and `admin-ai.tsx` caused by `vendorKeys` fields that were implemented in the 2026-06-01 AI vendor keys split but never added to the OpenAPI spec.
+3. The user reported art pieces on the feed rendering as only a background color; VR button worked correctly.
+
+### Decisions Confirmed — Recycle Bin
+- `deleted_at DATETIME(3) NULL` added to `posts`, `art_pieces`, and `media_assets` via idempotent `ensureColumn` steps in `migrate.ts`. No FIRST/AFTER positional clauses (MySQL 5.7 silent null risk).
+- The three DELETE routes for posts, art pieces, and images now soft-delete (`UPDATE … SET deleted_at = CURRENT_TIMESTAMP(3)`). All existing read queries on these tables gained an `isNull(table.deletedAt)` filter, including feed/export endpoints, preserving Rule 5.
+- `POST /posts/:id/reject` (pending-post moderation) intentionally remains a hard delete — it is a content-moderation action on an RSS-imported item with a dedup ledger, not user-owned content.
+- Media images continue to be served at `/api/media/:fileName` even after soft-deletion so existing post embeds do not break.
+- Recycle Bin items are kept indefinitely — no auto-expiry, no scheduled cleanup job.
+- New `GET/DELETE /recycle-bin` and restore routes implemented in `artifacts/api-server/src/routes/recycle-bin.ts`.
+- Admin nav gained "Recycle Bin" (Trash2 icon, `/admin/recycle-bin`). Delete dialogs updated from "cannot be undone" to "move to Recycle Bin" wording. `admin-pieces.tsx` upgraded from `window.confirm` to a proper AlertDialog.
+
+### Decisions Confirmed — OpenAPI / Codegen
+- Added `AiVendorKeyStatus` (`{ vendor, vendorLabel, hasKey }`) and `UpdateMyAiVendorKeyBody` (`{ vendor, apiKey }`) schemas to `openapi.yaml`, and added `vendorKeys` to `MyAiSettings` (GET response) and `UpdateMyAiSettingsBody` (PATCH body).
+- Changed Orval zod output `mode` from `"split"` to `"single"` in `lib/api-spec/orval.config.ts`. In split mode, Orval adds `export * from './generated/api.schemas'` to the generated index but never creates `api.schemas.ts`, breaking the build on every codegen run. Single mode puts everything in `api.ts` and the index exports only that file.
+
+### Decisions Confirmed — Piece Embed Lazy Loading
+- Root cause: `normalizePieceEmbedFrame` sets `loading="lazy"` on iframes before storing them in `<template>` elements. When the outer IntersectionObserver (250px rootMargin) clones and mounts the iframe, the browser re-evaluates `loading="lazy"` against its own threshold (~200px on fast connections). Pieces at 200–250px from the viewport were mounted by the observer but not fetched by the browser — leaving the `bg-muted` mount background visible through a transparent, unloaded iframe.
+- Fix: `frame.removeAttribute("loading")` in `enhanceLazyIframes` `mount()`, just before the iframe is appended to the live DOM. The `<template>` + IntersectionObserver pattern already provides lazy loading — iframes are never in the DOM at all until the observer fires.
+- `loading="lazy"` is intentionally kept in `normalizePieceEmbedFrame` for the template HTML (no-op there, harmless) so the attribute is only stripped at actual DOM insertion. This makes the intent explicit: "the browser's native lazy-loading does not apply once we have decided to mount."
+
+### Outcome
+- Trashing a post/piece/image soft-deletes it. It disappears from normal admin views and feeds, appears in `/admin/recycle-bin`, and can be restored (sets `deleted_at = NULL`) or permanently deleted.
+- `npm run build` passes cleanly. The pre-existing `vendorKeys` typecheck failures are resolved.
+- Art pieces no longer show only a background color when they are 200–250px from the viewport. The `bg-muted` placeholder is replaced by the rendered piece as soon as the IntersectionObserver fires.
+- Monorepo typecheck passes (pre-existing `admin-ai.tsx` errors remain but are unrelated to these changes).
+
 ## 2026-06-01 — Opencode Go/Zen Piece Generation Hardening
 
 ### Trigger

@@ -8,6 +8,8 @@ import {
   eq,
   and,
   inArray,
+  isNull,
+  sql,
   mysqlPool,
   userAiVendorSettingsTable,
   userAiVendorKeysTable,
@@ -130,7 +132,7 @@ async function loadPiecesWithVersions(ownerUserId: string) {
   const pieces = await db
     .select()
     .from(artPiecesTable)
-    .where(eq(artPiecesTable.ownerUserId, ownerUserId))
+    .where(and(eq(artPiecesTable.ownerUserId, ownerUserId), isNull(artPiecesTable.deletedAt)))
     .orderBy(desc(artPiecesTable.updatedAt));
 
   return attachCurrentVersions(pieces);
@@ -158,7 +160,7 @@ async function loadPieceOwnedByUser(id: number, ownerUserId: string) {
   const rows = await db
     .select()
     .from(artPiecesTable)
-    .where(eq(artPiecesTable.id, id))
+    .where(and(eq(artPiecesTable.id, id), isNull(artPiecesTable.deletedAt)))
     .limit(1);
   const piece = rows[0] ?? null;
   if (!piece || piece.ownerUserId !== ownerUserId) {
@@ -482,7 +484,7 @@ router.delete("/art-pieces/:id", requireAuth, requireOwner, async (req: Request,
     const pieceRows = await db
       .select()
       .from(artPiecesTable)
-      .where(eq(artPiecesTable.id, params.data.id))
+      .where(and(eq(artPiecesTable.id, params.data.id), isNull(artPiecesTable.deletedAt)))
       .limit(1);
     const piece = pieceRows[0] ?? null;
     if (!piece) {
@@ -492,7 +494,7 @@ router.delete("/art-pieces/:id", requireAuth, requireOwner, async (req: Request,
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    await db.delete(artPiecesTable).where(eq(artPiecesTable.id, params.data.id));
+    await db.update(artPiecesTable).set({ deletedAt: sql`CURRENT_TIMESTAMP(3)` }).where(eq(artPiecesTable.id, params.data.id));
     return res.status(204).send();
   } catch (err) {
     return res.status(400).json({ error: "Invalid request" });

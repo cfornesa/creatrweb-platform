@@ -392,15 +392,15 @@ export function PostCard({ post, isDetail = false, highlightQuery }: PostCardPro
                 </AlertDialogTrigger>
                 <AlertDialogContent onClick={(e: React.MouseEvent) => e.stopPropagation()} className="z-[100]">
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete this post?</AlertDialogTitle>
+                    <AlertDialogTitle>Move this post to the Recycle Bin?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete your post and all its comments.
+                      This post will be moved to the Recycle Bin. You can restore it or permanently delete it from the Recycle Bin in the Admin panel.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                      Delete
+                      Move to Recycle Bin
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

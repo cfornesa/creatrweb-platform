@@ -17,6 +17,7 @@ import platformOAuthRouter from "./platform-oauth";
 import platformOAuthAppsRouter from "./platform-oauth-apps";
 import artPiecesRouter from "./art-pieces";
 import exhibitsRouter from "./exhibits";
+import recycleBinRouter from "./recycle-bin";
 
 const router: IRouter = Router();
 
@@ -51,5 +52,6 @@ router.use(feedsCatalogRouter);
 router.use(platformConnectionsRouter);
 router.use(platformOAuthRouter);
 router.use(platformOAuthAppsRouter);
+router.use(recycleBinRouter);
 
 export default router;

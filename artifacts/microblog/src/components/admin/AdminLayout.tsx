@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, useLocation, useRoute, Redirect } from "wouter";
-import { Settings, Tags, Link2, FileText, Rss, Inbox, ShieldCheck, ChevronLeft, Sparkles, Share2, Palette, CalendarDays, Images, LayoutGrid } from "lucide-react";
+import { Settings, Tags, Link2, FileText, Rss, Inbox, ShieldCheck, ChevronLeft, Sparkles, Share2, Palette, CalendarDays, Images, LayoutGrid, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,7 @@ const NAV: Array<{
   { href: "/admin/feeds", label: "Feed sources", icon: Rss, group: "feeds" },
   { href: "/admin/pending", label: "Review queue", icon: Inbox, group: "feeds" },
   { href: "/admin/platforms", label: "Platforms", icon: Share2, group: "outbound" },
+  { href: "/admin/recycle-bin", label: "Recycle Bin", icon: Trash2, group: "site" },
 ];
 
 type Props = {

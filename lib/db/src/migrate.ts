@@ -1592,6 +1592,23 @@ export async function ensureTables(): Promise<void> {
   }
 
   // -------------------------------------------------------------------------
+  // Recycle Bin Migration (2026-06-03)
+  //
+  // Adds a nullable `deleted_at` column to posts, art_pieces, and media_assets
+  // so deletions can be soft-deleted (moved to a recoverable Recycle Bin) instead
+  // of immediately and permanently removed. Items with a non-null `deleted_at`
+  // are hidden from all normal read paths and surfaced only through
+  // GET /api/recycle-bin. Restoring sets the column back to NULL; permanent
+  // deletion is a real SQL DELETE.
+  //
+  // No FIRST or AFTER positional clauses — see the AI Vendor Profile Migration
+  // notes above for why these cause silent data loss on some MySQL 5.7 variants.
+  // -------------------------------------------------------------------------
+  await ensureColumn("posts", "deleted_at", "deleted_at DATETIME(3) NULL");
+  await ensureColumn("art_pieces", "deleted_at", "deleted_at DATETIME(3) NULL");
+  await ensureColumn("media_assets", "deleted_at", "deleted_at DATETIME(3) NULL");
+
+  // -------------------------------------------------------------------------
   // AI Vendor Keys Migration (2026-06-01 v2)
   //
   // Moves encrypted_api_key out of per-profile rows into a new

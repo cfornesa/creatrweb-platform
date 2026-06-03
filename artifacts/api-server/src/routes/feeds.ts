@@ -8,6 +8,7 @@ import {
   desc,
   eq,
   and,
+  isNull,
 } from "@workspace/db";
 import { stripHtmlToText } from "../lib/html";
 import { attachCategoriesToPosts, type HydratedCategory } from "../lib/post-categories";
@@ -144,6 +145,7 @@ export async function loadPosts(opts: { categoryId?: number } = {}): Promise<Fee
         .where(
           and(
             eq(postsTable.status, "published"),
+            isNull(postsTable.deletedAt),
             eq(postCategoriesTable.categoryId, opts.categoryId),
           ),
         )
@@ -151,7 +153,7 @@ export async function loadPosts(opts: { categoryId?: number } = {}): Promise<Fee
     : await db
         .select(baseSelect)
         .from(postsTable)
-        .where(eq(postsTable.status, "published"))
+        .where(and(eq(postsTable.status, "published"), isNull(postsTable.deletedAt)))
         .orderBy(desc(postsTable.createdAt));
 
   const hydrated = await attachCategoriesToPosts(posts);
