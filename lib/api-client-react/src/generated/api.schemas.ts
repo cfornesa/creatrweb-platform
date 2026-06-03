@@ -128,6 +128,7 @@ export const ExhibitWallPieceItemEngine = {
   p5: 'p5',
   c2: 'c2',
   three: 'three',
+  svg: 'svg',
 } as const;
 
 /**
@@ -887,6 +888,7 @@ export const ArtPieceVersionEngine = {
   p5: 'p5',
   c2: 'c2',
   three: 'three',
+  svg: 'svg',
 } as const;
 
 export type ArtPieceVersionGenerationVendor = typeof ArtPieceVersionGenerationVendor[keyof typeof ArtPieceVersionGenerationVendor] | null;
@@ -933,6 +935,7 @@ export const ArtPieceEngine = {
   p5: 'p5',
   c2: 'c2',
   three: 'three',
+  svg: 'svg',
 } as const;
 
 export type ArtPieceStatus = typeof ArtPieceStatus[keyof typeof ArtPieceStatus];
@@ -975,6 +978,7 @@ export const GenerateArtPieceBodyEngine = {
   p5: 'p5',
   c2: 'c2',
   three: 'three',
+  svg: 'svg',
 } as const;
 
 export interface GenerateArtPieceBody {
@@ -995,6 +999,7 @@ export const GeneratedArtPieceDraftEngine = {
   p5: 'p5',
   c2: 'c2',
   three: 'three',
+  svg: 'svg',
 } as const;
 
 export type GeneratedArtPieceDraftStructuredSpec = { [key: string]: unknown } | null;
@@ -1046,6 +1051,7 @@ export const CreateArtPieceBodyEngine = {
   p5: 'p5',
   c2: 'c2',
   three: 'three',
+  svg: 'svg',
 } as const;
 
 export interface CreateArtPieceBody {
@@ -1137,6 +1143,7 @@ export const EmbeddedArtPieceEngine = {
   p5: 'p5',
   c2: 'c2',
   three: 'three',
+  svg: 'svg',
 } as const;
 
 export interface EmbeddedArtPiece {

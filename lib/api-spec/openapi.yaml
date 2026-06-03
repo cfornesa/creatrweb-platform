@@ -2732,7 +2732,7 @@ components:
           type: string
         engine:
           type: string
-          enum: [p5, c2, three]
+          enum: [p5, c2, three, svg]
         thumbnailUrl:
           type: string
           nullable: true
@@ -3702,7 +3702,7 @@ components:
           type: string
         engine:
           type: string
-          enum: [p5, c2, three]
+          enum: [p5, c2, three, svg]
         generationVendor:
           type: string
           enum:
@@ -3750,7 +3750,7 @@ components:
           type: string
         engine:
           type: string
-          enum: [p5, c2, three]
+          enum: [p5, c2, three, svg]
         status:
           type: string
           enum: [active, archived]
@@ -3821,7 +3821,7 @@ components:
           maxLength: 4000
         engine:
           type: string
-          enum: [p5, c2, three]
+          enum: [p5, c2, three, svg]
         profileId:
           type: integer
           description: ID of the AI vendor profile to use for generation
@@ -3839,7 +3839,7 @@ components:
           type: string
         engine:
           type: string
-          enum: [p5, c2, three]
+          enum: [p5, c2, three, svg]
         structuredSpec:
           type: object
           additionalProperties: true
@@ -3916,7 +3916,7 @@ components:
           nullable: true
         engine:
           type: string
-          enum: [p5, c2, three]
+          enum: [p5, c2, three, svg]
           nullable: true
         htmlCode:
           type: string
@@ -4016,7 +4016,7 @@ components:
           type: string
         engine:
           type: string
-          enum: [p5, c2, three]
+          enum: [p5, c2, three, svg]
         version:
           $ref: "#/components/schemas/ArtPieceVersion"
       required:

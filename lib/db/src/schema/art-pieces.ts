@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import { usersTable } from "./users.ts";
 
-export const artPieceEngineSchema = z.enum(["p5", "c2", "three"]);
+export const artPieceEngineSchema = z.enum(["p5", "c2", "three", "svg"]);
 export type ArtPieceEngine = z.infer<typeof artPieceEngineSchema>;
 
 export const artPieceStatusSchema = z.enum(["active", "archived"]);

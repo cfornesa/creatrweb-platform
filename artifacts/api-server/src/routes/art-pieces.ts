@@ -301,11 +301,36 @@ export async function generateValidatedDraft(input: {
       });
 
       previousRawResponse = responseText;
-      let { htmlCode, cssCode, generatedCode: rawJsCode } = extractCodeBlocks(responseText);
+      let rawJsCode: string;
+      let htmlCode: string | null;
+      let cssCode: string | null;
+      try {
+        ({ htmlCode, cssCode, generatedCode: rawJsCode } = extractCodeBlocks(responseText));
+      } catch (extractError) {
+        if (input.engine === "svg" && extractError instanceof Error && extractError.message.includes("javascript code block")) {
+          // SVG pieces may animate purely with CSS @keyframes — extract HTML/CSS and use no-op stub
+          const extractBlock = (langs: string[]) => {
+            for (const lang of langs) {
+              const match = responseText.match(new RegExp("```" + lang + "\\s*([\\s\\S]*?)```", "i"));
+              if (match) return match[1]!.trim();
+            }
+            return null;
+          };
+          htmlCode = extractBlock(["html"]);
+          cssCode = extractBlock(["css"]);
+          rawJsCode = "window.sketch = () => {};";
+        } else {
+          throw extractError;
+        }
+      }
 
       // Provide sensible defaults if the AI omitted them
       if (!htmlCode) {
-        htmlCode = input.engine === "p5" ? '<div id="canvas-container"></div>' : '<div id="container"></div>';
+        if (input.engine === "svg") {
+          htmlCode = '<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"></svg>';
+        } else {
+          htmlCode = input.engine === "p5" ? '<div id="canvas-container"></div>' : '<div id="container"></div>';
+        }
       }
       if (!cssCode) {
         cssCode = "body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }";
@@ -636,7 +661,7 @@ router.post("/art-pieces", requireAuth, requireOwner, async (req: Request, res: 
     let draftModel: string | null = null;
     let draftAttemptCount = 1;
     let draftNotes: string | null = null;
-    let engine: "p5" | "c2" | "three" = "p5";
+    let engine: "p5" | "c2" | "three" | "svg" = "p5";
     let draftTitle = "";
 
     if (parsed.data.draftToken) {

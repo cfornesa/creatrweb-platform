@@ -41,6 +41,7 @@ import {
   buildImmersivePieceHref,
   buildPieceGalleryEmbedHtml,
 } from "@/lib/immersive-view";
+import { buildArtPieceSrcDoc } from "@/lib/art-piece-runtime";
 
 function useReturnToPrevious() {
   const [, setLocation] = useLocation();
@@ -60,7 +61,7 @@ function useReturnToPrevious() {
 }
 
 type PieceStageProps = {
-  engine: "p5" | "c2" | "three";
+  engine: "p5" | "c2" | "three" | "svg";
   code: string;
   htmlCode?: string | null;
   cssCode?: string | null;
@@ -110,8 +111,13 @@ function ImmersiveGalleryPieceStage({
     const host = createImmersiveHost(
       htmlCode,
       cssCode,
-      engine === "p5" ? '<div id="canvas-container"></div>' : '<canvas id="piece-canvas"></canvas>',
+      engine === "p5"
+        ? '<div id="canvas-container"></div>'
+        : engine === "svg"
+          ? '<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"></svg>'
+          : '<canvas id="piece-canvas"></canvas>',
       runtimeSize,
+      engine,
     );
 
     let sourceCanvas: HTMLCanvasElement | null = null;
@@ -200,6 +206,97 @@ function ImmersiveGalleryPieceStage({
             host;
           p5Instance = new P5(sketchFactory, mount);
           pollForCanvas(mount, "This p5 piece did not produce a canvas for immersive mode.");
+          return;
+        }
+
+        if (engine === "svg") {
+          const svgCanvas = document.createElement("canvas");
+          svgCanvas.width = runtimeSize.width;
+          svgCanvas.height = runtimeSize.height;
+          syncCanvas(svgCanvas);
+
+          // Hidden iframe runs the full piece — CSS and JS are scoped inside, no global leakage.
+          // allow-same-origin lets the parent read contentDocument and contentWindow.getComputedStyle.
+          const pieceIframe = document.createElement("iframe");
+          pieceIframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${runtimeSize.width}px;height:${runtimeSize.height}px;border:none;visibility:hidden;`;
+          pieceIframe.srcdoc = buildArtPieceSrcDoc("svg", code, htmlCode, cssCode);
+          document.body.appendChild(pieceIframe);
+
+          await new Promise<void>((resolve) => {
+            pieceIframe.onload = () => resolve();
+          });
+
+          if (disposed) { pieceIframe.remove(); return; }
+
+          const iframeDoc = pieceIframe.contentDocument;
+          const iframeWin = pieceIframe.contentWindow;
+          const svgEl = iframeDoc?.querySelector("svg") ?? null;
+
+          if (!svgEl || !iframeWin) {
+            onError("This SVG piece has no <svg> element for gallery display.");
+            pieceIframe.remove();
+            return;
+          }
+
+          let drawPending = false;
+          async function drawSvgSnapshot() {
+            if (drawPending || disposed || !svgEl || !iframeWin) return;
+            drawPending = true;
+            try {
+              const svgClone = svgEl.cloneNode(true) as SVGSVGElement;
+
+              // Sample current animated state from the iframe's live SVG.
+              // iframeWin.getComputedStyle sees the running CSS animations inside the iframe.
+              // Applying values as inline styles overrides the frozen @keyframes in <img> rendering.
+              const liveEls = Array.from(svgEl.querySelectorAll("*"));
+              const cloneEls = Array.from(svgClone.querySelectorAll("*"));
+              liveEls.forEach((liveEl, i) => {
+                const cloneEl = cloneEls[i] as SVGElement | undefined;
+                if (!cloneEl) return;
+                const s = iframeWin.getComputedStyle(liveEl);
+                const t = s.transform;
+                if (t && t !== "none" && t !== "matrix(1, 0, 0, 1, 0, 0)") cloneEl.style.transform = t;
+                const o = s.opacity;
+                if (o && o !== "1") cloneEl.style.opacity = o;
+                const f = s.fill;
+                if (f && f !== "none" && f !== "rgb(0, 0, 0)") cloneEl.style.fill = f;
+                const sk = s.stroke;
+                if (sk && sk !== "none") cloneEl.style.stroke = sk;
+              });
+
+              if (cssCode) {
+                const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
+                styleEl.textContent = cssCode;
+                svgClone.insertBefore(styleEl, svgClone.firstChild);
+              }
+              const serialized = new XMLSerializer().serializeToString(svgClone);
+              const dataUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(serialized);
+              await new Promise<void>((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                  const ctx = svgCanvas.getContext("2d");
+                  if (ctx) {
+                    ctx.clearRect(0, 0, svgCanvas.width, svgCanvas.height);
+                    ctx.drawImage(img, 0, 0, svgCanvas.width, svgCanvas.height);
+                  }
+                  if (artTexture) artTexture.needsUpdate = true;
+                  resolve();
+                };
+                img.onerror = () => resolve();
+                img.src = dataUrl;
+              });
+            } finally {
+              drawPending = false;
+            }
+          }
+
+          await drawSvgSnapshot();
+
+          const intervalId = window.setInterval(() => { drawSvgSnapshot().catch(() => {}); }, 100);
+          stopSourceLoop = () => {
+            window.clearInterval(intervalId);
+            pieceIframe.remove();
+          };
           return;
         }
 
@@ -938,12 +1035,9 @@ function ImmersiveThreePieceStage({
 }
 
 function formatEngineLabel(engine: EmbeddedArtPiece["version"]["engine"]) {
-  if (engine === "p5") {
-    return "P5.js";
-  }
-  if (engine === "c2") {
-    return "C2.js";
-  }
+  if (engine === "p5") return "P5.js";
+  if (engine === "c2") return "C2.js";
+  if (engine === "svg") return "SVG";
   return "Three.js";
 }
 

@@ -140,6 +140,26 @@ canvas { display: block; }`,
   return stopFrame;
 };`,
   },
+  svg: {
+    html: '<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">\n  <circle cx="400" cy="300" r="60" fill="#e74c3c" class="pulse" />\n</svg>',
+    css: `body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #1a1a2e;
+}
+svg { display: block; width: 100%; height: 100%; }
+.pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { r: 60; opacity: 1; }
+  50% { r: 80; opacity: 0.6; }
+}`,
+    js: `window.sketch = () => {};`,
+  },
 };
 
 export default function AdminPiecesPage() {
@@ -790,6 +810,7 @@ canvas { display: block; }`;
                       <option value="p5">p5</option>
                       <option value="c2">c2</option>
                       <option value="three">Three.js</option>
+                      <option value="svg">SVG</option>
                     </select>
                   </div>
                   <div className="space-y-2">

@@ -28,6 +28,7 @@ import {
   ImmersiveRouteShell,
 } from "@/components/immersive/ImmersiveRouteShell";
 import { buildExhibitGalleryEmbedHtml } from "@/lib/immersive-view";
+import { buildArtPieceSrcDoc } from "@/lib/art-piece-runtime";
 import { persistArtPieceThumbnail } from "@/lib/art-piece-thumbnail";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useQueryClient } from "@tanstack/react-query";
@@ -56,6 +57,7 @@ function engineLabel(engine: string): string {
   if (engine === "p5") return "P5.js";
   if (engine === "c2") return "C2.js";
   if (engine === "three") return "Three.js";
+  if (engine === "svg") return "SVG";
   return engine;
 }
 
@@ -372,12 +374,17 @@ function ExhibitWallStage({
         }
       }
 
-      // P5 or C2
+      // P5, C2, or SVG
       const host = createImmersiveHost(
         item.htmlCode,
         item.cssCode,
-        item.engine === "p5" ? '<div id="canvas-container"></div>' : '<canvas id="piece-canvas"></canvas>',
+        item.engine === "p5"
+          ? '<div id="canvas-container"></div>'
+          : item.engine === "svg"
+            ? '<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"></svg>'
+            : '<canvas id="piece-canvas"></canvas>',
         runtimeSize,
+        item.engine,
       );
 
       let sourceCanvas: HTMLCanvasElement | null = null;
@@ -440,6 +447,98 @@ function ExhibitWallStage({
             host;
           p5Instance = new P5(sketchFactory, mount);
           pollForCanvas(mount);
+        } else if (item.engine === "svg") {
+          if (disposed || slotStates[idx]?.token !== token) {
+            host.remove();
+            return null;
+          }
+          const svgCanvas = document.createElement("canvas");
+          svgCanvas.width = runtimeSize.width;
+          svgCanvas.height = runtimeSize.height;
+          syncCanvas(svgCanvas);
+
+          // Hidden iframe scopes CSS/JS — no global style leakage
+          const pieceIframe = document.createElement("iframe");
+          pieceIframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${runtimeSize.width}px;height:${runtimeSize.height}px;border:none;visibility:hidden;`;
+          pieceIframe.srcdoc = buildArtPieceSrcDoc("svg", item.generatedCode, item.htmlCode, item.cssCode);
+          document.body.appendChild(pieceIframe);
+
+          await new Promise<void>((resolve) => {
+            pieceIframe.onload = () => resolve();
+          });
+
+          if (disposed || slotStates[idx]?.token !== token) {
+            pieceIframe.remove();
+            host.remove();
+            return null;
+          }
+
+          const iframeDoc = pieceIframe.contentDocument;
+          const iframeWin = pieceIframe.contentWindow;
+          const svgEl = iframeDoc?.querySelector("svg") ?? null;
+
+          if (!svgEl || !iframeWin) {
+            pieceIframe.remove();
+            host.remove();
+            return null;
+          }
+
+          let drawPending = false;
+          async function drawSvgSnapshot() {
+            if (drawPending || disposed || !svgEl || !iframeWin) return;
+            drawPending = true;
+            try {
+              const svgClone = svgEl.cloneNode(true) as SVGSVGElement;
+
+              const liveEls = Array.from(svgEl.querySelectorAll("*"));
+              const cloneEls = Array.from(svgClone.querySelectorAll("*"));
+              liveEls.forEach((liveEl, i) => {
+                const cloneEl = cloneEls[i] as SVGElement | undefined;
+                if (!cloneEl) return;
+                const s = iframeWin.getComputedStyle(liveEl);
+                const t = s.transform;
+                if (t && t !== "none" && t !== "matrix(1, 0, 0, 1, 0, 0)") cloneEl.style.transform = t;
+                const o = s.opacity;
+                if (o && o !== "1") cloneEl.style.opacity = o;
+                const f = s.fill;
+                if (f && f !== "none" && f !== "rgb(0, 0, 0)") cloneEl.style.fill = f;
+                const sk = s.stroke;
+                if (sk && sk !== "none") cloneEl.style.stroke = sk;
+              });
+
+              if (item.cssCode) {
+                const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
+                styleEl.textContent = item.cssCode;
+                svgClone.insertBefore(styleEl, svgClone.firstChild);
+              }
+              const serialized = new XMLSerializer().serializeToString(svgClone);
+              const dataUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(serialized);
+              await new Promise<void>((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                  const ctx = svgCanvas.getContext("2d");
+                  if (ctx) {
+                    ctx.clearRect(0, 0, svgCanvas.width, svgCanvas.height);
+                    ctx.drawImage(img, 0, 0, svgCanvas.width, svgCanvas.height);
+                  }
+                  if (artTexture) artTexture.needsUpdate = true;
+                  resolve();
+                };
+                img.onerror = () => resolve();
+                img.src = dataUrl;
+              });
+            } finally {
+              drawPending = false;
+            }
+          }
+
+          await drawSvgSnapshot();
+
+          const intervalId = window.setInterval(() => { drawSvgSnapshot().catch(() => {}); }, 100);
+          stopSourceLoop = () => {
+            window.clearInterval(intervalId);
+            pieceIframe.remove();
+          };
         } else {
           // c2
           const c2Module = await import("c2.js");
