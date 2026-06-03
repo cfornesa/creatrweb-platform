@@ -32,6 +32,48 @@ options regardless of session context. -->
 - [x] 2026-04-28 Public interaction model is confirmed at a high level: visitors may log in, comment, and react; only the site owner may publish canonical posts.
 - [x] 2026-04-28 Initial owner bootstrap policy selected: manual database promotion after the owner's first Auth.js-backed login.
 
+## 2026-06-03 — SVG as Fourth Art Piece Engine
+
+### Trigger
+User requested SVG as a new art piece engine type alongside p5, c2, and Three.js. SVG is 2D/vector (not 3D), resolution-independent, and supported natively by the browser with no runtime library. AI models generate SVG animations well because SVG is declarative XML with no runtime API surface to memorize.
+
+### Decisions Confirmed — Core Registration
+- `artPieceEngineSchema` extended to `z.enum(["p5", "c2", "three", "svg"])` in `lib/db/src/schema/art-pieces.ts`. `"svg"` is now a persisted enum value in `art_pieces.engine` and `art_piece_versions.engine` — this is an irreversible decision.
+- `ENGINE_ADAPTERS.svg` added in `artifacts/api-server/src/lib/art-pieces.ts` with a system prompt that instructs the AI to generate `<svg>` HTML, CSS `@keyframes` on SVG elements, and optionally a `window.sketch = () => { ... }` JS function for particle/dynamic animations using `requestAnimationFrame + setAttribute`. No external runtime library loaded.
+- `preflightSvgCode` allows `window.sketch` to be absent (CSS-only pieces are valid) but if present it must be a function.
+- `extractCodeBlocks` fallback in the generation route handles missing JS block for SVG by providing `window.sketch = () => {};` stub.
+- All 7 engine enum instances in `lib/api-spec/openapi.yaml` updated; codegen re-run.
+- `ArtPieceEngine` and generated API client types include `"svg"`.
+
+### Decisions Confirmed — Admin UI
+- SVG template added to `PIECE_TEMPLATES` in `admin-pieces.tsx` (pulsing circle CSS animation, stub JS).
+- SVG `<option>` added to BOTH engine `<select>` dropdowns in `admin-pieces.tsx`: the new-piece creation dropdown and the existing-piece editing dropdown. Missing it from the editing dropdown caused saved SVG pieces to display as "p5" engine in the admin panel.
+
+### Decisions Confirmed — Embed and Preview
+- `piece-embed-html.ts` server-side embed: SVG gets its own branch — no runtime library loaded, optional JS sketch executed, `getElementById` shim installed so sketch code can find the SVG element.
+- `art-piece-runtime.ts` client-side preview: `sanitizeArtPieceHtml` is bypassed for SVG (its `{DIV, CANVAS}` allowlist strips all SVG elements). SVG uses raw `htmlCode` directly. Same `getElementById`/`querySelector` shims installed in `engineInit`.
+- `defaultHtmlForEngine` returns empty SVG shell for "svg".
+
+### Decisions Confirmed — Immersive Gallery / VR Rendering
+- SVG pieces route to `ImmersiveGalleryPieceStage` (same as P5/C2), not to `ImmersiveThreePieceStage`.
+- **Approach: Shadow DOM + parent-context rAF.** The piece's HTML and CSS are injected into an `attachShadow({ mode: "open" })` container positioned off-screen (`position:fixed;left:-10000px`). Shadow DOM scopes piece CSS so rules like `svg { width:100%; }` cannot leak to the page's own UI elements. Animation runs in the parent page context (no iframe throttling).
+- **Canvas texture pipeline:** A standalone `svgCanvas` is created, passed to `syncCanvas()` → Three.js `CanvasTexture`. Every 100ms: clone live shadow DOM SVG, sample `window.getComputedStyle()` on each element (captures CSS-animated transform/opacity/fill/stroke), apply as inline styles on the clone, embed `cssCode` as `<style>` in the clone, serialize to data URL, draw to `svgCanvas` via `ctx.drawImage`. `artTexture.needsUpdate = true` uploads to GPU.
+- **document shims:** Before running `window.sketch()`, `document.getElementById` and `document.querySelector` are overridden so common container ID patterns (`container`, `canvas-container`, `sketch-container`) and `document.querySelector('svg')` resolve to the shadow DOM SVG element. Shadow DOM elements are not accessible via the main document's query APIs; without this shim, sketches that don't use `window.svgRoot` explicitly crash silently and no rAF animation starts. Shims are restored in `stopSourceLoop`.
+- `window.svgRoot` is set to the shadow DOM SVG element before running the sketch.
+- **Bug fixed:** `createImmersiveHost` was calling `sanitizeArtPieceHtml(htmlCode, defaultHtml)` internally, stripping the entire SVG markup. Fixed by adding an `engine?` parameter and bypassing sanitization for SVG.
+
+### Decisions NOT made (deferred)
+- CSS `@keyframes` in the gallery texture are a best-effort capture via `getComputedStyle` inline-style transfer. CSS animations frozen in `<img>` data URL rendering (browser constraint) are overridden by the sampled inline styles. JS-driven `setAttribute` animations are captured directly by `cloneNode(true)`.
+- No auto-expiry or cleanup for old SVG pieces — same lifecycle as all piece types.
+
+### Outcome
+- SVG is a full peer engine selectable in the admin UI for both new and existing pieces.
+- SVG pieces preview, embed, and display correctly on the feed and in posts.
+- SVG pieces show in the VR/immersive gallery with JS-driven animations updating at ~10fps via the shadow DOM + rAF + setInterval texture pipeline.
+- All typecheck and existing tests pass. No regressions to P5/C2/Three.js flows.
+
+---
+
 ## 2026-06-03 — Recycle Bin, OpenAPI vendorKeys Fix, and Piece Embed Lazy-Load Fix
 
 ### Trigger

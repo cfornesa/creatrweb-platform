@@ -482,6 +482,22 @@ function ExhibitWallStage({
           syncCanvas(svgCanvas);
 
           (window as any).svgRoot = svgEl;
+
+          const _origGetById = document.getElementById.bind(document);
+          document.getElementById = function(id: string) {
+            const found = _origGetById(id);
+            if (!found && (id === "container" || id === "canvas-container" || id === "sketch-container")) {
+              return (window as any).svgRoot ?? null;
+            }
+            return found;
+          } as typeof document.getElementById;
+          const _origQuerySelector = document.querySelector.bind(document);
+          document.querySelector = function<E extends Element = Element>(sel: string): E | null {
+            const found = _origQuerySelector<E>(sel);
+            if (!found && sel === "svg") return ((window as any).svgRoot ?? null) as E | null;
+            return found;
+          } as typeof document.querySelector;
+
           const sketchFactory = resolveSketchFactory(item.generatedCode);
           if (typeof sketchFactory === "function") {
             try { sketchFactory(); } catch { /* ignore */ }
@@ -538,6 +554,8 @@ function ExhibitWallStage({
           const intervalId = window.setInterval(() => { drawSvgSnapshot().catch(() => {}); }, 100);
           stopSourceLoop = () => {
             window.clearInterval(intervalId);
+            document.getElementById = _origGetById as typeof document.getElementById;
+            document.querySelector = _origQuerySelector as typeof document.querySelector;
             shadowHost.remove();
             delete (window as any).svgRoot;
           };
