@@ -15,6 +15,7 @@ import {
   fitMultiFrameExhibitCamera,
   disposeObjectMaterial,
   createKeyboardNavigation,
+  EXHIBIT_FRAME_ASPECT,
 } from "@/lib/immersive-gallery";
 import {
   createImmersiveHost,
@@ -39,6 +40,11 @@ export type WallItem =
 function useReturnToPrevious() {
   return () => {
     const params = new URLSearchParams(window.location.search);
+    const returnTo = params.get("returnTo");
+    if (returnTo && returnTo.startsWith("/")) {
+      window.location.href = returnTo;
+      return;
+    }
     const postId = params.get("post");
     if (postId && !isNaN(Number(postId))) {
       window.location.href = `/posts/${postId}`;
@@ -477,7 +483,7 @@ function ExhibitWallStage({
           }
 
           const svgCanvas = document.createElement("canvas");
-          svgCanvas.width = runtimeSize.width;
+          svgCanvas.width = Math.round(runtimeSize.height * EXHIBIT_FRAME_ASPECT);
           svgCanvas.height = runtimeSize.height;
           syncCanvas(svgCanvas);
 
@@ -551,7 +557,13 @@ function ExhibitWallStage({
                   const ctx = svgCanvas.getContext("2d");
                   if (ctx) {
                     ctx.clearRect(0, 0, svgCanvas.width, svgCanvas.height);
-                    ctx.drawImage(img, 0, 0, svgCanvas.width, svgCanvas.height);
+                    const natW = img.naturalWidth  || svgEl!.viewBox?.baseVal?.width  || 800;
+                    const natH = img.naturalHeight || svgEl!.viewBox?.baseVal?.height || 600;
+                    const imgAspect = natW / Math.max(natH, 1);
+                    let dw = svgCanvas.width;
+                    let dh = dw / imgAspect;
+                    if (dh > svgCanvas.height) { dh = svgCanvas.height; dw = dh * imgAspect; }
+                    ctx.drawImage(img, (svgCanvas.width - dw) / 2, (svgCanvas.height - dh) / 2, dw, dh);
                   }
                   if (artTexture) artTexture.needsUpdate = true;
                   resolve();

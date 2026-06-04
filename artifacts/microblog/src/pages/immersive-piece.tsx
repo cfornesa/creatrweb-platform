@@ -46,6 +46,15 @@ function useReturnToPrevious() {
   const [, setLocation] = useLocation();
   return () => {
     const params = new URLSearchParams(window.location.search);
+    const returnTo = params.get("returnTo");
+    if (returnTo && returnTo.startsWith("/")) {
+      if (returnTo.includes("#")) {
+        window.location.href = returnTo;
+      } else {
+        setLocation(returnTo);
+      }
+      return;
+    }
     const postId = params.get("post");
     if (postId && !isNaN(Number(postId))) {
       setLocation(`/posts/${postId}`);
@@ -234,9 +243,19 @@ function ImmersiveGalleryPieceStage({
             return;
           }
 
+          const vb = svgEl.viewBox?.baseVal;
+          const svgNatW = (vb && vb.width > 0) ? vb.width : runtimeSize.width;
+          const svgNatH = (vb && vb.height > 0) ? vb.height : runtimeSize.height;
+          const svgAspect = svgNatW / Math.max(svgNatH, 1);
+          let canvasW = runtimeSize.width;
+          let canvasH = Math.round(canvasW / svgAspect);
+          if (canvasH < runtimeSize.height) {
+            canvasH = runtimeSize.height;
+            canvasW = Math.round(canvasH * svgAspect);
+          }
           const svgCanvas = document.createElement("canvas");
-          svgCanvas.width = runtimeSize.width;
-          svgCanvas.height = runtimeSize.height;
+          svgCanvas.width = canvasW;
+          svgCanvas.height = canvasH;
           syncCanvas(svgCanvas);
 
           // Expose the shadow DOM SVG so window.sketch() can find it

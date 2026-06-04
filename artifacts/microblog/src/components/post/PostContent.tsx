@@ -21,6 +21,7 @@ type PostContentProps = {
    */
   highlightQuery?: string | null;
   postId?: number | null;
+  returnTo?: string;
 };
 
 function tokenizeQuery(q: string): string[] {
@@ -235,7 +236,7 @@ function enhanceLazyIframes(root: HTMLElement) {
   return () => observer.disconnect();
 }
 
-function enhanceImmersiveHtml(html: string, canonicalOrigin: string, postId?: number | null): string {
+function enhanceImmersiveHtml(html: string, canonicalOrigin: string, postId?: number | null, returnTo?: string): string {
   if (typeof DOMParser === "undefined") return html;
   // First, normalize all piece embed URLs in the raw HTML to use the canonical origin.
   // This ensures they render correctly even if the stored HTML has a different origin.
@@ -261,7 +262,7 @@ function enhanceImmersiveHtml(html: string, canonicalOrigin: string, postId?: nu
         buildImmersiveImageHref(src, {
           alt: image.getAttribute("alt"),
           title: image.getAttribute("title"),
-        }, canonicalOrigin, postId),
+        }, canonicalOrigin, postId, returnTo),
         "Open image in immersive view",
       ),
     );
@@ -282,7 +283,7 @@ function enhanceImmersiveHtml(html: string, canonicalOrigin: string, postId?: nu
       "piece",
       `piece:${meta.id}:${meta.versionId ?? ""}`,
       title,
-      buildImmersivePieceHref(meta.id, meta.versionId, meta.pieceOrigin || canonicalOrigin, postId),
+      buildImmersivePieceHref(meta.id, meta.versionId, meta.pieceOrigin || canonicalOrigin, postId, returnTo),
       "Open piece in immersive view",
     );
     frame.replaceWith(preview);
@@ -319,7 +320,7 @@ function enhanceImmersiveHtml(html: string, canonicalOrigin: string, postId?: nu
       "exhibit",
       `exhibit:${slug}`,
       frame.getAttribute("title")?.trim() || `Exhibit ${slug}`,
-      buildImmersiveExhibitHref(slug, exhibitOrigin, postId),
+      buildImmersiveExhibitHref(slug, exhibitOrigin, postId, returnTo),
       "Open exhibit in immersive view",
     );
     frame.replaceWith(wrapper);
@@ -345,6 +346,7 @@ export const PostContent = memo(function PostContent({
   className,
   highlightQuery,
   postId,
+  returnTo,
 }: PostContentProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canonicalOriginRef = useRef(
@@ -363,8 +365,8 @@ export const PostContent = memo(function PostContent({
     [content, contentFormat, regex],
   );
   const immersiveHtml = useMemo(
-    () => (contentFormat === "html" ? enhanceImmersiveHtml(renderedHtml, canonicalOrigin, postId) : renderedHtml),
-    [contentFormat, renderedHtml, canonicalOrigin, postId],
+    () => (contentFormat === "html" ? enhanceImmersiveHtml(renderedHtml, canonicalOrigin, postId, returnTo) : renderedHtml),
+    [contentFormat, renderedHtml, canonicalOrigin, postId, returnTo],
   );
 
   useLayoutEffect(() => {

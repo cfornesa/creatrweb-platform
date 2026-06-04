@@ -3438,3 +3438,30 @@ After the previous session's property-sync expansion, SVG animations in the VR g
 - SVG animations in the VR gallery now progress through their full cycle at each 100 ms snapshot interval rather than staying frozen at t=0.
 - Fullscreen expand from the VR gallery stays inside the 3D gallery room instead of switching to a flat iframe.
 - All other engines unaffected; monorepo typecheck passes.
+
+---
+
+## 2026-06-03 — VR Gallery: Aspect Ratio Correction and Floor Clearance
+
+### Trigger
+Two visual bugs were reported across all VR/immersive piece and image views:
+1. SVG pieces and images appeared vertically compressed — content looked squished horizontally.
+2. Numerous pieces (Three.js, P5.js, C2.js, images) were positioned too low and started below or behind the gallery floor, clipping the bottom edge of the artwork.
+
+### Root Causes
+- **SVG aspect**: `svgCanvas` was always created at `runtimeSize` (1280×720 = 16:9) regardless of the SVG's viewBox (default 800×600 = 4:3). `ctx.drawImage(img, 0, 0, 1280, 720)` stretched the 4:3 image to fill 16:9. In the exhibit wall, the canvas was then mapped as a texture to a 4:3 frame — the two distortions partially cancelled, but left residual distortion for non-4:3 SVGs.
+- **Image aspect**: `immersive-image.tsx` always created a 1200×900 (4:3) presentation surface and called `updateMountedGalleryLayout(shell, 1200/900)` after load, locking the gallery plane at 4:3 regardless of the image's actual pixel dimensions.
+- **Floor clearance**: All single-piece VR views (`immersive-piece.tsx`, `immersive-image.tsx`) position the art plane at `WALL_CENTER.y = 1.35`. For a standard 16:9 piece at max layout height (3.6), the bottom edge is at `1.35 − 1.8 = −0.45`, which is 0.45 units below the floor (y=0). The floor geometry occludes this. The exhibit wall already had `computeExhibitGridCenterY` for this; the single-piece shell did not.
+
+### Decisions Confirmed
+- **SVG canvas sized to viewBox (single-piece):** In `immersive-piece.tsx`, read `svgEl.viewBox.baseVal` before creating the canvas. Compute `svgAspect = viewBoxWidth / viewBoxHeight`. Size `svgCanvas` to at least `runtimeSize` while preserving `svgAspect`. `syncCanvas(svgCanvas)` calls `updateMountedGalleryLayout` with the viewBox aspect, so the Three.js plane matches the SVG exactly. `drawImage` fills the canvas without distortion.
+- **SVG canvas sized to frame + letterbox (exhibit wall):** In `immersive-exhibit-wall.tsx`, size the SVG canvas to `EXHIBIT_FRAME_ASPECT` (the fixed 4:3 frame: 2.2 / 1.65). In `drawSvgSnapshot`, letterbox the SVG image to its natural aspect centered in the 4:3 canvas. For the common 4:3 viewBox, the SVG fills the canvas with no bars.
+- **Image presentation surface created post-load:** In `immersive-image.tsx`, removed the pre-load fixed 1200×900 surface. After the image loads, create a surface sized to the image's actual pixel aspect (`presW = 1200, presH = round(1200 / imgAspect)`). `drawContainedIntoPresentationSurface` with 72px padding still gives a matted look. `updateMountedGalleryLayout(shell, imgAspect)` resizes the plane to match.
+- **`computeMountedArtCenterY` in `immersive-gallery.ts`:** Added `computeMountedArtCenterY(artHeight) = max(WALL_CENTER.y, artHeight/2 + EXHIBIT_FLOOR_CLEARANCE)`. Applied in both `createMountedGalleryShell` (initial position) and `updateMountedGalleryLayout` (whenever layout changes). A 16:9 piece (height 3.6) gets artCenterY = 2.0; bottom = 0.2 above the floor. `fitMountedGalleryCamera` now targets `artCenterY` instead of hard-coded `WALL_CENTER.y = 1.35`.
+- **Exported `EXHIBIT_FRAME_ASPECT`** from `immersive-gallery.ts` so the exhibit wall can reference the frame's canonical aspect ratio without duplicating the magic numbers 2.2/1.65.
+
+### Outcome
+- SVG pieces appear at their viewBox proportions in both single-piece VR and exhibit wall views.
+- Images fill a frame whose aspect matches the photo's actual pixel dimensions, with even 72px padding.
+- All pieces (Three.js, P5.js, C2.js, SVG, images) in single-piece VR views are positioned so their bottom edge is at least 0.2 units above the gallery floor. Camera orbit target moves with the art center.
+- Monorepo typecheck passes with no errors.
