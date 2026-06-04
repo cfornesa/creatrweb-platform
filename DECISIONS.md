@@ -3418,3 +3418,23 @@ Generated SVG pieces did not animate in either the default VR view (3D gallery r
 - Three.js, P5.js, and C2.js VR flows are completely unaffected.
 - The monorepo continues to compile and pass all typechecks.
 
+
+---
+
+## 2026-06-03 — SVG Piece Animation: Snapshot Pipeline Root-Cause Fix
+
+### Trigger
+After the previous session's property-sync expansion, SVG animations in the VR gallery still did not progress through their full cycle — elements remained frozen at or near the animation's starting frame regardless of how long the piece ran. Expanding from the VR gallery also replaced the 3D room with a flat iframe, losing the gallery experience.
+
+### Root Cause
+`drawSvgSnapshot` serialized the live SVG clone with the original `cssCode` embedded as a `<style>` element. When the browser loaded that data URL as an `<img>`, the CSS `@keyframes` animations restarted from t=0. Per the CSS cascade, animation values sit above normal inline styles, so the `getComputedStyle` inline styles (representing the live animation state at snapshot time) were silently overridden by the restarted animations. Elements at a neutral starting-frame appeared frozen; elements whose interesting state was mid-cycle never changed. This was the root cause of "works to a degree."
+
+### Decisions Confirmed
+- **Freeze snapshot animations with `animation: none !important`:** Changed the `<style>` insertion in `drawSvgSnapshot` (both `immersive-piece.tsx` and `immersive-exhibit-wall.tsx`) to always insert a `<style>` element whose text is `(cssCode || "") + "\n* { animation: none !important; transition: none !important; }"`. Non-animation CSS (class-based colors, fills, strokes) is preserved; `@keyframes` cannot restart in the snapshot image. The `getComputedStyle` inline styles now render correctly as the current animated state.
+- **Added `"d"` to `propertiesToSync`:** SVG path-data morphing (`d`) is a CSS geometry property in SVG 2 and returned by `getComputedStyle` in modern browsers. Omitting it meant animated path shapes were never captured.
+- **Removed the SVG fullscreen bypass:** The `engine === "svg" && fullscreen` branch that swapped `ImmersiveGalleryPieceStage` for a flat `ArtPieceRenderer` iframe was a workaround for the broken snapshot. Now that snapshots correctly reflect live animation state, SVG uses `ImmersiveGalleryPieceStage` in all modes. The `windowHeight` state and its resize listener were removed as they only served the removed branch.
+
+### Outcome
+- SVG animations in the VR gallery now progress through their full cycle at each 100 ms snapshot interval rather than staying frozen at t=0.
+- Fullscreen expand from the VR gallery stays inside the 3D gallery room instead of switching to a flat iframe.
+- All other engines unaffected; monorepo typecheck passes.

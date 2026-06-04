@@ -279,6 +279,7 @@ function ImmersiveGalleryPieceStage({
                 "stroke-width", "stroke-dasharray", "stroke-dashoffset",
                 "fill-opacity", "stroke-opacity",
                 "cx", "cy", "r", "rx", "ry", "x", "y", "width", "height",
+                "d",
                 "stop-color", "stop-opacity", "offset",
                 "filter", "clip-path", "mask", "display", "visibility"
               ];
@@ -298,9 +299,11 @@ function ImmersiveGalleryPieceStage({
                   }
                 });
               });
-              if (cssCode) {
+              {
                 const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
-                styleEl.textContent = cssCode;
+                // Disable CSS animations/transitions in the snapshot so @keyframes don't restart
+                // from t=0 and override the getComputedStyle inline styles we just applied above.
+                styleEl.textContent = (cssCode || "") + "\n* { animation: none !important; transition: none !important; }";
                 svgClone.insertBefore(styleEl, svgClone.firstChild);
               }
               const serialized = new XMLSerializer().serializeToString(svgClone);
@@ -1082,13 +1085,6 @@ export default function ImmersivePiecePage() {
   const goBack = useReturnToPrevious();
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [windowHeight, setWindowHeight] = useState(window.innerHeight);
-
-  useEffect(() => {
-    const handleResize = () => setWindowHeight(window.innerHeight);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
   const pieceId = Number(params?.id);
   const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const versionRaw = searchParams.get("version");
@@ -1253,19 +1249,6 @@ export default function ImmersivePiecePage() {
             onError={setRuntimeError}
             interactive={!isStaticEmbed}
           />
-        ) : data.version.engine === "svg" && fullscreen ? (
-          <div className="h-full w-full bg-[#1a1a2e]">
-            <ArtPieceRenderer
-              engine={data.version.engine}
-              code={data.version.generatedCode}
-              htmlCode={data.version.htmlCode}
-              cssCode={data.version.cssCode}
-              title={title}
-              height={windowHeight}
-              iframeClassName="w-full h-full border-0 bg-transparent"
-              className="h-full w-full"
-            />
-          </div>
         ) : (
           <ImmersiveGalleryPieceStage
             engine={data.version.engine}

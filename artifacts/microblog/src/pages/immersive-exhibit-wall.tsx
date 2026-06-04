@@ -516,6 +516,7 @@ function ExhibitWallStage({
                 "stroke-width", "stroke-dasharray", "stroke-dashoffset",
                 "fill-opacity", "stroke-opacity",
                 "cx", "cy", "r", "rx", "ry", "x", "y", "width", "height",
+                "d",
                 "stop-color", "stop-opacity", "offset",
                 "filter", "clip-path", "mask", "display", "visibility"
               ];
@@ -535,9 +536,11 @@ function ExhibitWallStage({
                   }
                 });
               });
-              if (item.cssCode) {
+              {
                 const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
-                styleEl.textContent = item.cssCode;
+                // Disable CSS animations/transitions in the snapshot so @keyframes don't restart
+                // from t=0 and override the getComputedStyle inline styles we just applied above.
+                styleEl.textContent = (item.cssCode || "") + "\n* { animation: none !important; transition: none !important; }";
                 svgClone.insertBefore(styleEl, svgClone.firstChild);
               }
               const serialized = new XMLSerializer().serializeToString(svgClone);
