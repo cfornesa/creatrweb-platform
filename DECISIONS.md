@@ -32,6 +32,26 @@ options regardless of session context. -->
 - [x] 2026-04-28 Public interaction model is confirmed at a high level: visitors may log in, comment, and react; only the site owner may publish canonical posts.
 - [x] 2026-04-28 Initial owner bootstrap policy selected: manual database promotion after the owner's first Auth.js-backed login.
 
+## 2026-06-05 — Replaceable CMS Shell and Automated First-Owner Setup
+
+### Trigger
+The repo had to become fully replaceable across three real deployment cases: duplicate the shell onto an existing populated site database, duplicate it onto an empty database, or fully replace the files in an older sibling repo without maintaining three divergent app versions.
+
+### Decisions Confirmed
+- CreatrWeb now treats the repo as the executable shell and MySQL as the durable source of truth for mutable site state.
+- Root `npm install`, `npm run build`, and `npm run dev` are the supported lifecycle contract. Shared API client/Zod artifacts regenerate automatically as part of that contract.
+- First-owner bootstrap no longer defaults to manual promotion. `OWNER_EMAILS` is now the default allowlisted auto-claim path when no owner exists.
+- Bootstrap state is persisted in the new singleton `site_bootstrap_state` table, which records owner-claim and setup-completion state.
+- Empty databases show a public setup gate until an allowed owner completes `/admin/setup`.
+- Existing populated sites with a real owner and real content/settings bypass the gate automatically; startup repairs backfill the bootstrap state instead of blocking the site.
+- Durable site identity assets are DB-first. Bundled defaults such as the favicon are seeded into `site_assets` and served from DB-backed routes after first boot.
+- Legacy `promote-owner` remains available only as a recovery tool.
+
+### Outcome
+- A full repo copy can be pointed at a sibling repo's database and env vars without requiring hand-moved generated files.
+- A fresh empty database can be claimed and configured from the app itself.
+- Documentation now reflects the CMS-shell model and the new first-owner flow.
+
 ## 2026-06-03 — SVG as Fourth Art Piece Engine
 
 ### Trigger

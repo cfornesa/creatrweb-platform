@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, useLocation, useRoute, Redirect } from "wouter";
+import { getGetBootstrapStatusQueryKey, useGetBootstrapStatus } from "@workspace/api-client-react";
 import { Settings, Tags, Link2, FileText, Rss, Inbox, ShieldCheck, ChevronLeft, Sparkles, Share2, Palette, CalendarDays, Images, LayoutGrid, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -37,8 +38,16 @@ type Props = {
 export function AdminLayout({ title, description, children }: Props) {
   const { isLoading, isOwner } = useCurrentUser();
   const [location] = useLocation();
+  const [isSetupRoute] = useRoute("/admin/setup");
+  const bootstrapQuery = useGetBootstrapStatus({
+    query: {
+      enabled: isOwner,
+      queryKey: getGetBootstrapStatusQueryKey(),
+      staleTime: 10_000,
+    },
+  });
 
-  if (isLoading) {
+  if (isLoading || (isOwner && bootstrapQuery.isLoading && !isSetupRoute)) {
     return (
       <div className="container mx-auto max-w-5xl px-4 py-16 text-center text-sm text-muted-foreground">
         Loading…
@@ -47,6 +56,9 @@ export function AdminLayout({ title, description, children }: Props) {
   }
   if (!isOwner) {
     return <Redirect to="/" />;
+  }
+  if (!isSetupRoute && bootstrapQuery.data?.currentUserNeedsSetup) {
+    return <Redirect to={bootstrapQuery.data.setupPath} />;
   }
 
   const siteItems = NAV.filter((n) => n.group === "site");

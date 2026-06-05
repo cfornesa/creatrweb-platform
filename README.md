@@ -4,6 +4,8 @@ CreatrWeb is an author-owned microblogging application built for publishing shor
 
 The application is split into a React frontend and an Express API, with authentication handled in-app through Auth.js and persistence managed through Drizzle ORM on top of MySQL. It supports direct publishing on your own domain, standardized public feeds, POSSE outbound syndication to external platforms, inbound feed aggregation, and a clear separation between publishing authority and member participation.
 
+CreatrWeb is now designed as a **replaceable CMS shell**. The repo is the executable shell; MySQL is the durable source of truth for site content, branding, uploaded media, seeded identity assets, bootstrap state, and admin-managed configuration. The supported maintenance workflow is to replace the shell code as a whole, point it at the target database and environment variables, and let the root lifecycle commands reconcile generated contracts, schema, and seeded defaults.
+
 ## Overview
 
 This repository is a TypeScript monorepo with three main layers:
@@ -195,7 +197,7 @@ Authentication is handled by Auth.js. Supported sign-in providers:
 - GitHub OAuth
 - Google OAuth
 
-The first owner account is established by signing in once and then promoting that user with the bootstrap script.
+First-owner bootstrap is **env-based auto-claim**. Set `OWNER_EMAILS` to a comma-separated allowlist of email addresses allowed to claim ownership on a fresh database. When no owner exists yet, the first successful sign-in whose email matches `OWNER_EMAILS` is promoted automatically and routed into `/admin/setup`. Existing populated sites with a real owner and real content bypass the setup gate automatically.
 
 ### Optional AI Assistant
 
@@ -261,6 +263,8 @@ Install dependencies once per machine or after dependency changes:
 npm install
 ```
 
+`npm install` runs the contract-sync bootstrap automatically. Generated API client/Zod files are treated as deterministic shell artifacts, not manual prerequisites.
+
 Run the one-port development server from the repository root:
 
 ```bash
@@ -283,6 +287,14 @@ Build is not required before `npm run dev`; the root dev script already builds t
 npm run build
 npm run start
 ```
+
+The root commands are the supported shell lifecycle:
+
+- `npm install`
+- `npm run build`
+- `npm run dev`
+
+They regenerate shared contracts before compilation so copied shell repos do not depend on stale generated files.
 
 ### Manual Verification
 
@@ -320,6 +332,7 @@ npm run test --workspace=@workspace/microblog -- PostContent immersive-view imme
 | `PORT` | Yes | API server port. Default `4000` locally. |
 | `ALLOWED_ORIGINS` | Yes | Comma-separated origins allowed for CORS and used to generate OAuth callback URLs in the admin UI. |
 | `AUTH_SECRET` | Yes | Long random string for Auth.js session signing. |
+| `OWNER_EMAILS` | For fresh databases | Comma-separated allowlist for first-owner auto-claim. Existing populated sites can still boot without it, but fresh databases need it before first sign-in. |
 | `GITHUB_ID` / `GITHUB_SECRET` | One provider required | GitHub OAuth sign-in. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | One provider required | Google OAuth sign-in (for Auth.js login, separate from Blogger syndication). |
 | `DB_HOST` | Yes | MySQL host. |
@@ -348,6 +361,8 @@ Current profile-photo-related schema is additive:
 
 - `profile_photo_assets`: database-backed member profile-only image bytes served by `/api/profile-photos/:fileName`.
 - `media_assets`: reusable Image Library storage for post media, owner profile photos, and feed-source profile photos served by `/api/media/:fileName`.
+- `site_assets`: durable DB-backed identity assets such as the seeded favicon and default logos.
+- `site_bootstrap_state`: singleton bootstrap/setup state used for first-owner auto-claim repair and setup completion.
 - `feed_sources.image_url`: optional feed-source avatar URL, owner-managed from `/admin/feeds`.
 - `posts.author_image_url`: denormalized post avatar URL. Startup reconciliation and profile/feed-source photo updates backfill existing rows so old posts show the current chosen photo.
 
@@ -363,6 +378,20 @@ After any change to `lib/api-spec/openapi.yaml`, regenerate API clients:
 npm run codegen --workspace=@workspace/api-spec
 ```
 
+### CMS Shell Portability
+
+Supported cases for the same repo contents:
+
+1. Point an exact repo copy at an existing populated MySQL database and the site should render that existing content and branding immediately.
+2. Point an exact repo copy at an empty MySQL database and complete first-owner onboarding through `/admin/setup`.
+3. Fully replace the files in an older sibling repo, keep only that repo's database and environment variables, and let startup reconcile schema, seeded assets, and bootstrap state.
+
+Portable-shell boundaries:
+
+- Durable state lives in MySQL: posts, pages, users, comments, reactions, site settings, branding, uploaded media, profile photos, piece thumbnails, durable site assets, and bootstrap state.
+- Deterministic shell artifacts are regenerated locally: generated API clients, Zod schemas, frontend bundles, and runtime libraries under `node_modules`.
+- Mutable site-visible identity assets are DB-first. The app seeds bundled defaults such as the favicon into MySQL on first boot and prefers DB-backed asset URLs after that.
+
 ### Scheduled Feed Refresh With GitHub Actions
 
 The workflow at `.github/workflows/feed-refresh.yml` runs `bash scripts/scheduled-feed-refresh.sh` hourly. Two GitHub Actions secrets are required:
@@ -370,9 +399,17 @@ The workflow at `.github/workflows/feed-refresh.yml` runs `bash scripts/schedule
 - `CRON_SECRET` — must exactly match the deployed app's `CRON_SECRET`
 - `PUBLIC_SITE_URL` — fully-qualified deployed site origin, e.g. `https://yourdomain.com` (no trailing slash)
 
-### Owner Bootstrap
+### First Owner Setup
 
-After the first successful sign-in, promote the intended site owner:
+Default flow:
+
+1. Set `OWNER_EMAILS` in `.env` to the email address or addresses allowed to claim ownership on a fresh database.
+2. Run `npm install`, then `npm run dev`.
+3. Sign in with an allowed email.
+4. If no owner exists yet, the app promotes that account automatically and redirects to `/admin/setup`.
+5. Complete the required owner/site identity fields to lift the public setup gate.
+
+The legacy scripts remain available as recovery tools, not as the normal bootstrap path:
 
 ```bash
 npm run list-users --workspace=@workspace/scripts
@@ -391,17 +428,22 @@ npm run start       # start the built API server
 
 1. **Database** — stand up a MySQL 8.0+ or MariaDB 10.5+ database. The API server's `ensureTables()` builds the full schema on first boot.
 
-2. **Environment variables** — at minimum: `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSL` (if your host requires it), `ALLOWED_ORIGINS` (set to your production domain), `AUTH_SECRET`, `AI_SETTINGS_ENCRYPTION_KEY`, and at least one OAuth sign-in provider. See the table above.
+2. **Environment variables** — at minimum: `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_SSL` (if your host requires it), `ALLOWED_ORIGINS` (set to your production domain), `AUTH_SECRET`, `SESSION_SECRET`, `AI_SETTINGS_ENCRYPTION_KEY`, `OWNER_EMAILS`, and at least one OAuth sign-in provider. See the table above.
 
-3. **Username** — the handle your profile page lives at, e.g. `chris` → `/users/@chris`. Set it in two places:
-   - `site_settings.cta_href` — edit via `/settings` after you've promoted yourself to owner
-   - `users.username` — run `UPDATE users SET username = '<your-username>' WHERE email = '<your-email>'` after signing in, or use `/settings`
-
-4. **Sign in and promote** — sign in once via OAuth, then promote yourself:
+3. **Install and verify the shell**:
 
    ```bash
-   npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com
+   npm install
+   npm run build
+   npm run dev
    ```
+
+   If you are replacing an existing sibling repo, replace the full shell rather than cherry-picking folders. In practice that means at least `artifacts/`, `lib/`, `scripts/`, `package.json`, and the root docs/config that define the lifecycle contract.
+
+4. **Choose the matching path**:
+   - Existing populated database: the site should render immediately from stored content/settings.
+   - Empty database: sign in with an allowed owner email and finish `/admin/setup`.
+   - Existing sibling repo replacement: replace the full shell, keep the sibling repo's env vars and database, then let startup apply idempotent repairs.
 
 5. **Platform syndication** — visit `/admin/platforms` to connect external publishing targets. WordPress.com, Blogger, LinkedIn, Facebook, and Instagram require OAuth app credentials registered in their respective developer consoles. The admin UI generates the exact redirect URIs to register, derived from your `ALLOWED_ORIGINS` value. Self-hosted WordPress uses an application password, Bluesky uses an App Password, and Substack uses publication-scoped cookie credentials. New outbound shares preserve the canonical post URL either as a source footer, structured canonical/source metadata, a link card, or caption text depending on platform capability.
 
@@ -417,7 +459,7 @@ Several top-level files in this repo are part of the **Creatrweb framework** —
 
 ## Related Docs
 
-- [docs/auth-setup.md](./docs/auth-setup.md) — OAuth callback setup and first-boot walkthrough
+- [docs/auth-setup.md](./docs/auth-setup.md) — OAuth callback setup, `OWNER_EMAILS`, and first-run setup walkthrough
 - [docs/ai-vendor-verification.md](./docs/ai-vendor-verification.md) — AI vendor verification checklist
 - [docs/dependencies.md](./docs/dependencies.md) — runtime dependency registry
 - [DECISIONS.md](./DECISIONS.md) — architecture decision log

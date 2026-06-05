@@ -1191,6 +1191,26 @@ export interface UploadedMedia {
   height?: number | null;
 }
 
+export interface BootstrapChecklist {
+  ownerDisplayNameReady: boolean;
+  ownerUsernameReady: boolean;
+  siteTitleReady: boolean;
+  heroHeadingReady: boolean;
+  heroSubheadingReady: boolean;
+  aboutBodyReady: boolean;
+}
+
+export interface BootstrapStatus {
+  hasOwner: boolean;
+  isSetupComplete: boolean;
+  requiresSetup: boolean;
+  currentUserCanSetup: boolean;
+  currentUserNeedsSetup: boolean;
+  ownerAutoClaimEnabled: boolean;
+  setupPath: string;
+  checklist: BootstrapChecklist;
+}
+
 export type SiteSettingsTheme = typeof SiteSettingsTheme[keyof typeof SiteSettingsTheme];
 
 

@@ -1346,6 +1346,50 @@ export const UpdateSiteSettingsResponse = zod.object({
 
 
 /**
+ * @summary Get CMS shell bootstrap status
+ */
+export const GetBootstrapStatusResponse = zod.object({
+  "hasOwner": zod.boolean(),
+  "isSetupComplete": zod.boolean(),
+  "requiresSetup": zod.boolean(),
+  "currentUserCanSetup": zod.boolean(),
+  "currentUserNeedsSetup": zod.boolean(),
+  "ownerAutoClaimEnabled": zod.boolean(),
+  "setupPath": zod.string(),
+  "checklist": zod.object({
+  "ownerDisplayNameReady": zod.boolean(),
+  "ownerUsernameReady": zod.boolean(),
+  "siteTitleReady": zod.boolean(),
+  "heroHeadingReady": zod.boolean(),
+  "heroSubheadingReady": zod.boolean(),
+  "aboutBodyReady": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Mark first-run CMS shell setup complete (owner only)
+ */
+export const CompleteBootstrapSetupResponse = zod.object({
+  "hasOwner": zod.boolean(),
+  "isSetupComplete": zod.boolean(),
+  "requiresSetup": zod.boolean(),
+  "currentUserCanSetup": zod.boolean(),
+  "currentUserNeedsSetup": zod.boolean(),
+  "ownerAutoClaimEnabled": zod.boolean(),
+  "setupPath": zod.string(),
+  "checklist": zod.object({
+  "ownerDisplayNameReady": zod.boolean(),
+  "ownerUsernameReady": zod.boolean(),
+  "siteTitleReady": zod.boolean(),
+  "heroHeadingReady": zod.boolean(),
+  "heroSubheadingReady": zod.boolean(),
+  "aboutBodyReady": zod.boolean()
+})
+})
+
+
+/**
  * @summary List posts awaiting moderation (owner only)
  */
 export const listPendingPostsQueryPageDefault = 1;

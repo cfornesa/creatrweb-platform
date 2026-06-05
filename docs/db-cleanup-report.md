@@ -14,8 +14,9 @@ As of `2026-05-30`, the live app and the deployed runtime expect the following t
 - `feed_sources`, `feed_items_seen`
 - `categories`, `post_categories`
 - `pages`, `nav_links`, `site_settings`
-- `media_assets`, `media_asset_exhibits`
+- `media_assets`, `media_asset_exhibits`, `site_assets`
 - `art_pieces`, `art_piece_versions`, `exhibits`, `piece_exhibits`
+- `site_bootstrap_state`
 
 They also expect the richer `users` and `posts` column sets that support:
 
@@ -27,6 +28,7 @@ They also expect the richer `users` and `posts` column sets that support:
 - Image Library-backed owner and feed-source profile photos
 - avatar backfills from `users.image` and `feed_sources.image_url` into `posts.author_image_url`
 - site settings, categories, pages, and nav management
+- DB-backed seeded site identity assets and first-owner bootstrap state
 
 ## Why This Was Superseded
 

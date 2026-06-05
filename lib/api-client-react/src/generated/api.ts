@@ -24,6 +24,7 @@ import type {
   ApprovePostResponse,
   ArtPiece,
   ArtPieceDetail,
+  BootstrapStatus,
   BulkPermanentDeleteBody,
   CategoriesList,
   Category,
@@ -2764,6 +2765,153 @@ export const useUpdateSiteSettings = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateSiteSettingsMutationOptions(options));
+    }
+
+/**
+ * @summary Get CMS shell bootstrap status
+ */
+export const getGetBootstrapStatusUrl = () => {
+
+
+
+
+  return `/api/bootstrap-status`
+}
+
+export const getBootstrapStatus = async ( options?: RequestInit): Promise<BootstrapStatus> => {
+
+  return customFetch<BootstrapStatus>(getGetBootstrapStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBootstrapStatusQueryKey = () => {
+    return [
+    `/api/bootstrap-status`
+    ] as const;
+    }
+
+
+export const getGetBootstrapStatusQueryOptions = <TData = Awaited<ReturnType<typeof getBootstrapStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBootstrapStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBootstrapStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBootstrapStatus>>> = ({ signal }) => getBootstrapStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBootstrapStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBootstrapStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getBootstrapStatus>>>
+export type GetBootstrapStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get CMS shell bootstrap status
+ */
+
+export function useGetBootstrapStatus<TData = Awaited<ReturnType<typeof getBootstrapStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBootstrapStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBootstrapStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * @summary Mark first-run CMS shell setup complete (owner only)
+ */
+export const getCompleteBootstrapSetupUrl = () => {
+
+
+
+
+  return `/api/bootstrap/complete`
+}
+
+export const completeBootstrapSetup = async ( options?: RequestInit): Promise<BootstrapStatus> => {
+
+  return customFetch<BootstrapStatus>(getCompleteBootstrapSetupUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getCompleteBootstrapSetupMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeBootstrapSetup>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeBootstrapSetup>>, TError,void, TContext> => {
+
+const mutationKey = ['completeBootstrapSetup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeBootstrapSetup>>, void> = () => {
+
+
+          return  completeBootstrapSetup(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteBootstrapSetupMutationResult = NonNullable<Awaited<ReturnType<typeof completeBootstrapSetup>>>
+
+    export type CompleteBootstrapSetupMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark first-run CMS shell setup complete (owner only)
+ */
+export const useCompleteBootstrapSetup = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeBootstrapSetup>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeBootstrapSetup>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCompleteBootstrapSetupMutationOptions(options));
     }
 
 /**

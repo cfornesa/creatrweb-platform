@@ -984,6 +984,38 @@ paths:
         "403":
           description: Forbidden
 
+  /bootstrap-status:
+    get:
+      operationId: getBootstrapStatus
+      tags: [site]
+      summary: Get CMS shell bootstrap status
+      responses:
+        "200":
+          description: Bootstrap state and setup checklist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BootstrapStatus"
+
+  /bootstrap/complete:
+    post:
+      operationId: completeBootstrapSetup
+      tags: [site]
+      summary: Mark first-run CMS shell setup complete (owner only)
+      responses:
+        "200":
+          description: Updated bootstrap state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BootstrapStatus"
+        "400":
+          description: Required setup fields are still missing
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
   /posts/pending:
     get:
       operationId: listPendingPosts
@@ -4112,6 +4144,58 @@ components:
       required:
         - url
         - mimeType
+
+    BootstrapChecklist:
+      type: object
+      properties:
+        ownerDisplayNameReady:
+          type: boolean
+        ownerUsernameReady:
+          type: boolean
+        siteTitleReady:
+          type: boolean
+        heroHeadingReady:
+          type: boolean
+        heroSubheadingReady:
+          type: boolean
+        aboutBodyReady:
+          type: boolean
+      required:
+        - ownerDisplayNameReady
+        - ownerUsernameReady
+        - siteTitleReady
+        - heroHeadingReady
+        - heroSubheadingReady
+        - aboutBodyReady
+
+    BootstrapStatus:
+      type: object
+      properties:
+        hasOwner:
+          type: boolean
+        isSetupComplete:
+          type: boolean
+        requiresSetup:
+          type: boolean
+        currentUserCanSetup:
+          type: boolean
+        currentUserNeedsSetup:
+          type: boolean
+        ownerAutoClaimEnabled:
+          type: boolean
+        setupPath:
+          type: string
+        checklist:
+          $ref: "#/components/schemas/BootstrapChecklist"
+      required:
+        - hasOwner
+        - isSetupComplete
+        - requiresSetup
+        - currentUserCanSetup
+        - currentUserNeedsSetup
+        - ownerAutoClaimEnabled
+        - setupPath
+        - checklist
 
     SiteSettings:
       type: object

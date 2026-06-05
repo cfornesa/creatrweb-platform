@@ -2,6 +2,12 @@
 to the human before proceeding. Do not act on a pending entry — wait for explicit confirmation
 or rejection. -->
 
+2026-06-05 · CMS SHELL · CreatrWeb now treats the repo as a replaceable executable shell and MySQL as the durable site state. Root `npm install`, `npm run build`, and `npm run dev` are the supported lifecycle contract for fresh deployments and full sibling-repo replacements.
+    [Implemented 2026-06-05; verified from root contract-sync scripts, DB-backed site assets, bootstrap state flow, and successful workspace typechecks.]
+
+2026-06-05 · OWNER BOOTSTRAP · First-owner setup now uses `OWNER_EMAILS` auto-claim plus `/admin/setup` instead of manual promotion as the default path. Existing populated sites bypass the setup gate automatically once startup repairs backfill bootstrap state.
+    [Implemented 2026-06-05; verified from auth config sign-in hook, bootstrap middleware/routes, setup page, and updated repo docs.]
+
 2026-06-03 · SVG PIECE VR ANIMATION · Fixed SVG pieces not animating in VR gallery. Root cause: `drawSvgSnapshot` embedded `cssCode` (with `@keyframes`) in the serialized clone — animations restarted from t=0 in the data URL image and overrode the `getComputedStyle` inline styles per the CSS cascade. Fix: always append `* { animation: none !important; transition: none !important; }` to the clone's `<style>` so @keyframes cannot restart; the inline styles now capture the live animated state correctly. Also added `"d"` (path morphing) to `propertiesToSync`. Removed the `engine==="svg" && fullscreen` bypass that had replaced `ImmersiveGalleryPieceStage` with a flat ArtPieceRenderer iframe — now SVG uses the VR gallery in all modes.
     [Fixed 2026-06-03; immersive-piece.tsx, immersive-exhibit-wall.tsx; typecheck clean.]
 

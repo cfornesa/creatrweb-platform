@@ -6,21 +6,30 @@ An author-owned microblogging platform for one canonical publisher, with authent
 
 - `npm run typecheck`: Type-check all packages.
 - `npm run build`: Type-check and build all packages.
-- `npm run codegen --workspace=@workspace/api-spec`: Regenerate API hooks and Zod schemas.
+- `npm run contracts:sync`: Regenerate API hooks and Zod schemas, then verify generated contract wiring.
 - `npm run push-force --workspace=@workspace/db`: Force-push DB schema changes for manual inspection only; normal startup reconciliation happens through `ensureTables()`.
 - `npm run dev`: One-port development run, serving frontend and API/Auth routes from the API server.
 - `npm run dev:hot`: Two-port hot-reload workflow for API server and Vite frontend.
 - `npm run list-users --workspace=@workspace/scripts`: List local users.
-- `npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com`: Promote user to owner role.
+- `npm run promote-owner --workspace=@workspace/scripts -- --email you@example.com`: Manual recovery-only owner promotion tool.
 
 **Required Environment Variables:**
 - `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`: MySQL connection details.
 - `DB_SSL=true`: Required for most hosted MySQL providers (Hostinger, Railway, etc.).
 - `ALLOWED_ORIGINS`: Comma-separated origins for CORS. Must match your deployment domain. Also used by the admin UI to generate OAuth callback URLs for platform syndication setup.
 - `AUTH_SECRET`, `SESSION_SECRET`: Long random strings for session signing.
+- `OWNER_EMAILS`: Comma-separated allowlist for first-owner auto-claim on a fresh database.
 - `GITHUB_ID`, `GITHUB_SECRET` OR `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: OAuth credentials for sign-in (at least one provider required).
 - `AI_SETTINGS_ENCRYPTION_KEY`: 32-byte secret (base64 or hex) for encrypting AI API keys and platform OAuth app credentials at rest. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`.
 - `CRON_SECRET`: Required if using the GitHub Actions scheduled feed refresh.
+
+## CMS Shell Notes
+
+- Treat the repo as a replaceable executable shell and MySQL as the durable site state.
+- `npm install`, `npm run build`, and `npm run dev` are the supported lifecycle commands for both fresh and replacement deployments.
+- Existing populated databases should render immediately after a shell replacement.
+- Empty databases should route the allowed first owner into `/admin/setup` after sign-in.
+- For sibling repos, replace the full shell rather than only `artifacts/` and `lib/`; the root `scripts/` directory is part of the lifecycle contract used by `npm run build` and `npm run dev`.
 
 ## Stack
 

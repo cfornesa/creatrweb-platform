@@ -35,9 +35,9 @@ CONSTRAINT: Public user identity routes use local app user IDs rather than third
 SCOPE: URL design, API contracts, frontend routing, and data modeling.
 SET: 2026-04-28
 
-CONSTRAINT: Initial owner assignment during the Auth.js migration is manual database promotion after the owner's first successful login.
-SCOPE: Auth migration, role assignment, and deployment procedure.
-SET: 2026-04-28
+CONSTRAINT: First-owner bootstrap uses env-based allowlisted auto-claim (`OWNER_EMAILS`) and a DB-backed setup flow; manual promotion scripts are recovery tools, not the default deployment path.
+SCOPE: Auth bootstrap, role assignment, deployment procedure, and first-run onboarding.
+SET: 2026-06-05
 
 CONSTRAINT: The initial local capability model is `owner` plus `member`, with no separate moderator role in the first Auth.js migration.
 SCOPE: Roles, permissions, schema design, and API authorization.
