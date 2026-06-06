@@ -52,6 +52,31 @@ The repo had to become fully replaceable across three real deployment cases: dup
 - A fresh empty database can be claimed and configured from the app itself.
 - Documentation now reflects the CMS-shell model and the new first-owner flow.
 
+## 2026-06-05 — AI Image Description Bug Fixes
+
+### Root Causes Identified and Fixed
+
+**500 / silent failures on `POST /api/ai/describe-image`**
+- `decryptAiApiKey` throws a plain `Error` when the stored key cannot be decrypted (e.g. `AI_SETTINGS_ENCRYPTION_KEY` changed since the key was saved). Neither `AiVisionNotSupportedError` nor `AiProviderError` catches a plain `Error`, so the route's generic 500 branch fired with no log output.
+- This repo already had the `decryptAiApiKey` try-catch but with a technical error message targeting developers. Message updated to be user-facing: "The stored API key for [vendor] could not be read. Try re-saving it in Admin → AI." `logger.error` moved to the top of both catch blocks so any remaining unexpected error is visible immediately.
+- Resolution path for end users: re-save the affected vendor's API key in Admin → AI. The key is re-encrypted and the 409 clears.
+
+**Task preference settings requiring multiple saves + hard refreshes**
+- New unsaved profiles have temporary keys like `"new-1"` whose `Number()` = NaN, so `safePref` silently dropped any preference pointing at them. Fix: `!d.isNew` added to `enabledProfiles` filter in `admin-ai.tsx`.
+- `setQueryData` alone doesn't refetch for late-mounting subscribers. Fix: `invalidateQueries` added immediately after `setQueryData` in the `onSuccess` handler.
+
+**Frontend swallowing server error messages**
+- All three describe-image call sites showed a hardcoded "Could not generate alt text." toast. Fixed to extract `error?.data?.error` (or use `getAiFailureMessage`) before falling back.
+
+### Files Changed
+- `artifacts/api-server/src/routes/ai.ts` — updated error message + `logger.error` order.
+- `artifacts/microblog/src/pages/admin/admin-ai.tsx` — `!d.isNew` filter + `invalidateQueries`.
+- `artifacts/microblog/src/pages/admin/admin-library.tsx` — surface server error in toast.
+- `artifacts/microblog/src/components/media/FeaturedImagePicker.tsx` — surface server error in toast.
+- `artifacts/microblog/src/components/post/RichPostEditor.tsx` — use `getAiFailureMessage` in describe-image catch.
+
+---
+
 ## 2026-06-03 — SVG as Fourth Art Piece Engine
 
 ### Trigger

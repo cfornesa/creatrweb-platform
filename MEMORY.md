@@ -440,5 +440,14 @@ or rejection. -->
     [Implemented 2026-05-26; `artifacts/microblog/src/lib/immersive-piece-runtime.ts` and `artifacts/microblog/src/pages/immersive-piece.tsx`.]
 
 
+2026-06-05 · AI ROUTE ERROR HANDLING · `decryptAiApiKey` wraps `decryptSecret` in `crypto.ts`, which throws a plain `Error` when the stored encrypted key cannot be read — silently causing a 500. Both routes in `artifacts/api-server/src/routes/ai.ts` now wrap this call in an isolated try-catch returning a user-facing 409. `logger.error` was added at the top of both catch blocks. Fix for end users: re-save the affected vendor API key in Admin → AI.
+    [Verified from `artifacts/api-server/src/routes/ai.ts` and the resolved 500 on POST /api/ai/describe-image.]
+
+2026-06-05 · AI SETTINGS PERSISTENCE · Two bugs caused task-preference settings to require multiple saves: (1) new profiles with temporary string keys (`"new-1"`) produced NaN IDs — fixed by adding `!d.isNew` to `enabledProfiles` filter in `admin-ai.tsx`; (2) `setQueryData` without `invalidateQueries` left stale cache for late-mounting subscribers — fixed in the `onSuccess` handler.
+    [Verified from `artifacts/microblog/src/pages/admin/admin-ai.tsx`.]
+
+2026-06-05 · AI ERROR SURFACING · All three describe-image error sites swallowed the server message behind a hardcoded fallback. Fixed in `admin-library.tsx`, `FeaturedImagePicker.tsx`, `RichPostEditor.tsx`. Use `getAiFailureMessage` from `ai-error.ts` as the canonical helper for AI error display.
+    [Verified from the three frontend components and `components/post/ai-error.ts`.]
+
 2026-06-03 · SVG ENGINE · SVG added as the fourth art piece engine (`"svg"` in `artPieceEngineSchema`). No external runtime library — renders natively. System prompt instructs CSS `@keyframes` on SVG elements + optional `window.sketch = () => {}` for JS particle/rAF animations. `sanitizeArtPieceHtml` (allowlist `{DIV,CANVAS}`) is bypassed for SVG in `buildArtPieceSrcDoc`, `createImmersiveHost`, and all embed routes — SVG markup must be used as-is. Admin UI has two engine dropdowns; BOTH must include "svg" or saved SVG pieces display as "p5". VR/immersive gallery uses shadow DOM (`attachShadow({mode:"open"})`) so piece CSS cannot leak to page UI; rAF runs in parent context (no iframe throttling). `document.getElementById` and `document.querySelector` must be shimmed before `sketchFactory()` runs because shadow DOM elements are not accessible via main-document queries — without this shim, sketches crash silently and no animation starts.
     [Implemented 2026-06-03; schema, openapi.yaml (7 enum instances), art-pieces.ts ENGINE_ADAPTERS.svg, piece-embed-html.ts, art-piece-runtime.ts, immersive-piece-runtime.ts, admin-pieces.tsx, immersive-piece.tsx, immersive-exhibit-wall.tsx.]
