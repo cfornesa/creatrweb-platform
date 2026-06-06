@@ -251,20 +251,7 @@ async function runImageAttempt(attempt: TransportAttempt, input: ProcessImageInp
             },
           ],
         },
-      }).then((r) => {
-        if (!r.ok) return r;
-        const text = extractAnthropicText(r.json);
-        if (!text) return {
-          ok: false as const,
-          message: "The AI provider returned an unusable response. Try a different model or try again.",
-          retryable: false,
-          failureClass: "parse" as const,
-          transportKind: "anthropic-messages" as const,
-          endpointFamily: "messages" as const,
-          url: attempt.url,
-        };
-        return { ok: true as const, text };
-      });
+      }).then((r) => r.ok ? { ok: true as const, text: extractAnthropicText(r.json) ?? "" } : r);
 
     case "chat-completions":
       return postJson(attempt.url, {
@@ -294,12 +281,7 @@ async function runImageAttempt(attempt: TransportAttempt, input: ProcessImageInp
             },
           ],
         },
-      }).then((r) => {
-        if (!r.ok) return r;
-        const text = extractChatCompletionText(r.json);
-        if (!text) return buildChatCompletionParseFailure(attempt.url, r.json, r.rawText);
-        return { ok: true as const, text };
-      });
+      }).then((r) => r.ok ? { ok: true as const, text: extractChatCompletionText(r.json) ?? "" } : r);
 
     case "google-generate-content": {
       const modelPath = input.model.startsWith("models/") ? input.model : `models/${input.model}`;
@@ -321,20 +303,7 @@ async function runImageAttempt(attempt: TransportAttempt, input: ProcessImageInp
           ],
           generationConfig: { maxOutputTokens: 256 },
         },
-      }).then((r) => {
-        if (!r.ok) return r;
-        const text = extractGoogleText(r.json);
-        if (!text) return {
-          ok: false as const,
-          message: "The AI provider returned an unusable response. Try a different model or try again.",
-          retryable: false,
-          failureClass: "parse" as const,
-          transportKind: "google-generate-content" as const,
-          endpointFamily: "generate_content" as const,
-          url: endpoint,
-        };
-        return { ok: true as const, text };
-      });
+      }).then((r) => r.ok ? { ok: true as const, text: extractGoogleText(r.json) ?? "" } : r);
     }
 
     case "openai-responses":
@@ -356,20 +325,7 @@ async function runImageAttempt(attempt: TransportAttempt, input: ProcessImageInp
             },
           ],
         },
-      }).then((r) => {
-        if (!r.ok) return r;
-        const text = extractOpenAiResponsesText(r.json);
-        if (!text) return {
-          ok: false as const,
-          message: "The AI provider returned an unusable response. Try a different model or try again.",
-          retryable: false,
-          failureClass: "parse" as const,
-          transportKind: "openai-responses" as const,
-          endpointFamily: "responses" as const,
-          url: attempt.url,
-        };
-        return { ok: true as const, text };
-      });
+      }).then((r) => r.ok ? { ok: true as const, text: extractOpenAiResponsesText(r.json) ?? "" } : r);
   }
 }
 
