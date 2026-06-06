@@ -19,10 +19,12 @@ function StatefulImmersiveRouteShell({
   requestFullscreen,
   exitFullscreen,
   isEmbedMode = false,
+  canonicalHref,
 }: {
   requestFullscreen?: (this: HTMLElement) => Promise<void>;
   exitFullscreen?: () => Promise<void>;
   isEmbedMode?: boolean;
+  canonicalHref?: string;
 } = {}) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -45,6 +47,7 @@ function StatefulImmersiveRouteShell({
       onBack={() => undefined}
       isFullscreen={isFullscreen}
       isEmbedMode={isEmbedMode}
+      canonicalHref={canonicalHref}
       onToggleFullscreen={() => setIsFullscreen((current) => !current)}
       renderScene={({ fullscreen }) => (
         <div data-testid={fullscreen ? "fullscreen-scene" : "scene"}>Scene</div>
@@ -71,8 +74,56 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+function mockNavigatorUserAgent(userAgent: string, maxTouchPoints = 0) {
+  Object.defineProperty(window.navigator, "userAgent", {
+    configurable: true,
+    value: userAgent,
+  });
+  Object.defineProperty(window.navigator, "maxTouchPoints", {
+    configurable: true,
+    value: maxTouchPoints,
+  });
+}
+
 describe("ImmersiveRouteShell", () => {
+  it("renders an iPhone-only full-surface launcher for embed mode", () => {
+    mockNavigatorUserAgent(
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+    );
+
+    render(
+      <StatefulImmersiveRouteShell
+        isEmbedMode
+        canonicalHref="https://example.com/immersive/pieces/7?version=9"
+      />,
+    );
+
+    const launcher = screen.getByLabelText("Open immersive view");
+    expect(launcher).toBeTruthy();
+    expect(launcher.getAttribute("href")).toBe("https://example.com/immersive/pieces/7?version=9");
+    expect(launcher.getAttribute("target")).toBe("_blank");
+    expect(screen.queryByLabelText("Expand immersive view")).toBeNull();
+  });
+
+  it("keeps the fullscreen control for iPad embeds", () => {
+    mockNavigatorUserAgent(
+      "Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+      5,
+    );
+
+    render(
+      <StatefulImmersiveRouteShell
+        isEmbedMode
+        canonicalHref="https://example.com/immersive/pieces/7?version=9"
+      />,
+    );
+
+    expect(screen.queryByLabelText("Open immersive view")).toBeNull();
+    expect(screen.getByLabelText("Expand immersive view")).toBeTruthy();
+  });
+
   it("renders a stacked shell with metadata and an expand control", () => {
+    mockNavigatorUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15");
     setDocumentFlow(true);
     const renderScene = vi.fn(() => <div data-testid="scene">Scene</div>);
 
@@ -101,6 +152,7 @@ describe("ImmersiveRouteShell", () => {
   });
 
   it("keeps the stacked shell even on wide desktop viewports", () => {
+    mockNavigatorUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15");
     setDocumentFlow(false);
     const renderScene = vi.fn(() => <div data-testid="scene">Scene</div>);
 
@@ -128,6 +180,7 @@ describe("ImmersiveRouteShell", () => {
   });
 
   it("shows only the contract control inside fullscreen focus mode", () => {
+    mockNavigatorUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15");
     setDocumentFlow(true);
     const renderScene = vi.fn(() => <div data-testid="scene">Scene</div>);
 
@@ -153,6 +206,7 @@ describe("ImmersiveRouteShell", () => {
   });
 
   it("requests native fullscreen when expanding first-party immersive mode", async () => {
+    mockNavigatorUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15");
     const user = userEvent.setup();
     let fullscreenElement: Element | null = null;
     Object.defineProperty(document, "fullscreenElement", {
@@ -174,6 +228,7 @@ describe("ImmersiveRouteShell", () => {
   });
 
   it("keeps CSS fullscreen focus mode when native fullscreen is rejected", async () => {
+    mockNavigatorUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15");
     const user = userEvent.setup();
     const requestFullscreen = vi.fn(() => Promise.reject(new Error("Rejected")));
 
@@ -187,6 +242,7 @@ describe("ImmersiveRouteShell", () => {
   });
 
   it("syncs browser-driven native fullscreen exits back to the route state", async () => {
+    mockNavigatorUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15");
     const user = userEvent.setup();
     let fullscreenElement: Element | null = null;
     Object.defineProperty(document, "fullscreenElement", {
@@ -211,6 +267,7 @@ describe("ImmersiveRouteShell", () => {
   });
 
   it("restores document scroll and touch styles after fullscreen mode exits", async () => {
+    mockNavigatorUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15");
     const user = userEvent.setup();
     document.body.style.overflow = "auto";
     document.documentElement.style.overflow = "auto";
@@ -234,6 +291,7 @@ describe("ImmersiveRouteShell", () => {
   });
 
   it("hides the fullscreen control in static embed mode", () => {
+    mockNavigatorUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15");
     setDocumentFlow(true);
     const renderScene = vi.fn(() => <div data-testid="scene">Scene</div>);
 
@@ -261,6 +319,9 @@ describe("ImmersiveRouteShell", () => {
   });
 
   it("requests native fullscreen when expanding an embed", async () => {
+    mockNavigatorUserAgent(
+      "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36",
+    );
     const user = userEvent.setup();
     let fullscreenElement: Element | null = null;
     Object.defineProperty(document, "fullscreenElement", {
@@ -288,6 +349,9 @@ describe("ImmersiveRouteShell", () => {
   });
 
   it("falls back to in-frame focus mode when embed fullscreen is rejected", async () => {
+    mockNavigatorUserAgent(
+      "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36",
+    );
     const user = userEvent.setup();
     const requestFullscreen = vi.fn(() => Promise.reject(new Error("Rejected")));
 
@@ -307,6 +371,9 @@ describe("ImmersiveRouteShell", () => {
   });
 
   it("lets embed focus mode exit cleanly after fullscreen fallback", async () => {
+    mockNavigatorUserAgent(
+      "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36",
+    );
     const user = userEvent.setup();
     const requestFullscreen = vi.fn(() => Promise.reject(new Error("Rejected")));
 
@@ -326,5 +393,16 @@ describe("ImmersiveRouteShell", () => {
     expect(screen.queryByTestId("immersive-embed-expanded-root")).toBeNull();
     expect(screen.getByTestId("immersive-embed-root")).toBeTruthy();
     expect(screen.queryByTestId("fullscreen-scene")).toBeNull();
+  });
+
+  it("does not render the iPhone launcher when canonicalHref is missing", () => {
+    mockNavigatorUserAgent(
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+    );
+
+    render(<StatefulImmersiveRouteShell isEmbedMode />);
+
+    expect(screen.queryByLabelText("Open immersive view")).toBeNull();
+    expect(screen.getByLabelText("Expand immersive view")).toBeTruthy();
   });
 });

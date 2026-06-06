@@ -8,6 +8,9 @@ or rejection. -->
 2026-06-05 · OWNER BOOTSTRAP · First-owner setup now uses `OWNER_EMAILS` auto-claim plus `/admin/setup` instead of manual promotion as the default path. Existing populated sites bypass the setup gate automatically once startup repairs backfill bootstrap state.
     [Implemented 2026-06-05; verified from auth config sign-in hook, bootstrap middleware/routes, setup page, and updated repo docs.]
 
+2026-06-06 · EMBEDS · Interactive immersive piece embeds now detect iPhone-class WebKit browsers and turn the full embed surface into a launcher for the canonical immersive route, avoiding the broken in-iframe fullscreen control on iPhone while preserving existing behavior on iPad, Android, desktop, and non-embed immersive routes.
+    [Implemented 2026-06-06; verified from `artifacts/microblog/src/components/immersive/ImmersiveRouteShell.tsx`, focused embed/route tests, and successful microblog typecheck.]
+
 2026-06-03 · SVG PIECE VR ANIMATION · Fixed SVG pieces not animating in VR gallery. Root cause: `drawSvgSnapshot` embedded `cssCode` (with `@keyframes`) in the serialized clone — animations restarted from t=0 in the data URL image and overrode the `getComputedStyle` inline styles per the CSS cascade. Fix: always append `* { animation: none !important; transition: none !important; }` to the clone's `<style>` so @keyframes cannot restart; the inline styles now capture the live animated state correctly. Also added `"d"` (path morphing) to `propertiesToSync`. Removed the `engine==="svg" && fullscreen` bypass that had replaced `ImmersiveGalleryPieceStage` with a flat ArtPieceRenderer iframe — now SVG uses the VR gallery in all modes.
     [Fixed 2026-06-03; immersive-piece.tsx, immersive-exhibit-wall.tsx; typecheck clean.]
 
