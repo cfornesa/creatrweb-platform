@@ -82,5 +82,6 @@ describe("ImmersivePiecePage", () => {
     expect(capturedShellProps.at(-1)?.canonicalHref).toBe(
       `${window.location.origin}/immersive/pieces/7?version=9`,
     );
+    expect(capturedShellProps.at(-1)?.enableIPhoneEmbedLauncher).toBe(true);
   });
 });

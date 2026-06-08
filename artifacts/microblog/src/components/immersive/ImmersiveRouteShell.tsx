@@ -18,6 +18,7 @@ type ImmersiveMetadataCardProps = {
 type EmbedCodes = {
   plain: { label: string; code: string };
   gallery: { label: string; code: string };
+  galleryCms?: { label: string; code: string };
 };
 
 type ImmersiveRouteShellProps = {
@@ -30,8 +31,10 @@ type ImmersiveRouteShellProps = {
   sceneHeightClassName?: string;
   isEmbedMode?: boolean;
   showEmbedFullscreenControl?: boolean;
+  suppressFullscreenControlOnIPhone?: boolean;
   canonicalHref?: string;
   embedCodes?: EmbedCodes;
+  enableIPhoneEmbedLauncher?: boolean;
 };
 
 type ImmersiveStyleSnapshot = {
@@ -200,8 +203,10 @@ export function ImmersiveRouteShell({
   sceneHeightClassName = "h-[40svh] min-h-[300px]",
   isEmbedMode = false,
   showEmbedFullscreenControl = true,
+  suppressFullscreenControlOnIPhone = false,
   canonicalHref,
   embedCodes,
+  enableIPhoneEmbedLauncher = false,
 }: ImmersiveRouteShellProps) {
   const routeContainerRef = useRef<HTMLDivElement>(null);
   const embedContainerRef = useRef<HTMLDivElement>(null);
@@ -209,12 +214,44 @@ export function ImmersiveRouteShell({
   const [isEmbedFullscreen, setIsEmbedFullscreen] = useState(false);
   const [isEmbedFocusMode, setIsEmbedFocusMode] = useState(false);
   const isEmbedExpanded = isEmbedFullscreen || isEmbedFocusMode;
-  const shouldUseIPhoneEmbedLauncher =
-    isEmbedMode && !!canonicalHref && isIPhoneWebKitBrowser();
+  const [hasWrapper, setHasWrapper] = useState(false);
 
   useEffect(() => {
     isFullscreenRef.current = isFullscreen;
   }, [isFullscreen]);
+
+  useEffect(() => {
+    if (!isEmbedMode) return;
+    function handleMessage(e: MessageEvent) {
+      if (e.data && e.data.type === "creatr-wrapper-connected") {
+        setHasWrapper(true);
+      }
+      if (e.data && e.data.type === "creatr-parent-exit-fullscreen") {
+        setIsEmbedFocusMode(false);
+      }
+    }
+    function announceReady() {
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: "creatr-iframe-ready" }, "*");
+        }
+      } catch {}
+    }
+    window.addEventListener("message", handleMessage);
+    announceReady();
+    // Heavier CMS pages can load embed.js (deferred) well after this iframe
+    // mounts, so the wrapper element may not exist yet for the first
+    // announcement. Re-announce for a bounded window so a late-defined
+    // wrapper still completes the handshake instead of leaving hasWrapper
+    // permanently false.
+    const retryIntervalId = window.setInterval(announceReady, 800);
+    const retryTimeoutId = window.setTimeout(() => window.clearInterval(retryIntervalId), 20000);
+    return () => {
+      window.removeEventListener("message", handleMessage);
+      window.clearInterval(retryIntervalId);
+      window.clearTimeout(retryTimeoutId);
+    };
+  }, [isEmbedMode]);
 
   useEffect(() => {
     function onFullscreenChange() {
@@ -315,6 +352,56 @@ export function ImmersiveRouteShell({
 
   if (isEmbedMode) {
     async function handleEmbedToggle() {
+      if (isIPhoneWebKitBrowser()) {
+        if (hasWrapper) {
+          try {
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage(
+                { type: "creatr-toggle-fullscreen", value: !isEmbedFocusMode },
+                "*"
+              );
+              setIsEmbedFocusMode((prev) => !prev);
+              return;
+            }
+          } catch {}
+        }
+
+        // No wrapper connected (e.g. the CMS stripped the embed's <script>
+        // tag, so embed.js never defined creatr-* on the parent page). Try
+        // native fullscreen on this element directly before resorting to
+        // navigation: the generated <iframe> already carries
+        // allowfullscreen/allow="fullscreen", and unlike CSS position:fixed,
+        // the Fullscreen API can promote the element to cover the entire
+        // physical screen even though it lives inside an iframe.
+        const embedTarget = embedContainerRef.current;
+        if (embedTarget && typeof embedTarget.requestFullscreen === "function") {
+          try {
+            await requestElementFullscreen(embedTarget);
+            setIsEmbedFocusMode(false);
+            return;
+          } catch {
+            // Fullscreen unavailable inside this iframe (e.g. the CMS's own
+            // wrapper iframe doesn't delegate the fullscreen permission) —
+            // fall through to the navigation-based escape hatch below.
+          }
+        }
+
+        const targetUrl = new URL(canonicalHref || window.location.href, window.location.origin);
+        targetUrl.searchParams.set("fullscreen", "1");
+        const redirectStr = targetUrl.toString();
+
+        try {
+          if (window.top && window.top !== window) {
+            window.top.location.assign(redirectStr);
+            return;
+          }
+        } catch {
+          // Top navigation is blocked (e.g. strict cross-origin iframe sandbox rules)
+        }
+        window.open(redirectStr, "_blank", "noopener,noreferrer");
+        return;
+      }
+
       if (isEmbedExpanded) {
         if (document.fullscreenElement === embedContainerRef.current) {
           try {
@@ -353,40 +440,39 @@ export function ImmersiveRouteShell({
         )}
       >
         {renderScene({ fullscreen: isEmbedExpanded, isMobile: false })}
-        {shouldUseIPhoneEmbedLauncher ? (
-          <a
-            href={canonicalHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Open immersive view"
-            className="absolute inset-0 z-20 flex items-end justify-end bg-gradient-to-t from-black/30 via-black/5 to-transparent p-4 text-white transition hover:from-black/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-          >
-            <span className="inline-flex min-h-10 items-center rounded-full border border-white/20 bg-black/60 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] shadow-lg backdrop-blur">
-              <Box className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-              <span aria-hidden="true">Open immersive view</span>
-            </span>
-          </a>
-        ) : null}
         <div className="pointer-events-none absolute inset-0 z-10">
-          <div className="pointer-events-auto absolute bottom-4 right-4 z-20 flex items-center gap-2">
-            {canonicalHref && !showEmbedFullscreenControl ? (
-              <a
-                href={canonicalHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Open in immersive view"
-                className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/20 bg-black/55 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white shadow-lg backdrop-blur transition hover:bg-black/70"
-              >
-                <Box className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                <span aria-hidden="true">VR</span>
-              </a>
-            ) : null}
-            {showEmbedFullscreenControl && !shouldUseIPhoneEmbedLauncher ? (
-              <FullscreenToggleButton
-                isFullscreen={isEmbedExpanded}
-                onToggle={handleEmbedToggle}
-              />
-            ) : null}
+          <div className="pointer-events-auto absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-20 flex items-center gap-2">
+            {!(isEmbedMode && isIPhoneWebKitBrowser() && !hasWrapper) && (
+              <>
+                {canonicalHref && !showEmbedFullscreenControl ? (
+                  <a
+                    href={(() => {
+                      try {
+                        const u = new URL(canonicalHref, window.location.origin);
+                        u.searchParams.set("fullscreen", "1");
+                        return u.toString();
+                      } catch {
+                        return canonicalHref;
+                      }
+                    })()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Open in immersive view"
+                    className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/20 bg-black/55 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white shadow-lg backdrop-blur transition hover:bg-black/70"
+                  >
+                    <Box className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                    <span aria-hidden="true">VR</span>
+                  </a>
+                ) : null}
+                {showEmbedFullscreenControl
+                && !(suppressFullscreenControlOnIPhone && isIPhoneWebKitBrowser()) ? (
+                  <FullscreenToggleButton
+                    isFullscreen={isEmbedExpanded}
+                    onToggle={handleEmbedToggle}
+                  />
+                ) : null}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -449,6 +535,9 @@ export function ImmersiveRouteShell({
             <section className="flex flex-wrap gap-2 border-b border-white/10 px-4 py-3 sm:px-6">
               <EmbedCopyButton label={embedCodes.plain.label} code={embedCodes.plain.code} />
               <EmbedCopyButton label={embedCodes.gallery.label} code={embedCodes.gallery.code} />
+              {embedCodes.galleryCms && (
+                <EmbedCopyButton label={embedCodes.galleryCms.label} code={embedCodes.galleryCms.code} />
+              )}
             </section>
           )}
 

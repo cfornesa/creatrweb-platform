@@ -20,11 +20,13 @@ function StatefulImmersiveRouteShell({
   exitFullscreen,
   isEmbedMode = false,
   canonicalHref,
+  enableIPhoneEmbedLauncher = false,
 }: {
   requestFullscreen?: (this: HTMLElement) => Promise<void>;
   exitFullscreen?: () => Promise<void>;
   isEmbedMode?: boolean;
   canonicalHref?: string;
+  enableIPhoneEmbedLauncher?: boolean;
 } = {}) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -48,6 +50,7 @@ function StatefulImmersiveRouteShell({
       isFullscreen={isFullscreen}
       isEmbedMode={isEmbedMode}
       canonicalHref={canonicalHref}
+      enableIPhoneEmbedLauncher={enableIPhoneEmbedLauncher}
       onToggleFullscreen={() => setIsFullscreen((current) => !current)}
       renderScene={({ fullscreen }) => (
         <div data-testid={fullscreen ? "fullscreen-scene" : "scene"}>Scene</div>
@@ -86,7 +89,7 @@ function mockNavigatorUserAgent(userAgent: string, maxTouchPoints = 0) {
 }
 
 describe("ImmersiveRouteShell", () => {
-  it("renders an iPhone-only full-surface launcher for embed mode", () => {
+  it("hides the lower-right embed control on iPhone piece embeds", async () => {
     mockNavigatorUserAgent(
       "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
     );
@@ -98,11 +101,8 @@ describe("ImmersiveRouteShell", () => {
       />,
     );
 
-    const launcher = screen.getByLabelText("Open immersive view");
-    expect(launcher).toBeTruthy();
-    expect(launcher.getAttribute("href")).toBe("https://example.com/immersive/pieces/7?version=9");
-    expect(launcher.getAttribute("target")).toBe("_blank");
-    expect(screen.queryByLabelText("Expand immersive view")).toBeNull();
+    const button = screen.queryByLabelText("Expand immersive view");
+    expect(button).toBeNull();
   });
 
   it("keeps the fullscreen control for iPad embeds", () => {
@@ -115,10 +115,10 @@ describe("ImmersiveRouteShell", () => {
       <StatefulImmersiveRouteShell
         isEmbedMode
         canonicalHref="https://example.com/immersive/pieces/7?version=9"
+        enableIPhoneEmbedLauncher
       />,
     );
 
-    expect(screen.queryByLabelText("Open immersive view")).toBeNull();
     expect(screen.getByLabelText("Expand immersive view")).toBeTruthy();
   });
 
@@ -395,14 +395,83 @@ describe("ImmersiveRouteShell", () => {
     expect(screen.queryByTestId("fullscreen-scene")).toBeNull();
   });
 
-  it("does not render the iPhone launcher when canonicalHref is missing", () => {
+  it("hides the control on iPhone embeds even if canonicalHref is missing", () => {
     mockNavigatorUserAgent(
       "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
     );
 
     render(<StatefulImmersiveRouteShell isEmbedMode />);
 
-    expect(screen.queryByLabelText("Open immersive view")).toBeNull();
+    const button = screen.queryByLabelText("Expand immersive view");
+    expect(button).toBeNull();
+  });
+
+  it("renders the fullscreen control on iPhone in embed mode when wrapped", async () => {
+    mockNavigatorUserAgent(
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+    );
+
+    render(
+      <StatefulImmersiveRouteShell
+        isEmbedMode
+        canonicalHref="https://example.com/immersive/pieces/7?version=9"
+      />,
+    );
+
+    // Initially hidden because hasWrapper is false
+    expect(screen.queryByLabelText("Expand immersive view")).toBeNull();
+
+    // Simulate parent connecting handshake (postMessage)
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: { type: "creatr-wrapper-connected" },
+        })
+      );
+    });
+
+    // Should now be visible
     expect(screen.getByLabelText("Expand immersive view")).toBeTruthy();
+  });
+
+  it("sends postMessage to parent window when wrapped on iPhone and clicked", async () => {
+    mockNavigatorUserAgent(
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+    );
+    const user = userEvent.setup();
+
+    // Mock window.parent as a separate object to trigger window.parent !== window
+    const parentMock = {
+      postMessage: vi.fn(),
+    };
+    Object.defineProperty(window, "parent", {
+      configurable: true,
+      value: parentMock,
+    });
+
+    render(
+      <StatefulImmersiveRouteShell
+        isEmbedMode
+        canonicalHref="https://example.com/immersive/pieces/7?version=9"
+      />,
+    );
+
+    // Connect handshake
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: { type: "creatr-wrapper-connected" },
+        })
+      );
+    });
+
+    const button = screen.getByLabelText("Expand immersive view");
+    await user.click(button);
+
+    // Should send postMessage to parent to toggle fullscreen
+    expect(parentMock.postMessage).toHaveBeenCalledWith(
+      { type: "creatr-toggle-fullscreen", value: true },
+      "*"
+    );
   });
 });
